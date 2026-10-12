@@ -43,13 +43,22 @@ selected = {
     "Baccarat.Global": {"LaunchBrowser", "LaunchHeadlessBrowser", "StartChrome", "StartChromeHeadless", "StartSeleniumHeadless", "DownloadLatestVersionOfChromeDriver", "GetInternetDate", "Withdraw", "TwoFactorCheck", "GetCoinAddresses", "Encrypt", "Decrypt", ".cctor"},
     "Baccarat.SignIn": {".ctor", "i08fhOne1M", ".cctor"},
     "Baccarat.Program": {"Main", ".cctor"},
+    "Updater.ConfirmUpdate": {"btnProceed_Click", "ConfirmUpdate_Load", "_timer_Elapsed"},
+    "Updater.DownloadUpdate": {"DownloadUpdate_Load", "btnClose_Click"},
+    "Updater.Program": {"Main"},
+    "Updater.Updates": {"CheckForUpdates", "IsNewVersion", "GetOldVersion", "GetNewVersion", "CheckForInternetConnection", "UpdateFiles", "KillProcess", "DownloadLatest", "GetTemporaryDirectory", "DirectoryCopy", "SetNewVersion", "SetPermissions", ".cctor"},
 }
 
 for type_row in pe.net.mdtables.TypeDef.rows:
     fullname = f"{type_row.TypeNamespace}.{type_row.TypeName}".strip(".")
     wanted = selected.get(fullname)
     # These routines are referenced by the recovered static initializers.
-    decoder_names = {"lj2CnC3XCe", "Bt3CZBbOLm", "NBZCSYshtE", "y6YCC0oNi8"}
+    decoder_names = {
+        "lj2CnC3XCe", "Bt3CZBbOLm", "NBZCSYshtE", "y6YCC0oNi8",
+        # Version 2 string/configuration decoder and startup protection routines.
+        "NASP55YLMI", "jcCPYVXWLf", "GMyP2yNkCu", "iIJPh5Y8ZT",
+        "LjOi6fLzJ3cl7", "rBAPS82UKfeKS",
+    }
     if not wanted:
         wanted = {str(m.row.Name) for m in type_row.MethodList} & decoder_names
     if not wanted:

@@ -4,6 +4,10 @@ Local project for investigating the supplied Windows executable and rebuilding v
 
 Start with [TODO.md](TODO.md) and [analysis findings](docs/findings.md).
 
+The completed evidence baseline is documented in [the Phase 1 evidence index](docs/phase-1-evidence-index.md). Regenerate its ignored file manifest with `tools/inventory-original.ps1`; the tool hashes and inspects files without launching supplied programs.
+
+[The Phase 2 static recovery report](docs/phase-2-static-recovery.md) records the recovered form structure, startup branch, protected method tokens, configuration-decoder inputs and resource classification.
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in macOS Keychain. Choose exact package versions when creating the application scaffold.

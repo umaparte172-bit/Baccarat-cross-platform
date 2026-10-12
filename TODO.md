@@ -8,16 +8,19 @@ Work proceeds in dependency order. Completion means the acceptance criteria have
 - [x] Preserve initial analysis scripts and reports locally.
 - [x] Document confirmed findings and correct unsupported conclusions.
 - [x] Select .NET 10 LTS + Avalonia as the intended desktop stack.
+- [x] Add a reproducible read-only evidence inventory and evidence-to-finding index.
 
-## 2. Static recovery — in progress
+## 2. Static recovery — completed to the protected-image boundary
 
 - [x] Implement bounded embedded-resource extraction with content hashes.
 - [x] Run extraction and record results (five resources; CLR flags 0x20003).
-- [ ] Identify resource formats; determine whether dependencies are embedded.
-- [ ] Trace the string decoder and startup protection routines using static IL.
-- [ ] Recover endpoint configuration where possible; do not invent routes or response schemas.
-- [ ] Inventory forms, controls and settings.
-- [ ] Document recovered behavior with method/token evidence and confidence levels.
+- [x] Classify version 2 resources as protected opaque blobs; no ordinary embedded assemblies were demonstrated.
+- [x] Trace the version 2 string decoder call sites and startup protection routines using static IL.
+- [x] Recover configuration field assignments and decoder inputs; plaintext endpoint values remain protected.
+- [x] Inventory supplied installer, installed files, per-user settings and strategy files.
+- [x] Recover and document the standalone updater workflow.
+- [x] Inventory all form fields, controls and methods; record that event wiring is absent from protected disk stubs.
+- [x] Document recovered behavior with method/token evidence and confidence levels.
 
 Acceptance: reproducible inventory, known limits, and sufficient evidence for each implemented feature.
 
