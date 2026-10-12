@@ -1,0 +1,15 @@
+.uv-cache/
+.venv/
+.tools/
+__pycache__/
+*.pyc
+*.exe
+*.dll
+artifacts/
+static-analysis.json
+selected-il.txt
+bin/
+obj/
+.DS_Store
+*.user
+.env

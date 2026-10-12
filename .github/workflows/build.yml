@@ -1,0 +1,16 @@
+name: Desktop build
+on: [push, pull_request]
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build src/Baccarat.Desktop/Baccarat.Desktop.csproj -c Release
+      - run: dotnet run --project tests/Baccarat.Core.Checks -c Release
+      - run: dotnet run --project tests/Baccarat.Desktop.Checks -c Release
