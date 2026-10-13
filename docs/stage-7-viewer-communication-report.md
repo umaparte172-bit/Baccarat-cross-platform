@@ -32,9 +32,9 @@ Compatibility is exact by design. A future schema change must add an explicit ve
 - The validator checks document identity, UTC timestamps, positive sequences, exact type/version pairs and payload invariants.
 - The JSON codec rejects unknown fields, duplicate property names, malformed JSON, nesting deeper than 16 levels and documents larger than 256 KiB.
 - The document store accepts only strictly increasing sequence numbers and retains a configurable bounded history (100 documents by default, maximum 10,000).
-- The communication module creates identifiers and sequence numbers, uses an injected transport, decodes received bytes and isolates viewer subscribers so one failed consumer cannot block the others.
+- The communication module creates identifiers and sequence numbers, serializes concurrent publication and receive processing, uses an injected transport, decodes received bytes and isolates viewer subscribers so one failed consumer cannot block the others.
 - The loopback transport performs the complete encode/transmit/decode path locally. `IViewerMessageTransport` is the seam for a later evidenced WebSocket adapter.
-- The desktop composition root supplies one communication module to the Session, Strategies and Viewer workspaces.
+- The desktop composition root supplies one communication module to the Session, Strategies and Viewer workspaces. Viewer callbacks are marshalled to the Avalonia UI thread before controls are updated.
 
 ## Live integration
 
@@ -54,7 +54,9 @@ Release build and automated checks verify:
 - rejection of unsupported envelope and document versions;
 - rejection of duplicate JSON properties;
 - duplicate and out-of-order sequence suppression;
+- size, nesting-depth, unknown-type and history-capacity boundaries;
 - ordered loopback delivery and subscriber-failure isolation;
+- serialized delivery under concurrent publication;
 - live Session-to-Viewer and Strategy-to-Viewer updates in a headless Avalonia run.
 
 ## Remaining evidence boundary

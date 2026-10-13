@@ -12,5 +12,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: dotnet build Baccarat.slnx -c Release
+      - run: dotnet format Baccarat.slnx --no-restore --verify-no-changes
       - run: dotnet run --project tests/Baccarat.Core.Checks -c Release
       - run: dotnet run --project tests/Baccarat.Desktop.Checks -c Release
+
+  static-analysis-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: python -m pip install dnfile==0.18.0 pefile==2024.8.26 dncil==1.0.2
+      - run: python -m unittest discover -s tests -p 'test_*.py' -v

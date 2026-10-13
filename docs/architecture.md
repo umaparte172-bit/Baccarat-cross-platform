@@ -30,7 +30,7 @@ Replaceable technical adapters:
 - `VolatileSecretStore` keeps temporary values in memory and never persists credentials to disk.
 - `StrategyFileLoader` performs bounded, strict JSON parsing and maps recovered strategy files into validated Core definitions.
 - `VersionedViewerDocumentCodec` strictly encodes and decodes viewer JSON, rejecting unknown fields, duplicate properties, unsupported versions, excessive depth and documents larger than 256 KiB.
-- `ViewerCommunicationModule` assigns ordered sequence numbers and routes documents through `IViewerMessageTransport` without depending on the desktop UI.
+- `ViewerCommunicationModule` assigns ordered sequence numbers, serializes concurrent publication and receipt, and routes documents through `IViewerMessageTransport` without depending on the desktop UI.
 - `LoopbackViewerMessageTransport` is the safe offline transport used today. A future WebSocket transport can implement the same boundary after its legacy contract is evidenced.
 
 Future WebSocket and Windows Credential Manager/macOS Keychain adapters belong here. The recovered HTTP protocol codec will implement the existing protocol boundary without changing session logic or UI state handling.
@@ -42,7 +42,7 @@ Cross-platform Avalonia presentation:
 - `MainWindow` owns top-level navigation.
 - `AccountView` owns account input and displays normalized authentication state.
 - `StrategyView` imports strategy files, displays recommendations, accepts observed outcomes and exposes manual resolution, undo, reset and export.
-- `ViewerView` displays the active protocol/document versions, communication status, current session and strategy snapshots, and bounded document history.
+- `ViewerView` displays the active protocol/document versions, communication status, current session and strategy snapshots, and bounded document history. Transport callbacks are marshalled onto the Avalonia UI thread.
 - The Session tab remains available without a server.
 - Password text is cleared after every sign-in or registration attempt and is not persisted.
 
