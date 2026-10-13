@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Automation;
 using Baccarat.Core.Communication;
 using Baccarat.Core.Diagnostics;
 using Baccarat.Core.Strategies;
@@ -31,7 +32,8 @@ public sealed class MainWindow : Window
         IDiagnosticSink? diagnostics = null,
         IAuthenticationSessionStore? authenticationSessions = null,
         StrategyDefinition? initialStrategy = null,
-        ViewerCommunicationModule? viewerCommunication = null)
+        ViewerCommunicationModule? viewerCommunication = null,
+        AutomationController? automationController = null)
     {
         var defaults = ApplicationServices.CreateDefault();
         this.diagnostics = diagnostics ?? defaults.Diagnostics;
@@ -63,13 +65,19 @@ public sealed class MainWindow : Window
             this.diagnostics,
             authenticationSessions ?? defaults.AuthenticationSessions);
         var viewer = new ViewerView(this.viewerCommunication);
-        var strategies = new StrategyView(new StrategyFileLoader(), initialStrategy, PublishStrategy);
+        var automation = new AutomationView(automationController ?? defaults.Automation);
+        var strategies = new StrategyView(new StrategyFileLoader(), initialStrategy, engine =>
+        {
+            PublishStrategy(engine);
+            automation.UpdateStrategy(engine);
+        });
 
         var tabs = new TabControl
         {
             ItemsSource = new[] {
             new TabItem { Header = "Session", Content = new ScrollViewer { Content = overview } },
             new TabItem { Header = "Strategies", Content = new ScrollViewer { Content = strategies } },
+            new TabItem { Header = "Automation", Content = new ScrollViewer { Content = automation } },
             new TabItem { Header = "Viewer", Content = new ScrollViewer { Content = viewer } },
             new TabItem { Header = "Account", Content = new ScrollViewer { Content = account } }
         }

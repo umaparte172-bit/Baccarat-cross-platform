@@ -1,8 +1,10 @@
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Automation;
 using Baccarat.Core.Configuration;
 using Baccarat.Core.Diagnostics;
 using Baccarat.Core.Security;
 using Baccarat.Infrastructure.Authentication;
+using Baccarat.Infrastructure.Automation;
 using Baccarat.Infrastructure.Communication;
 using Baccarat.Infrastructure.Diagnostics;
 using Baccarat.Infrastructure.Security;
@@ -12,6 +14,7 @@ namespace Baccarat.Desktop;
 public sealed record ApplicationServices(
     IAuthenticationService Authentication,
     IAuthenticationSessionStore AuthenticationSessions,
+    AutomationController Automation,
     ViewerCommunicationModule ViewerCommunication,
     ISecretStore Secrets,
     IDiagnosticSink Diagnostics,
@@ -27,6 +30,7 @@ public sealed record ApplicationServices(
         return new(
             new OfflineAuthenticationService(),
             new SecretAuthenticationSessionStore(secrets),
+            new AutomationController(new SimulatedAutomationTableAdapter()),
             new ViewerCommunicationModule(new LoopbackViewerMessageTransport()),
             secrets,
             new RedactingDiagnosticSink(_ => { }),

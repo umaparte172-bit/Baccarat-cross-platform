@@ -52,13 +52,41 @@ if (!HasText("Profit 0.00") || !HasText("Bet 1 on Player."))
 
 tabs.SelectedIndex = 2;
 window.UpdateLayout();
+if (!HasText("Controlled automation") || !HasText("Local simulation is the only enabled adapter"))
+    throw new Exception("Controlled automation workspace was not shown");
+Click("Connect simulation");
+window.UpdateLayout();
+if (!HasText("Simulation table connected.")) throw new Exception("Automation simulation did not connect");
+Click("Prepare initial bet");
+window.UpdateLayout();
+if (!HasText("Approve 1 on Player.")) throw new Exception("Initial bet did not enter approval state");
+Click("Approve pending bet");
+window.UpdateLayout();
+if (!HasText("Simulation accepted 1 on Player.") || !HasText("Accepted bets 1"))
+    throw new Exception("Approved initial Player bet was not simulated");
+Click("Enable auto-bet");
+
+tabs.SelectedIndex = 1;
+window.UpdateLayout();
+Click("Banker result");
+window.UpdateLayout();
+tabs.SelectedIndex = 2;
+window.UpdateLayout();
+if (!HasText("Approve 2 on Banker.")) throw new Exception("Auto-bet did not prepare the next Banker action");
+Click("Approve pending bet");
+window.UpdateLayout();
+if (!HasText("Simulation accepted 2 on Banker.") || !HasText("Accepted bets 2"))
+    throw new Exception("Approved automatic Banker bet was not simulated");
+
+tabs.SelectedIndex = 3;
+window.UpdateLayout();
 if (!HasText("Protocol 1.0") || !HasText("Rounds 1 · Player 1 · Banker 0 · Tie 0"))
     throw new Exception("Viewer did not receive the versioned manual-session document: " +
         string.Join(" | ", window.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text)));
-if (!HasText("UI Fixture · Profit 0.00"))
+if (!HasText("UI Fixture · Profit -1.00"))
     throw new Exception("Viewer did not receive the latest versioned strategy document");
 
-tabs.SelectedIndex = 3;
+tabs.SelectedIndex = 4;
 window.UpdateLayout();
 if (FindButton("Sign out").IsEnabled) throw new Exception("Offline account must not expose sign-out");
 if (!FindButton("Sign in").IsEnabled || !FindButton("Create account").IsEnabled)
