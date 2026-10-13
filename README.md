@@ -24,6 +24,8 @@ The security hardening performed before controlled automation is recorded in [th
 
 The feature-complete simulated automation workflow and live-adapter evidence boundary are documented in [the Stage 8 automation report](docs/stage-8-automation-report.md).
 
+The macOS Keychain implementation, dual-architecture app packaging, validation evidence and remaining distribution boundary are documented in [the Stage 9 delivery report](docs/stage-9-macos-delivery-report.md).
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in macOS Keychain. Choose exact package versions when creating the application scaffold.

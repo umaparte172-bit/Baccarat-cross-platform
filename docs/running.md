@@ -25,10 +25,37 @@ dotnet publish src/Baccarat.Desktop -c Release -r osx-arm64 --self-contained tru
 dotnet publish src/Baccarat.Desktop -c Release -r osx-x64 --self-contained true -o artifacts/publish/osx-x64
 ```
 
-Run Baccarat.Desktop.exe on Windows or the Baccarat.Desktop executable on a matching Mac. macOS app-bundle packaging, signing and notarization are pending; the publish commands alone do not create a signed installer. Source code is shared across these targets, but macOS runtime behavior must be tested on a Mac.
+Run `Baccarat.Desktop.exe` on Windows. The raw macOS publish commands are useful for diagnostics, but the packaging workflow below should be used to create a normal application bundle.
 
-The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests.
+## macOS app bundle
+
+On a Mac with the .NET 10 SDK, choose the runtime matching the target machine:
+
+```sh
+bash tools/package-macos.sh osx-arm64 Release artifacts/macos/osx-arm64
+bash tools/package-macos.sh osx-x64 Release artifacts/macos/osx-x64
+```
+
+Each command creates and validates `Baccarat Workspace.app`. The output directory must not already contain that bundle, which prevents stale files from leaking into a package. CI runs both commands and publishes separate unsigned ZIP artifacts from the `Desktop build` workflow. Those artifacts are appropriate for development verification only; they are not signed public releases.
+
+For distribution, first install a Developer ID Application certificate in the login Keychain and create a `notarytool` profile interactively:
+
+```sh
+xcrun notarytool store-credentials Baccarat-notary
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Organization (TEAMID)"
+export APPLE_NOTARY_PROFILE="Baccarat-notary"
+bash tools/sign-notarize-macos.sh \
+  "artifacts/macos/osx-arm64/Baccarat Workspace.app" \
+  osx-arm64 \
+  "artifacts/macos/osx-arm64/Baccarat-Workspace-osx-arm64.zip"
+```
+
+The signing script stops if either configuration value is missing, signs nested Mach-O files before the bundle, enables hardened runtime and a secure timestamp, submits with `notarytool`, staples the ticket, then runs signature, stapler and Gatekeeper validation. It does not accept or store an Apple password. Repeat with `osx-x64` for an Intel package.
+
+macOS stores authenticated sessions as generic-password items in the user's Keychain under service `com.baccarat.crossplatform`. Other platforms currently use the in-memory development store.
+
+The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests and creates both unsigned macOS architecture artifacts.
 
 ## Validation record
 
-The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-13. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. No Mac execution has been performed.
+The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-13. The same build and checks passed on a GitHub-hosted macOS runner, including default Keychain selection and a missing-item lookup. CI also created and validated native `osx-arm64` and `osx-x64` app bundles. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. Interactive installation, Developer ID signing/notarization and live browser integration have not been tested.

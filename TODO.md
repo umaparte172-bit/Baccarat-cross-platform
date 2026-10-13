@@ -109,10 +109,12 @@ The controlled automation workflow is feature-complete in local simulation. No r
 
 ## 9. macOS delivery
 
-- [ ] Build for Apple Silicon and Intel as appropriate.
-- [ ] Verify UI, browser integration and Keychain on macOS.
-- [ ] Package an app bundle.
-- [ ] Sign and notarize when an Apple Developer identity is available.
-- [ ] Validate installation and publish usage instructions.
+- [x] Build and validate self-contained Apple Silicon and Intel artifacts on macOS CI.
+- [x] Verify the headless UI workflow and default Keychain read path on a macOS runner.
+- [x] Package standard `.app` bundles and preserve their executable permissions in ZIP artifacts.
+- [x] Provide fail-closed Developer ID signing, hardened-runtime, notarization and stapling tooling.
+- [x] Publish local packaging, signing and validation instructions.
+- [ ] Execute signing/notarization and validate an interactive installation when Apple Developer credentials and a test Mac are available.
+- [ ] Verify live browser/table integration after the evidence-gated adapter exists.
 
-Current constraints: this workspace is Windows; a local .NET SDK is installed under .tools. No macOS runtime testing has occurred. Real service contracts remain unknown. Desktop validation is tracked separately from the passing core checks.
+The unsigned `osx-arm64` and `osx-x64` app bundles are produced by CI. They are development artifacts, not public distribution packages. Actual signing and notarization deliberately require a configured Developer ID identity and `notarytool` Keychain profile; no credentials are stored in the repository. Real service contracts and the live browser/table adapter remain unknown.
