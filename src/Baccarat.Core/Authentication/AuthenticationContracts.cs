@@ -2,6 +2,13 @@ namespace Baccarat.Core.Authentication;
 
 public sealed record SignInRequest(string Email, string Password);
 
+public sealed record SignUpRequest(
+    string Name,
+    string Email,
+    string Password,
+    string Phone,
+    string Country);
+
 public sealed record AuthenticatedSession(string UserId, string AccessToken, DateTimeOffset? ExpiresAt);
 
 public enum AuthenticationOutcome
@@ -27,6 +34,7 @@ public sealed record AuthenticationResult(
 public interface IAuthenticationService
 {
     Task<AuthenticationResult> SignInAsync(SignInRequest request, CancellationToken cancellationToken = default);
+    Task<AuthenticationResult> SignUpAsync(SignUpRequest request, CancellationToken cancellationToken = default);
     Task SignOutAsync(AuthenticatedSession session, CancellationToken cancellationToken = default);
 }
 

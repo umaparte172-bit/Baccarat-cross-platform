@@ -103,6 +103,22 @@ Check((await expiredController.RestoreSessionAsync()).Outcome == AuthenticationO
     "Expired stored sessions must be rejected and removed");
 Console.WriteLine("PASS: authentication session validation, persistence, restoration, expiry and cleanup");
 
+var registrationResponses = new Queue<AuthenticationResult?>();
+var registrationService = new StubAuthenticationService(registrationResponses);
+var registrationController = new AuthenticationController(registrationService);
+Check((await registrationController.SignUpAsync("", "test@example.com", "secret", "123", "Testland")).Outcome ==
+      AuthenticationOutcome.ValidationFailed,
+    "Registration must require a name");
+Check(registrationService.SignUpCalls == 0, "Invalid registration must not call the transport");
+registrationResponses.Enqueue(new(
+    AuthenticationOutcome.Authenticated,
+    "Account created.",
+    new AuthenticatedSession("new-user", "registration-token", null)));
+Check((await registrationController.SignUpAsync(
+    "Test User", "test@example.com", "secret", "123", "Testland")).IsAuthenticated,
+    "A successful registration response must establish a session");
+Console.WriteLine("PASS: registration validation and authenticated completion");
+
 try
 {
     using var _ = new HttpAuthenticationService(
@@ -137,6 +153,14 @@ transport.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.ServiceUnavai
 Check((await httpAuthentication.SignInAsync(new SignInRequest("test@example.com", "secret"))).Outcome ==
       AuthenticationOutcome.Unavailable,
     "HTTP 5xx must be normalized as service unavailable");
+
+transport.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK)
+{
+    Content = new StringContent("registered-user|registered-token|2026-10-13T01:00:00+00:00")
+});
+Check((await httpAuthentication.SignUpAsync(new SignUpRequest(
+    "Test User", "test@example.com", "secret", "123", "Testland"))).IsAuthenticated,
+    "Registration must use the same confined HTTP transport and normalized session result");
 
 transport.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK));
 await httpAuthentication.SignOutAsync(new AuthenticatedSession("fixture-user", "signout-token", null));
@@ -187,6 +211,7 @@ sealed class StubAuthenticationService(Queue<AuthenticationResult?> responses) :
 {
     public int SignInCalls { get; private set; }
     public int SignOutCalls { get; private set; }
+    public int SignUpCalls { get; private set; }
     public bool ThrowOnSignIn { get; set; }
     public bool ThrowOnSignOut { get; set; }
 
@@ -202,6 +227,14 @@ sealed class StubAuthenticationService(Queue<AuthenticationResult?> responses) :
         SignOutCalls++;
         if (ThrowOnSignOut) throw new InvalidOperationException("fixture failure");
         return Task.CompletedTask;
+    }
+
+    public Task<AuthenticationResult> SignUpAsync(
+        SignUpRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        SignUpCalls++;
+        return Task.FromResult(responses.Dequeue()!);
     }
 }
 
@@ -251,6 +284,21 @@ class FixtureAuthenticationProtocol : IAuthenticationHttpProtocol
             "Connected.",
             new AuthenticatedSession(fields[0], fields[1], expiresAt));
     }
+
+    public HttpRequestMessage CreateSignUpRequest(SignUpRequest request) => new(
+        HttpMethod.Post,
+        "fixture/sign-up")
+    {
+        Content = new StringContent(
+            $"{request.Name}|{request.Email}|{request.Password}|{request.Phone}|{request.Country}",
+            Encoding.UTF8,
+            "text/plain")
+    };
+
+    public ValueTask<AuthenticationResult> ReadSignUpResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default) =>
+        ReadSignInResponseAsync(response, cancellationToken);
 
     public HttpRequestMessage CreateSignOutRequest(AuthenticatedSession session)
     {

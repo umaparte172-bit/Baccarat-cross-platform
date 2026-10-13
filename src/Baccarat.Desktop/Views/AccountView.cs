@@ -10,10 +10,14 @@ namespace Baccarat.Desktop.Views;
 public sealed class AccountView : StackPanel
 {
     private readonly AuthenticationController controller;
+    private readonly TextBox name = new() { Watermark = "Name (for registration)", MaxWidth = 460 };
     private readonly TextBox email = new() { Watermark = "Email", MaxWidth = 460 };
     private readonly TextBox password = new() { Watermark = "Password", PasswordChar = '•', MaxWidth = 460 };
+    private readonly TextBox phone = new() { Watermark = "Phone (for registration)", MaxWidth = 460 };
+    private readonly TextBox country = new() { Watermark = "Country (for registration)", MaxWidth = 460 };
     private readonly TextBlock result = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 680 };
     private readonly Button signIn = new() { Content = "Sign in", Padding = new Thickness(18, 12) };
+    private readonly Button signUp = new() { Content = "Create account", Padding = new Thickness(18, 12) };
     private readonly Button signOut = new() { Content = "Sign out", Padding = new Thickness(18, 12) };
 
     public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
@@ -32,19 +36,24 @@ public sealed class AccountView : StackPanel
 
         Children.Add(Text("Account connection", 30));
         Children.Add(Text(
-            "Authentication is isolated behind a service contract. Until the original protocol is recovered, sign-in remains safely offline.",
+            "Sign-in and registration are ready for a verified protocol. Until that contract is recovered, no credentials leave this device.",
             15,
             "#A8B5CA"));
+        Children.Add(name);
         Children.Add(email);
         Children.Add(password);
+        Children.Add(phone);
+        Children.Add(country);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         actions.Children.Add(signIn);
+        actions.Children.Add(signUp);
         actions.Children.Add(signOut);
         Children.Add(actions);
         Children.Add(result);
 
         signIn.Click += async (_, _) => await SignInAsync();
+        signUp.Click += async (_, _) => await SignUpAsync();
         signOut.Click += async (_, _) => await SignOutAsync();
         AttachedToVisualTree += async (_, _) => await RestoreSessionAsync();
         Refresh();
@@ -67,6 +76,21 @@ public sealed class AccountView : StackPanel
         Refresh();
     }
 
+    private async Task SignUpAsync()
+    {
+        signUp.IsEnabled = false;
+        result.Text = "Creating account…";
+        var authentication = await controller.SignUpAsync(
+            name.Text,
+            email.Text,
+            password.Text,
+            phone.Text,
+            country.Text);
+        password.Text = string.Empty;
+        result.Text = authentication.Message;
+        Refresh();
+    }
+
     private async Task SignOutAsync()
     {
         await controller.SignOutAsync();
@@ -77,8 +101,9 @@ public sealed class AccountView : StackPanel
     private void Refresh()
     {
         var authenticated = controller.Session is not null;
-        email.IsEnabled = password.IsEnabled = !authenticated;
+        name.IsEnabled = email.IsEnabled = password.IsEnabled = phone.IsEnabled = country.IsEnabled = !authenticated;
         signIn.IsEnabled = !authenticated && !controller.IsBusy;
+        signUp.IsEnabled = !authenticated && !controller.IsBusy;
         signOut.IsEnabled = authenticated && !controller.IsBusy;
         if (string.IsNullOrWhiteSpace(result.Text))
             result.Text = controller.LastResult.Message;

@@ -27,26 +27,61 @@ public sealed class AuthenticationController
     public AuthenticationResult LastResult { get; private set; } =
         new(AuthenticationOutcome.Unavailable, "Not connected.");
 
-    public async Task<AuthenticationResult> SignInAsync(
+    public Task<AuthenticationResult> SignInAsync(
         string? email,
         string? password,
         CancellationToken cancellationToken = default)
     {
         if (IsBusy)
-            return LastResult;
+            return Task.FromResult(LastResult);
 
-        var validation = Validate(email, password);
+        var validation = ValidateSignIn(email, password);
         if (validation is not null)
         {
             diagnostics.Write(DiagnosticLevel.Warning, "authentication.validation_failed", validation.Message);
-            return LastResult = validation;
+            LastResult = validation;
+            return Task.FromResult(validation);
         }
 
+        return ExecuteAsync(
+            token => service.SignInAsync(new SignInRequest(email!.Trim(), password!), token),
+            cancellationToken);
+    }
+
+    public Task<AuthenticationResult> SignUpAsync(
+        string? name,
+        string? email,
+        string? password,
+        string? phone,
+        string? country,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsBusy)
+            return Task.FromResult(LastResult);
+
+        var validation = ValidateSignUp(name, email, password, phone, country);
+        if (validation is not null)
+        {
+            diagnostics.Write(DiagnosticLevel.Warning, "authentication.validation_failed", validation.Message);
+            LastResult = validation;
+            return Task.FromResult(validation);
+        }
+
+        return ExecuteAsync(
+            token => service.SignUpAsync(
+                new SignUpRequest(name!.Trim(), email!.Trim(), password!, phone!.Trim(), country!.Trim()),
+                token),
+            cancellationToken);
+    }
+
+    private async Task<AuthenticationResult> ExecuteAsync(
+        Func<CancellationToken, Task<AuthenticationResult>> operation,
+        CancellationToken cancellationToken)
+    {
         IsBusy = true;
         try
         {
-            var result = await service.SignInAsync(
-                new SignInRequest(email!.Trim(), password!), cancellationToken);
+            var result = await operation(cancellationToken);
             LastResult = result ?? new(
                 AuthenticationOutcome.EmptyResponse,
                 "The authentication service returned no result.");
@@ -193,7 +228,7 @@ public sealed class AuthenticationController
         }
     }
 
-    private static AuthenticationResult? Validate(string? email, string? password)
+    private static AuthenticationResult? ValidateSignIn(string? email, string? password)
     {
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password))
             return new(AuthenticationOutcome.ValidationFailed, "Email and password are required.");
@@ -203,6 +238,19 @@ public sealed class AuthenticationController
             return new(AuthenticationOutcome.ValidationFailed, "Enter a valid email address.");
 
         return null;
+    }
+
+    private static AuthenticationResult? ValidateSignUp(
+        string? name,
+        string? email,
+        string? password,
+        string? phone,
+        string? country)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(country))
+            return new(AuthenticationOutcome.ValidationFailed, "Name, phone and country are required.");
+
+        return ValidateSignIn(email, password);
     }
 }
 

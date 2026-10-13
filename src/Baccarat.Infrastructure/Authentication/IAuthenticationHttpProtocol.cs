@@ -11,6 +11,12 @@ public interface IAuthenticationHttpProtocol
         HttpResponseMessage response,
         CancellationToken cancellationToken = default);
 
+    HttpRequestMessage CreateSignUpRequest(SignUpRequest request);
+
+    ValueTask<AuthenticationResult> ReadSignUpResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default);
+
     HttpRequestMessage CreateSignOutRequest(AuthenticatedSession session);
 
     ValueTask ReadSignOutResponseAsync(

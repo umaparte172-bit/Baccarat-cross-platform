@@ -33,49 +33,26 @@ public sealed class HttpAuthenticationService : IAuthenticationService, IDisposa
         client = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false }, disposeHandler: true);
     }
 
-    public async Task<AuthenticationResult> SignInAsync(
+    public Task<AuthenticationResult> SignInAsync(
         SignInRequest request,
         CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(request);
+        return SendAuthenticationAsync(
+            () => protocol.CreateSignInRequest(request),
+            protocol.ReadSignInResponseAsync,
+            cancellationToken);
+    }
 
-        try
-        {
-            using var message = protocol.CreateSignInRequest(request);
-            Prepare(message);
-            using var timeoutSource = new CancellationTokenSource(timeout);
-            using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
-            diagnostics.Write(DiagnosticLevel.Information, "authentication.http_request", $"Method={message.Method}");
-            using var response = await client.SendAsync(
-                message,
-                HttpCompletionOption.ResponseHeadersRead,
-                linkedSource.Token);
-            var standard = ClassifyStandardResponse(response.StatusCode);
-            if (standard is not null) return standard;
-
-            var result = await protocol.ReadSignInResponseAsync(response, linkedSource.Token);
-            return result ?? new(AuthenticationOutcome.EmptyResponse, "The authentication service returned no result.");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (OperationCanceledException)
-        {
-            diagnostics.Write(DiagnosticLevel.Warning, "authentication.http_timeout", "The authentication request timed out.");
-            return new(AuthenticationOutcome.Unavailable, "The authentication service timed out.");
-        }
-        catch (HttpRequestException)
-        {
-            diagnostics.Write(DiagnosticLevel.Warning, "authentication.http_unavailable", "The authentication service could not be reached.");
-            return new(AuthenticationOutcome.Unavailable, "The authentication service is unavailable.");
-        }
-        catch (Exception exception) when (exception is FormatException or InvalidDataException)
-        {
-            diagnostics.Write(DiagnosticLevel.Warning, "authentication.http_malformed", "The authentication response was malformed.");
-            return new(AuthenticationOutcome.MalformedResponse, "The authentication service returned an invalid response.");
-        }
+    public Task<AuthenticationResult> SignUpAsync(
+        SignUpRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return SendAuthenticationAsync(
+            () => protocol.CreateSignUpRequest(request),
+            protocol.ReadSignUpResponseAsync,
+            cancellationToken);
     }
 
     public async Task SignOutAsync(
@@ -102,6 +79,51 @@ public sealed class HttpAuthenticationService : IAuthenticationService, IDisposa
         if (disposed) return;
         disposed = true;
         client.Dispose();
+    }
+
+    private async Task<AuthenticationResult> SendAuthenticationAsync(
+        Func<HttpRequestMessage> createRequest,
+        Func<HttpResponseMessage, CancellationToken, ValueTask<AuthenticationResult>> readResponse,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+
+        try
+        {
+            using var message = createRequest();
+            Prepare(message);
+            using var timeoutSource = new CancellationTokenSource(timeout);
+            using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
+            diagnostics.Write(DiagnosticLevel.Information, "authentication.http_request", $"Method={message.Method}");
+            using var response = await client.SendAsync(
+                message,
+                HttpCompletionOption.ResponseHeadersRead,
+                linkedSource.Token);
+            var standard = ClassifyStandardResponse(response.StatusCode);
+            if (standard is not null) return standard;
+
+            var result = await readResponse(response, linkedSource.Token);
+            return result ?? new(AuthenticationOutcome.EmptyResponse, "The authentication service returned no result.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            diagnostics.Write(DiagnosticLevel.Warning, "authentication.http_timeout", "The authentication request timed out.");
+            return new(AuthenticationOutcome.Unavailable, "The authentication service timed out.");
+        }
+        catch (HttpRequestException)
+        {
+            diagnostics.Write(DiagnosticLevel.Warning, "authentication.http_unavailable", "The authentication service could not be reached.");
+            return new(AuthenticationOutcome.Unavailable, "The authentication service is unavailable.");
+        }
+        catch (Exception exception) when (exception is FormatException or InvalidDataException)
+        {
+            diagnostics.Write(DiagnosticLevel.Warning, "authentication.http_malformed", "The authentication response was malformed.");
+            return new(AuthenticationOutcome.MalformedResponse, "The authentication service returned an invalid response.");
+        }
     }
 
     private void Prepare(HttpRequestMessage message)
