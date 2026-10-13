@@ -510,6 +510,11 @@ var expiredController = new AuthenticationController(
 Check((await expiredController.RestoreSessionAsync()).Outcome == AuthenticationOutcome.Expired &&
       await sessionStore.ReadAsync() is null,
     "Expired stored sessions must be rejected and removed");
+
+await sessionSecrets.SaveAsync("authentication.session.v1", "{not valid json");
+Check(await sessionStore.ReadAsync() is null &&
+      await sessionSecrets.ReadAsync("authentication.session.v1") is null,
+    "Malformed persisted sessions must be rejected and removed");
 Console.WriteLine("PASS: authentication session validation, persistence, restoration, expiry and cleanup");
 
 var registrationResponses = new Queue<AuthenticationResult?>();
@@ -616,6 +621,24 @@ Check(OperatingSystem.IsWindows()
             ? defaultSecrets is MacOsKeychainSecretStore
             : defaultSecrets is VolatileSecretStore,
     "Default secret storage must select the protected store for the current desktop platform");
+
+if (Environment.GetEnvironmentVariable("BACCARAT_RUN_PROTECTED_STORE_CHECKS") == "1")
+{
+    var protectedStoreKey = $"verification.{Guid.NewGuid():N}";
+    try
+    {
+        await defaultSecrets.SaveAsync(protectedStoreKey, "verification-secret-✓");
+        Check(await defaultSecrets.ReadAsync(protectedStoreKey) == "verification-secret-✓",
+            "The platform secret store must round-trip UTF-8 values");
+        await defaultSecrets.DeleteAsync(protectedStoreKey);
+        Check(await defaultSecrets.ReadAsync(protectedStoreKey) is null,
+            "The platform secret store must remove verification credentials");
+    }
+    finally
+    {
+        await defaultSecrets.DeleteAsync(protectedStoreKey);
+    }
+}
 
 var diagnosticLines = new List<string>();
 var redactingSink = new RedactingDiagnosticSink(diagnosticLines.Add);

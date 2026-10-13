@@ -166,19 +166,21 @@ public sealed class WindowsCredentialManagerSecretStore : ISecretStore
         public const uint CredentialPersistLocalMachine = 2;
         public const int ErrorNotFound = 1168;
 
-        [DllImport("Advapi32.dll", EntryPoint = "CredWriteW", SetLastError = true)]
+        [DllImport("Advapi32.dll", EntryPoint = "CredWriteW", SetLastError = true, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool CredWrite(ref NativeCredential credential, uint flags);
 
-        [DllImport("Advapi32.dll", EntryPoint = "CredReadW", SetLastError = true, CharSet = CharSet.Unicode)]
+        [DllImport("Advapi32.dll", EntryPoint = "CredReadW", SetLastError = true, CharSet = CharSet.Unicode,
+            ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool CredRead(string target, uint type, uint flags, out IntPtr credential);
 
-        [DllImport("Advapi32.dll", EntryPoint = "CredDeleteW", SetLastError = true, CharSet = CharSet.Unicode)]
+        [DllImport("Advapi32.dll", EntryPoint = "CredDeleteW", SetLastError = true, CharSet = CharSet.Unicode,
+            ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool CredDelete(string target, uint type, uint flags);
 
-        [DllImport("Advapi32.dll")]
+        [DllImport("Advapi32.dll", ExactSpelling = true)]
         public static extern void CredFree(IntPtr buffer);
     }
 }

@@ -2,6 +2,8 @@ name: Desktop build
 on: [push, pull_request]
 jobs:
   build:
+    env:
+      BACCARAT_RUN_PROTECTED_STORE_CHECKS: '1'
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
