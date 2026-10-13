@@ -396,10 +396,14 @@ viewerModule.DocumentReceived += _ => throw new InvalidOperationException("Subsc
 await viewerModule.PublishAsync(new CommunicationStatusPayload("offline", "Local viewer ready."));
 await viewerModule.PublishAsync(new StrategySnapshotPayload(
     "Fixture", 1.25m, 3, 2, StrategyEngineState.Ready, "Bet 1 on Player."));
-Check(receivedViewerDocuments.Count == 2 &&
+await viewerModule.PublishAsync(new AutomationSnapshotPayload(
+    AutomationRunState.Ready, true, true, 3m, 2, "Simulation ready."));
+Check(receivedViewerDocuments.Count == 3 &&
       receivedViewerDocuments[0].Sequence == 1 &&
       receivedViewerDocuments[1].Sequence == 2 &&
-      receivedViewerDocuments[1].Payload is StrategySnapshotPayload,
+      receivedViewerDocuments[2].Sequence == 3 &&
+      receivedViewerDocuments[1].Payload is StrategySnapshotPayload &&
+      receivedViewerDocuments[2].Payload is AutomationSnapshotPayload,
     "The communication module must encode, transport, validate and deliver ordered documents");
 
 var concurrentViewerTransport = new ConcurrentViewerMessageTransport();

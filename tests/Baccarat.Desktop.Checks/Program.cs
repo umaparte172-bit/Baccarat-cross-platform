@@ -85,6 +85,8 @@ if (!HasText("Protocol 1.0") || !HasText("Rounds 1 · Player 1 · Banker 0 · Ti
         string.Join(" | ", window.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text)));
 if (!HasText("UI Fixture · Profit -1.00"))
     throw new Exception("Viewer did not receive the latest versioned strategy document");
+if (!HasText("Ready · Auto enabled · Simulation · Accepted 2 · Stake 3.00"))
+    throw new Exception("Viewer did not receive the latest versioned automation document");
 
 tabs.SelectedIndex = 4;
 window.UpdateLayout();

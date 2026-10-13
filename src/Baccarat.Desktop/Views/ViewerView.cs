@@ -13,6 +13,7 @@ public sealed class ViewerView : StackPanel
     private readonly TextBlock connection = Text("Local communication ready", 17, "#7BD88F");
     private readonly TextBlock session = Text("No session document received.", 17, "#A8B5CA");
     private readonly TextBlock strategy = Text("No strategy document received.", 17, "#A8B5CA");
+    private readonly TextBlock automation = Text("No automation document received.", 17, "#A8B5CA");
     private readonly StackPanel history = new() { Spacing = 6 };
 
     public ViewerView(ViewerCommunicationModule communication)
@@ -23,7 +24,7 @@ public sealed class ViewerView : StackPanel
 
         Children.Add(Text("Session viewer", 30));
         Children.Add(Text(
-            $"Protocol {ViewerDocumentContract.EnvelopeVersion} · Session document {ViewerDocumentContract.SessionSnapshotVersion} · Strategy document {ViewerDocumentContract.StrategySnapshotVersion}",
+            $"Protocol {ViewerDocumentContract.EnvelopeVersion} · Session document {ViewerDocumentContract.SessionSnapshotVersion} · Strategy document {ViewerDocumentContract.StrategySnapshotVersion} · Automation document {ViewerDocumentContract.AutomationSnapshotVersion}",
             14,
             "#91A1B9"));
         Children.Add(connection);
@@ -31,6 +32,8 @@ public sealed class ViewerView : StackPanel
         Children.Add(session);
         Children.Add(Text("STRATEGY", 13, "#91A1B9"));
         Children.Add(strategy);
+        Children.Add(Text("AUTOMATION", 13, "#91A1B9"));
+        Children.Add(automation);
         Children.Add(Text("DOCUMENT HISTORY", 13, "#91A1B9"));
         Children.Add(history);
 
@@ -56,6 +59,11 @@ public sealed class ViewerView : StackPanel
                 break;
             case CommunicationStatusPayload value:
                 connection.Text = $"{value.State}: {value.Message}";
+                break;
+            case AutomationSnapshotPayload value:
+                automation.Text = $"{value.State} · Auto {(value.AutoBetEnabled ? "enabled" : "disabled")} · " +
+                                  $"{(value.IsSimulation ? "Simulation" : "External")} · Accepted {value.AcceptedBets} · " +
+                                  $"Stake {value.SessionStake:0.00} · {value.Message}";
                 break;
         }
 

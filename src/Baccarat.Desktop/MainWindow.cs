@@ -65,7 +65,9 @@ public sealed class MainWindow : Window
             this.diagnostics,
             authenticationSessions ?? defaults.AuthenticationSessions);
         var viewer = new ViewerView(this.viewerCommunication);
-        var automation = new AutomationView(automationController ?? defaults.Automation);
+        var controlledAutomation = automationController ?? defaults.Automation;
+        controlledAutomation.SnapshotChanged += PublishAutomation;
+        var automation = new AutomationView(controlledAutomation);
         var strategies = new StrategyView(new StrategyFileLoader(), initialStrategy, engine =>
         {
             PublishStrategy(engine);
@@ -93,6 +95,7 @@ public sealed class MainWindow : Window
         Refresh();
         Publish(new CommunicationStatusPayload("offline", "Local versioned communication is ready."));
         PublishSession();
+        PublishAutomation(controlledAutomation.Snapshot);
     }
 
     private static TextBlock Label(string text, double size, string color = "#E9EEF6") =>
@@ -168,6 +171,14 @@ public sealed class MainWindow : Window
             next.State,
             next.Message));
     }
+
+    private void PublishAutomation(AutomationSnapshot snapshot) => Publish(new AutomationSnapshotPayload(
+        snapshot.State,
+        snapshot.AutoBetEnabled,
+        snapshot.IsSimulation,
+        snapshot.SessionStake,
+        snapshot.AcceptedBets,
+        snapshot.Message));
 
     private void Publish(ViewerPayload payload)
     {

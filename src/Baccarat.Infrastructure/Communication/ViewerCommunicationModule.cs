@@ -99,6 +99,8 @@ public sealed class ViewerCommunicationModule
         StrategySnapshotPayload => (ViewerDocumentContract.StrategySnapshotType,
             ViewerDocumentContract.StrategySnapshotVersion),
         CommunicationStatusPayload => (ViewerDocumentContract.StatusType, ViewerDocumentContract.StatusVersion),
+        AutomationSnapshotPayload => (ViewerDocumentContract.AutomationSnapshotType,
+            ViewerDocumentContract.AutomationSnapshotVersion),
         _ => throw new ArgumentException("Unsupported viewer payload type.", nameof(payload))
     };
 }

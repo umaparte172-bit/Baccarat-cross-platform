@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Baccarat.Core.Automation;
 using Baccarat.Core.Communication;
 using Baccarat.Core.Strategies;
 
@@ -33,6 +34,10 @@ public sealed class VersionedViewerDocumentCodec
                 value.State.ToString(), value.Recommendation), Options),
             CommunicationStatusPayload value => JsonSerializer.SerializeToElement(
                 new StatusPayloadDocument(value.State, value.Message), Options),
+            AutomationSnapshotPayload value => JsonSerializer.SerializeToElement(
+                new AutomationPayloadDocument(
+                    value.State.ToString(), value.AutoBetEnabled, value.IsSimulation,
+                    value.SessionStake, value.AcceptedBets, value.Message), Options),
             _ => throw new ViewerDocumentFormatException("Unsupported viewer payload type.")
         };
 
@@ -68,6 +73,7 @@ public sealed class VersionedViewerDocumentCodec
                 ViewerDocumentContract.SessionSnapshotType => DecodeSession(envelope.Payload),
                 ViewerDocumentContract.StrategySnapshotType => DecodeStrategy(envelope.Payload),
                 ViewerDocumentContract.StatusType => DecodeStatus(envelope.Payload),
+                ViewerDocumentContract.AutomationSnapshotType => DecodeAutomation(envelope.Payload),
                 _ => throw new ViewerDocumentFormatException($"Unsupported document type '{envelope.DocumentType}'.")
             };
             var document = new ViewerDocument(
@@ -133,6 +139,15 @@ public sealed class VersionedViewerDocumentCodec
         return new(value.State, value.Message);
     }
 
+    private static AutomationSnapshotPayload DecodeAutomation(JsonElement payload)
+    {
+        var value = payload.Deserialize<AutomationPayloadDocument>(Options) ??
+            throw new ViewerDocumentFormatException("The automation payload is missing.");
+        if (!Enum.TryParse<AutomationRunState>(value.State, false, out var state))
+            throw new ViewerDocumentFormatException($"Unsupported automation state '{value.State}'.");
+        return new(state, value.AutoBetEnabled, value.IsSimulation, value.SessionStake, value.AcceptedBets, value.Message);
+    }
+
     private sealed record EnvelopeDocument(
         [property: JsonPropertyName("protocol_version")] string ProtocolVersion,
         [property: JsonPropertyName("document_type")] string DocumentType,
@@ -158,5 +173,13 @@ public sealed class VersionedViewerDocumentCodec
 
     private sealed record StatusPayloadDocument(
         [property: JsonPropertyName("state")] string State,
+        [property: JsonPropertyName("message")] string Message);
+
+    private sealed record AutomationPayloadDocument(
+        [property: JsonPropertyName("state")] string State,
+        [property: JsonPropertyName("auto_bet_enabled")] bool AutoBetEnabled,
+        [property: JsonPropertyName("is_simulation")] bool IsSimulation,
+        [property: JsonPropertyName("session_stake")] decimal SessionStake,
+        [property: JsonPropertyName("accepted_bets")] int AcceptedBets,
         [property: JsonPropertyName("message")] string Message);
 }

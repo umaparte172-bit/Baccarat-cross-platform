@@ -1,3 +1,4 @@
+using Baccarat.Core.Automation;
 using Baccarat.Core.Strategies;
 
 namespace Baccarat.Core.Communication;
@@ -22,10 +23,12 @@ public static class ViewerDocumentContract
     public static DocumentVersion EnvelopeVersion { get; } = new(1, 0);
     public static DocumentVersion SessionSnapshotVersion { get; } = new(1, 0);
     public static DocumentVersion StrategySnapshotVersion { get; } = new(1, 0);
+    public static DocumentVersion AutomationSnapshotVersion { get; } = new(1, 0);
     public static DocumentVersion StatusVersion { get; } = new(1, 0);
 
     public const string SessionSnapshotType = "session.snapshot";
     public const string StrategySnapshotType = "strategy.snapshot";
+    public const string AutomationSnapshotType = "automation.snapshot";
     public const string StatusType = "communication.status";
 }
 
@@ -46,6 +49,14 @@ public sealed record StrategySnapshotPayload(
     string Recommendation) : ViewerPayload;
 
 public sealed record CommunicationStatusPayload(string State, string Message) : ViewerPayload;
+
+public sealed record AutomationSnapshotPayload(
+    AutomationRunState State,
+    bool AutoBetEnabled,
+    bool IsSimulation,
+    decimal SessionStake,
+    int AcceptedBets,
+    string Message) : ViewerPayload;
 
 public sealed record ViewerDocument(
     DocumentVersion EnvelopeVersion,
@@ -96,6 +107,15 @@ public static class ViewerDocumentValidator
                     errors.Add("Communication state is required and must not exceed 50 characters.");
                 if (string.IsNullOrWhiteSpace(status.Message) || status.Message.Length > 500)
                     errors.Add("Communication message is required and must not exceed 500 characters.");
+                break;
+            case AutomationSnapshotPayload automation:
+                ValidateContract(document, ViewerDocumentContract.AutomationSnapshotType,
+                    ViewerDocumentContract.AutomationSnapshotVersion, errors);
+                if (!Enum.IsDefined(automation.State)) errors.Add("Automation state is invalid.");
+                if (automation.SessionStake < 0 || automation.AcceptedBets < 0)
+                    errors.Add("Automation counters cannot be negative.");
+                if (string.IsNullOrWhiteSpace(automation.Message) || automation.Message.Length > 500)
+                    errors.Add("Automation message is required and must not exceed 500 characters.");
                 break;
             default:
                 errors.Add("Unsupported viewer payload type.");
