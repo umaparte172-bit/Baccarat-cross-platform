@@ -60,7 +60,7 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 - [x] Recover and implement the supplied strategy workflows, preserving protected algorithms as manual decisions.
 - [ ] Recover remaining settings workflows when evidence establishes their behavior.
 - [x] Implement redacted diagnostic logging.
-- [ ] Implement Windows Credential Manager and macOS Keychain storage.
+- [x] Implement Windows Credential Manager and macOS Keychain storage.
 
 If the old backend is unavailable, record that dependency explicitly. Rebuilding a UI cannot restore an unavailable service.
 
