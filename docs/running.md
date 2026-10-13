@@ -9,7 +9,7 @@ dotnet run --project tests/Baccarat.Core.Checks
 
 On this Windows workspace, a downloaded SDK may be used via `.tools/sdk/dotnet.exe` instead of `dotnet`.
 
-The application currently supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. Records are held in memory: export before closing. There is no live authentication, automated betting, outcome prediction or connection to the original service. This is the first foundation build, not feature parity with the original executable.
+The application currently supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. Records are held in memory: export before closing. The Account tab exercises validation and explicit offline state through a replaceable authentication boundary; it does not send credentials. There is no live authentication, automated betting, outcome prediction or connection to the original service. This is the foundation build, not feature parity with the original executable.
 
 ## Self-contained publish
 
@@ -21,8 +21,8 @@ dotnet publish src/Baccarat.Desktop -c Release -r osx-x64 --self-contained true 
 
 Run Baccarat.Desktop.exe on Windows or the Baccarat.Desktop executable on a matching Mac. macOS app-bundle packaging, signing and notarization are pending; the publish commands alone do not create a signed installer. Source code is shared across these targets, but macOS runtime behavior must be tested on a Mac.
 
-The GitHub Actions workflow will build on Windows and macOS after the repository is hosted on GitHub. It has not run locally or remotely yet.
+The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests.
 
 ## Validation record
 
-The .NET 10.0.401 SDK is installed locally and the core check executable passed. Desktop build and headless UI checks require a complete Avalonia package restore. Network timeouts from NuGet have interrupted that restore in this environment; do not interpret the source files as a tested desktop release until the build and UI checks succeed. No Mac execution has been performed.
+The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-13. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. No Mac execution has been performed.

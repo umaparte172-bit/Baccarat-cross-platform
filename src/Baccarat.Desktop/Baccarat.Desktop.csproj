@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Baccarat.Core/Baccarat.Core.csproj" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
   </ItemGroup>
 </Project>

@@ -4,6 +4,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Baccarat.Core;
+using Baccarat.Core.Authentication;
+using Baccarat.Desktop.Views;
 
 namespace Baccarat.Desktop;
 
@@ -17,7 +19,7 @@ public sealed class MainWindow : Window
     private readonly Button clear;
     private readonly Button export;
 
-    public MainWindow()
+    public MainWindow(IAuthenticationService? authenticationService = null)
     {
         Title = "Baccarat Workspace";
         Width = 1040; Height = 760; MinWidth = 700; MinHeight = 550;
@@ -41,18 +43,11 @@ public sealed class MainWindow : Window
         overview.Children.Add(Label("ROUND HISTORY", 13, "#91A1B9"));
         overview.Children.Add(history);
 
-        var connection = new StackPanel { Margin = new Thickness(24), Spacing = 16 };
-        connection.Children.Add(Label("Live connection", 30));
-        connection.Children.Add(Label("Not configured", 20, "#E9BC72"));
-        connection.Children.Add(new TextBlock {
-            Text = "The original application's sign-in and WebSocket contracts have not yet been recovered. Live accounts, table automation and financial actions are unavailable in this build. You can use the Session tab without an account.",
-            TextWrapping = TextWrapping.Wrap, MaxWidth = 680, HorizontalAlignment = HorizontalAlignment.Left
-        });
-        connection.Children.Add(Label("No credentials are requested or stored.", 15, "#A8B5CA"));
+        var account = new AccountView(authenticationService ?? new OfflineAuthenticationService());
 
         var tabs = new TabControl { ItemsSource = new[] {
             new TabItem { Header = "Session", Content = new ScrollViewer { Content = overview } },
-            new TabItem { Header = "Connection", Content = connection }
+            new TabItem { Header = "Account", Content = new ScrollViewer { Content = account } }
         }};
         var layout = new DockPanel { Margin = new Thickness(24) };
         var heading = Label("BACCARAT  /  WORKSPACE", 18);

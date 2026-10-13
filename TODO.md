@@ -31,8 +31,10 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 - [x] Implement offline application navigation and explicit disconnected/error states.
 - [x] Implement manual round recording, counts, undo and CSV export.
 - [x] Compile and run core checks for records, undo, counts, CSV and invalid input.
-- [ ] Add mocked authentication covering empty, malformed and unsuccessful responses.
-- [ ] Build and test the initial application.
+- [x] Add mocked authentication covering validation, empty, malformed, unsuccessful and exceptional responses.
+- [x] Separate account UI, authentication state and replaceable service boundaries.
+- [x] Build and test the initial application, including headless desktop checks.
+- [x] Update Avalonia and verify no known vulnerable direct or transitive packages.
 
 ## 4. Verified behavior
 

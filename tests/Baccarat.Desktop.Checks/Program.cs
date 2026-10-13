@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Baccarat.Desktop;
+using Baccarat.Core.Authentication;
 
 AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
 var window = new MainWindow();
@@ -22,5 +23,9 @@ Click("Undo last");
 window.UpdateLayout();
 if (!HasText("1 rounds")) throw new Exception("Undo did not update UI");
 if (!FindButton("Export CSV").IsEnabled) throw new Exception("Export should be enabled");
+var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
+tabs.SelectedIndex = 1;
+window.UpdateLayout();
+if (FindButton("Sign out").IsEnabled) throw new Exception("Offline account must not expose sign-out");
 window.Close();
 Console.WriteLine("PASS: headless desktop startup, record, undo and export availability");
