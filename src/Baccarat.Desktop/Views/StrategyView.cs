@@ -13,6 +13,7 @@ namespace Baccarat.Desktop.Views;
 public sealed class StrategyView : StackPanel
 {
     private readonly StrategyFileLoader loader;
+    private readonly Action<StrategySessionEngine>? changed;
     private readonly TextBlock strategyName = Text("No strategy loaded", 24);
     private readonly TextBlock recommendation = Text("Load a strategy file to begin.", 17, "#E9BC72");
     private readonly TextBlock totals = Text("Profit 0.00  ·  Bets 0  ·  Observed rounds 0", 16, "#A8B5CA");
@@ -29,9 +30,13 @@ public sealed class StrategyView : StackPanel
     private readonly Button tieResult = Button("Tie result");
     private StrategySessionEngine? engine;
 
-    public StrategyView(StrategyFileLoader loader, StrategyDefinition? initialDefinition = null)
+    public StrategyView(
+        StrategyFileLoader loader,
+        StrategyDefinition? initialDefinition = null,
+        Action<StrategySessionEngine>? changed = null)
     {
         this.loader = loader ?? throw new ArgumentNullException(nameof(loader));
+        this.changed = changed;
         Margin = new Thickness(24);
         Spacing = 16;
 
@@ -70,8 +75,8 @@ public sealed class StrategyView : StackPanel
         Children.Add(history);
 
         load.Click += async (_, _) => await LoadAsync();
-        reset.Click += (_, _) => { engine?.Reset(); Refresh(); };
-        undo.Click += (_, _) => { engine?.Undo(); Refresh(); };
+        reset.Click += (_, _) => { engine?.Reset(); Refresh(); NotifyChanged(); };
+        undo.Click += (_, _) => { engine?.Undo(); Refresh(); NotifyChanged(); };
         export.Click += async (_, _) => await ExportAsync();
         choosePlayer.Click += (_, _) => Choose(BetSide.Player);
         chooseBanker.Click += (_, _) => Choose(BetSide.Banker);
@@ -89,6 +94,7 @@ public sealed class StrategyView : StackPanel
         engine = new StrategySessionEngine(definition);
         strategyName.Text = definition.Name;
         Refresh();
+        NotifyChanged();
     }
 
     private async Task LoadAsync()
@@ -125,6 +131,7 @@ public sealed class StrategyView : StackPanel
         {
             engine?.ChooseSide(side);
             Refresh();
+            NotifyChanged();
         }
         catch (InvalidOperationException exception)
         {
@@ -146,6 +153,7 @@ public sealed class StrategyView : StackPanel
             engine.SetManualStake(value);
             manualStake.Text = string.Empty;
             Refresh();
+            NotifyChanged();
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentOutOfRangeException)
         {
@@ -160,6 +168,7 @@ public sealed class StrategyView : StackPanel
         {
             engine.Record(outcome);
             Refresh();
+            NotifyChanged();
         }
         catch (InvalidOperationException exception)
         {
@@ -232,6 +241,11 @@ public sealed class StrategyView : StackPanel
     {
         recommendation.Text = message;
         recommendation.Foreground = Brush.Parse("#E48787");
+    }
+
+    private void NotifyChanged()
+    {
+        if (engine is not null) changed?.Invoke(engine);
     }
 
     private static StackPanel Row() => new() { Orientation = Orientation.Horizontal, Spacing = 12 };

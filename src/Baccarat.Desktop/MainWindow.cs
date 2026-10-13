@@ -5,9 +5,11 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Communication;
 using Baccarat.Core.Diagnostics;
 using Baccarat.Core.Strategies;
 using Baccarat.Desktop.Views;
+using Baccarat.Infrastructure.Communication;
 using Baccarat.Infrastructure.Strategies;
 
 namespace Baccarat.Desktop;
@@ -15,6 +17,8 @@ namespace Baccarat.Desktop;
 public sealed class MainWindow : Window
 {
     private readonly Session session = new();
+    private readonly ViewerCommunicationModule viewerCommunication;
+    private readonly IDiagnosticSink diagnostics;
     private readonly TextBlock stats = new() { FontSize = 22 };
     private readonly TextBlock status = new() { Text = "Ready · Manual session", TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel history = new() { Spacing = 8 };
@@ -26,12 +30,16 @@ public sealed class MainWindow : Window
         IAuthenticationService? authenticationService = null,
         IDiagnosticSink? diagnostics = null,
         IAuthenticationSessionStore? authenticationSessions = null,
-        StrategyDefinition? initialStrategy = null)
+        StrategyDefinition? initialStrategy = null,
+        ViewerCommunicationModule? viewerCommunication = null)
     {
+        var defaults = ApplicationServices.CreateDefault();
+        this.diagnostics = diagnostics ?? defaults.Diagnostics;
+        this.viewerCommunication = viewerCommunication ?? defaults.ViewerCommunication;
         Title = "Baccarat Workspace";
         Width = 1040; Height = 760; MinWidth = 700; MinHeight = 550;
         Background = Brush.Parse("#10151F");
-        undo = ActionButton("Undo last", () => { session.Undo(); Refresh(); });
+        undo = ActionButton("Undo last", () => { session.Undo(); Refresh(); PublishSession(); });
         clear = ActionButton("Clear session…", async () => await ConfirmClear());
         export = ActionButton("Export CSV", async () => await Export());
 
@@ -42,7 +50,7 @@ public sealed class MainWindow : Window
         overview.Children.Add(stats);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         foreach (var outcome in Enum.GetValues<Outcome>())
-            actions.Children.Add(ActionButton($"+ {outcome}", () => { session.Record(outcome); Refresh(); }));
+            actions.Children.Add(ActionButton($"+ {outcome}", () => { session.Record(outcome); Refresh(); PublishSession(); }));
         overview.Children.Add(actions);
         var utilities = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         utilities.Children.Add(undo); utilities.Children.Add(clear); utilities.Children.Add(export);
@@ -51,16 +59,18 @@ public sealed class MainWindow : Window
         overview.Children.Add(history);
 
         var account = new AccountView(
-            authenticationService ?? ApplicationServices.CreateDefault().Authentication,
-            diagnostics,
-            authenticationSessions);
-        var strategies = new StrategyView(new StrategyFileLoader(), initialStrategy);
+            authenticationService ?? defaults.Authentication,
+            this.diagnostics,
+            authenticationSessions ?? defaults.AuthenticationSessions);
+        var viewer = new ViewerView(this.viewerCommunication);
+        var strategies = new StrategyView(new StrategyFileLoader(), initialStrategy, PublishStrategy);
 
         var tabs = new TabControl
         {
             ItemsSource = new[] {
             new TabItem { Header = "Session", Content = new ScrollViewer { Content = overview } },
             new TabItem { Header = "Strategies", Content = new ScrollViewer { Content = strategies } },
+            new TabItem { Header = "Viewer", Content = new ScrollViewer { Content = viewer } },
             new TabItem { Header = "Account", Content = new ScrollViewer { Content = account } }
         }
         };
@@ -73,6 +83,8 @@ public sealed class MainWindow : Window
         layout.Children.Add(tabs);
         Content = layout;
         Refresh();
+        Publish(new CommunicationStatusPayload("offline", "Local versioned communication is ready."));
+        PublishSession();
     }
 
     private static TextBlock Label(string text, double size, string color = "#E9EEF6") =>
@@ -104,7 +116,7 @@ public sealed class MainWindow : Window
         panel.Children.Add(ActionButton("Clear records", () => dialog.Close(true)));
         panel.Children.Add(ActionButton("Cancel", () => dialog.Close(false)));
         dialog.Content = panel;
-        if (await dialog.ShowDialog<bool>(this)) { session.Clear(); Refresh(); }
+        if (await dialog.ShowDialog<bool>(this)) { session.Clear(); Refresh(); PublishSession(); }
     }
 
     private async Task Export()
@@ -129,5 +141,48 @@ public sealed class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         { status.Text = "Export failed. Choose a writable location and try again."; }
+    }
+
+    private void PublishSession() => Publish(new SessionSnapshotPayload(
+        session.Rounds.Count,
+        session.Count(Outcome.Player),
+        session.Count(Outcome.Banker),
+        session.Count(Outcome.Tie)));
+
+    private void PublishStrategy(StrategySessionEngine engine)
+    {
+        var next = engine.Recommendation;
+        Publish(new StrategySnapshotPayload(
+            engine.StrategyName,
+            engine.Profit,
+            engine.Rounds.Count,
+            engine.Rounds.Count(round => round.WasBet),
+            next.State,
+            next.Message));
+    }
+
+    private void Publish(ViewerPayload payload)
+    {
+        try
+        {
+            var operation = viewerCommunication.PublishAsync(payload);
+            if (!operation.IsCompletedSuccessfully) _ = ObservePublishAsync(operation);
+        }
+        catch
+        {
+            diagnostics.Write(DiagnosticLevel.Error, "viewer.publish_failed", "A viewer document could not be published.");
+        }
+    }
+
+    private async Task ObservePublishAsync(ValueTask operation)
+    {
+        try
+        {
+            await operation;
+        }
+        catch
+        {
+            diagnostics.Write(DiagnosticLevel.Error, "viewer.publish_failed", "A viewer document could not be published.");
+        }
     }
 }

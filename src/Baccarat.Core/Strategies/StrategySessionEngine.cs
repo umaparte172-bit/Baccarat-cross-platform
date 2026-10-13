@@ -73,6 +73,7 @@ public sealed class StrategySessionEngine
     }
 
     public IReadOnlyList<StrategyRound> Rounds => rounds;
+    public string StrategyName => definition.Name;
     public decimal Profit { get; private set; }
     public int ConsecutiveLosses { get; private set; }
     public string? StopReason { get; private set; }

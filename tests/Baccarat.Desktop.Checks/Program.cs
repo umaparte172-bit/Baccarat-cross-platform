@@ -52,6 +52,14 @@ if (!HasText("Profit 0.00") || !HasText("Bet 1 on Player."))
 
 tabs.SelectedIndex = 2;
 window.UpdateLayout();
+if (!HasText("Protocol 1.0") || !HasText("Rounds 1 · Player 1 · Banker 0 · Tie 0"))
+    throw new Exception("Viewer did not receive the versioned manual-session document: " +
+        string.Join(" | ", window.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text)));
+if (!HasText("UI Fixture · Profit 0.00"))
+    throw new Exception("Viewer did not receive the latest versioned strategy document");
+
+tabs.SelectedIndex = 3;
+window.UpdateLayout();
 if (FindButton("Sign out").IsEnabled) throw new Exception("Offline account must not expose sign-out");
 if (!FindButton("Sign in").IsEnabled || !FindButton("Create account").IsEnabled)
     throw new Exception("Offline account must expose sign-in and registration validation");

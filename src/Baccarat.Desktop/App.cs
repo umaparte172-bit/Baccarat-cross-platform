@@ -20,7 +20,8 @@ public sealed class App : Application
             desktop.MainWindow = new MainWindow(
                 services.Authentication,
                 services.Diagnostics,
-                services.AuthenticationSessions);
+                services.AuthenticationSessions,
+                viewerCommunication: services.ViewerCommunication);
         }
         base.OnFrameworkInitializationCompleted();
     }
