@@ -67,8 +67,30 @@ public sealed class AutomationController
 
     public void SetAutoBet(bool enabled)
     {
+        if (enabled && (!adapter.IsConnected || Snapshot.State is AutomationRunState.Faulted or AutomationRunState.Stopped))
+        {
+            autoBetEnabled = false;
+            Update(Snapshot.State, "Connect and recover automation before enabling auto-bet.");
+            return;
+        }
         autoBetEnabled = enabled;
         Update(Snapshot.State, enabled ? "Auto-bet is enabled with safety controls." : "Auto-bet is disabled.");
+    }
+
+    public bool CancelPending(string message = "Pending bet cancelled because strategy state changed.")
+    {
+        if (!gate.Wait(0)) return false;
+        try
+        {
+            if (pending is null) return false;
+            pending = null;
+            Update(adapter.IsConnected ? AutomationRunState.Ready : AutomationRunState.Disconnected, message);
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async ValueTask<AutomationActionResult> InitialBetAsync(
@@ -184,6 +206,10 @@ public sealed class AutomationController
             Update(AutomationRunState.Paused, "Recovered before placement. Approve the bet again after reviewing the table.");
             return new(AutomationActionOutcome.Unavailable, Snapshot.Message);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentOutOfRangeException)
         {
             Update(AutomationRunState.Paused, exception.Message);
@@ -198,6 +224,7 @@ public sealed class AutomationController
             prepared.IsInitial);
         Update(AutomationRunState.PlacingBet, $"Placing {prepared.Stake:0.##} on {prepared.Side}.", prepared.OperationId);
         BetPlacementResult placement;
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             placement = await adapter.PlaceBetAsync(request, cancellationToken);
@@ -206,6 +233,13 @@ public sealed class AutomationController
         {
             Update(AutomationRunState.Faulted,
                 "Connection was lost during placement. Outcome is unknown; the bet will not be retried.",
+                prepared.OperationId);
+            return new(AutomationActionOutcome.Indeterminate, Snapshot.Message, request);
+        }
+        catch
+        {
+            Update(AutomationRunState.Faulted,
+                "Placement did not complete with a verified acknowledgement. Outcome is unknown; the bet will not be retried.",
                 prepared.OperationId);
             return new(AutomationActionOutcome.Indeterminate, Snapshot.Message, request);
         }
@@ -266,6 +300,16 @@ public sealed class AutomationController
             catch (AutomationDisconnectedException)
             {
                 break;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                autoBetEnabled = false;
+                Update(AutomationRunState.Faulted, "The automation adapter failed while connecting.");
+                return new(AutomationActionOutcome.Unavailable, Snapshot.Message);
             }
         }
 

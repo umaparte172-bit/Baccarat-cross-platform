@@ -159,6 +159,9 @@ var automationPolicy = new AutomationSafetyPolicy(
     true);
 var simulationAdapter = new SimulatedAutomationTableAdapter([1m, 5m, 10m, 25m]);
 var automation = new AutomationController(simulationAdapter, automationPolicy);
+automation.SetAutoBet(true);
+Check(!automation.Snapshot.AutoBetEnabled,
+    "Auto-bet must not enable while the adapter is disconnected");
 Check((await automation.ConnectAsync()).Outcome == AutomationActionOutcome.Accepted &&
       automation.Snapshot is { State: AutomationRunState.Ready, IsSimulation: true },
     "Controlled automation must connect through its table adapter");
@@ -173,6 +176,15 @@ Check(approvedAutomationBet.Outcome == AutomationActionOutcome.Accepted &&
       simulationAdapter.AcceptedRequests.Single() is { Side: BetSide.Player, Stake: 16m, IsInitialBet: false } &&
       automation.Snapshot is { State: AutomationRunState.Ready, SessionStake: 16m, AcceptedBets: 1 },
     "Approved automation must select chips and execute the Player action exactly once");
+Check((await automation.AutoBetAsync(playerRecommendation with { Stake = 10m })).Outcome ==
+      AutomationActionOutcome.ApprovalRequired &&
+      automation.CancelPending() &&
+      (await automation.ApprovePendingAsync()).Outcome == AutomationActionOutcome.Skipped,
+    "A strategy change must be able to invalidate stale approval without placing a bet");
+automation.SetAutoBet(true);
+Check((await automation.AutoBetAsync(playerRecommendation with { Stake = 90m })).Outcome ==
+      AutomationActionOutcome.Rejected && automation.Snapshot.State == AutomationRunState.Stopped,
+    "Cumulative session stake must stop automation before exceeding its safety limit");
 
 var reconnectAdapter = new SimulatedAutomationTableAdapter { FailedConnectionAttemptsRemaining = 2 };
 var reconnectAutomation = new AutomationController(reconnectAdapter, automationPolicy,

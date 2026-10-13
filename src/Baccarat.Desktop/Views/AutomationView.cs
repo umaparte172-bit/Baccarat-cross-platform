@@ -24,6 +24,7 @@ public sealed class AutomationView : StackPanel
     private BetRecommendation? currentRecommendation;
     private int currentRoundCount;
     private int lastAutomatedRound = -1;
+    private string? recommendationKey;
 
     public AutomationView(AutomationController controller)
     {
@@ -72,7 +73,13 @@ public sealed class AutomationView : StackPanel
     public void UpdateStrategy(StrategySessionEngine engine)
     {
         ArgumentNullException.ThrowIfNull(engine);
-        currentRecommendation = engine.Recommendation;
+        var next = engine.Recommendation;
+        var nextKey = $"{engine.StrategyName}|{engine.Rounds.Count}|{next.State}|{next.Side}|{next.Stake}|{next.Selector}";
+        if (recommendationKey is not null && !string.Equals(recommendationKey, nextKey, StringComparison.Ordinal))
+            controller.CancelPending();
+        if (engine.Rounds.Count < currentRoundCount) lastAutomatedRound = -1;
+        recommendationKey = nextKey;
+        currentRecommendation = next;
         currentRoundCount = engine.Rounds.Count;
         recommendation.Text = currentRecommendation.Message;
         if (controller.Snapshot.AutoBetEnabled && currentRoundCount > 0 && currentRoundCount != lastAutomatedRound)
