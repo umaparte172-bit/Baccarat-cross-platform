@@ -3,10 +3,12 @@ using System.Net.Http.Headers;
 using System.Text;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Automation;
 using Baccarat.Core.Communication;
 using Baccarat.Core.Configuration;
 using Baccarat.Core.Strategies;
 using Baccarat.Infrastructure.Authentication;
+using Baccarat.Infrastructure.Automation;
 using Baccarat.Infrastructure.Communication;
 using Baccarat.Infrastructure.Diagnostics;
 using Baccarat.Infrastructure.Security;
@@ -134,6 +136,67 @@ boundedStrategy.Record(Outcome.Banker);
 Check(boundedStrategy.Recommendation.State == StrategyEngineState.Stopped,
     "Stake multiplication beyond the supported limit must stop safely");
 Console.WriteLine("PASS: strategy recommendations, settlement, progression and guarded opaque rules");
+
+var selectedChips = ChipSelection.SelectExact(16m, [1m, 5m, 10m], 10);
+Check(selectedChips.SequenceEqual([10m, 5m, 1m]),
+    "Chip selection must produce an exact minimal-click combination");
+try
+{
+    _ = ChipSelection.SelectExact(3m, [2m], 10);
+    throw new Exception("Impossible chip combination accepted");
+}
+catch (InvalidOperationException)
+{
+}
+
+var automationPolicy = new AutomationSafetyPolicy(
+    100m,
+    100m,
+    20,
+    3,
+    TimeSpan.Zero,
+    TimeSpan.Zero,
+    true);
+var simulationAdapter = new SimulatedAutomationTableAdapter([1m, 5m, 10m, 25m]);
+var automation = new AutomationController(simulationAdapter, automationPolicy);
+Check((await automation.ConnectAsync()).Outcome == AutomationActionOutcome.Accepted &&
+      automation.Snapshot is { State: AutomationRunState.Ready, IsSimulation: true },
+    "Controlled automation must connect through its table adapter");
+automation.SetAutoBet(true);
+var playerRecommendation = new BetRecommendation(
+    "PLAYER", 16m, BetSide.Player, StrategyEngineState.Ready, "Bet 16 on Player.");
+Check((await automation.AutoBetAsync(playerRecommendation)).Outcome == AutomationActionOutcome.ApprovalRequired &&
+      simulationAdapter.AcceptedRequests.Count == 0,
+    "Auto-bet must wait for explicit approval under the default safety policy");
+var approvedAutomationBet = await automation.ApprovePendingAsync();
+Check(approvedAutomationBet.Outcome == AutomationActionOutcome.Accepted &&
+      simulationAdapter.AcceptedRequests.Single() is { Side: BetSide.Player, Stake: 16m, IsInitialBet: false } &&
+      automation.Snapshot is { State: AutomationRunState.Ready, SessionStake: 16m, AcceptedBets: 1 },
+    "Approved automation must select chips and execute the Player action exactly once");
+
+var reconnectAdapter = new SimulatedAutomationTableAdapter { FailedConnectionAttemptsRemaining = 2 };
+var reconnectAutomation = new AutomationController(reconnectAdapter, automationPolicy,
+    (_, cancellationToken) => Task.Delay(TimeSpan.Zero, cancellationToken));
+Check((await reconnectAutomation.ConnectAsync()).Outcome == AutomationActionOutcome.Accepted && reconnectAdapter.IsConnected,
+    "Connection recovery must use bounded retries and succeed when the adapter recovers");
+
+var uncertainAdapter = new SimulatedAutomationTableAdapter { DisconnectBeforePlacement = true };
+var uncertainAutomation = new AutomationController(uncertainAdapter, automationPolicy);
+await uncertainAutomation.ConnectAsync();
+var bankerRecommendation = new BetRecommendation(
+    "BANKER", 10m, BetSide.Banker, StrategyEngineState.Ready, "Bet 10 on Banker.");
+Check((await uncertainAutomation.InitialBetAsync(bankerRecommendation)).Outcome ==
+      AutomationActionOutcome.ApprovalRequired,
+    "Initial bet must use the same approval gate");
+Check((await uncertainAutomation.ApprovePendingAsync()).Outcome == AutomationActionOutcome.Indeterminate &&
+      uncertainAdapter.AcceptedRequests.Count == 0 &&
+      uncertainAutomation.Snapshot.State == AutomationRunState.Faulted,
+    "A disconnect during placement must become indeterminate and must never retry the bet");
+Check((await uncertainAutomation.RecoverAsync()).Outcome == AutomationActionOutcome.Accepted &&
+      uncertainAutomation.Snapshot.State == AutomationRunState.Paused &&
+      uncertainAdapter.AcceptedRequests.Count == 0,
+    "Recovery must reconnect in a paused review state without replaying an uncertain bet");
+Console.WriteLine("PASS: controlled automation, chip selection, approval, reconnect and no-replay recovery");
 
 const string strategyJson = """
     {
