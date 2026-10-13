@@ -76,11 +76,17 @@ If the old backend is unavailable, record that dependency explicitly. Rebuilding
 
 Exact automation for protected selector and amount algorithms remains dependent on additional evidence. Manual resolution keeps those definitions operational without making unsupported compatibility claims.
 
-## 7. Viewer/service integration
+## 7. Viewer and communication integration
 
-- [ ] Confirm the Stage 7 integration target and its input/output contract.
-- [ ] Connect verified authentication, strategy recommendations and session events through adapters.
-- [ ] Keep all external actions disabled until their contracts and safety behavior are tested.
+- [x] Define a replacement viewer contract with independently versioned envelopes and payload documents.
+- [x] Implement strict JSON encoding/decoding, validation, size/depth limits and duplicate-field rejection.
+- [x] Implement ordered delivery, bounded history and duplicate/out-of-order suppression.
+- [x] Connect manual session events, strategy state and communication status to the viewer through a replaceable transport.
+- [x] Add a live Viewer workspace and verify it headlessly.
+- [x] Keep the default transport local and offline so the application performs no unsupported external action.
+- [ ] Bind a WebSocket transport only after the legacy endpoint, framing, authentication and reconnection contract is recovered from sanitized evidence.
+
+The replacement document contract is complete at version 1.0. It is deliberately not presented as the original server protocol. Unknown versions and document types are rejected rather than guessed.
 
 ## 8. macOS delivery
 

@@ -18,6 +18,8 @@ Stage 5 authentication progress and the exact remaining evidence boundary are re
 
 The completed offline strategy/session engine and its protected-algorithm boundary are documented in [the Stage 6 strategy report](docs/stage-6-strategy-session-report.md).
 
+The live versioned viewer, communication boundary and compatibility rules are documented in [the Stage 7 integration report](docs/stage-7-viewer-communication-report.md).
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in macOS Keychain. Choose exact package versions when creating the application scaffold.

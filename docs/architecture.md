@@ -13,6 +13,8 @@ Platform-independent application rules:
 - `StrategySessionEngine` produces deterministic recommendations, settles observed outcomes, applies progression and limits, and supports exact-state undo/reset/export.
 - `AuthenticationContracts` defines sign-in and registration input, normalized outcomes, authenticated sessions and the session-store boundary.
 - `AuthenticationController` validates input, serializes authentication state transitions, persists valid sessions, rejects expired/malformed sessions and converts service failures into controlled results.
+- `ViewerDocumentContract` defines the version 1.0 envelope and independently versioned session, strategy and communication-status documents.
+- `ViewerDocumentStore` validates documents, accepts only increasing sequences and retains a bounded immutable snapshot of viewer history.
 - `IDiagnosticSink` and `ISecretStore` define logging and secret-storage boundaries without platform dependencies.
 - `NetworkClientOptions` validates disconnected mode and requires HTTPS/WSS when endpoints are eventually supplied.
 
@@ -27,6 +29,9 @@ Replaceable technical adapters:
 - `RedactingDiagnosticSink` removes email addresses, passwords, API keys, secrets and bearer/token values before output.
 - `VolatileSecretStore` keeps temporary values in memory and never persists credentials to disk.
 - `StrategyFileLoader` performs bounded, strict JSON parsing and maps recovered strategy files into validated Core definitions.
+- `VersionedViewerDocumentCodec` strictly encodes and decodes viewer JSON, rejecting unknown fields, duplicate properties, unsupported versions, excessive depth and documents larger than 256 KiB.
+- `ViewerCommunicationModule` assigns ordered sequence numbers and routes documents through `IViewerMessageTransport` without depending on the desktop UI.
+- `LoopbackViewerMessageTransport` is the safe offline transport used today. A future WebSocket transport can implement the same boundary after its legacy contract is evidenced.
 
 Future WebSocket and Windows Credential Manager/macOS Keychain adapters belong here. The recovered HTTP protocol codec will implement the existing protocol boundary without changing session logic or UI state handling.
 
@@ -37,13 +42,15 @@ Cross-platform Avalonia presentation:
 - `MainWindow` owns top-level navigation.
 - `AccountView` owns account input and displays normalized authentication state.
 - `StrategyView` imports strategy files, displays recommendations, accepts observed outcomes and exposes manual resolution, undo, reset and export.
+- `ViewerView` displays the active protocol/document versions, communication status, current session and strategy snapshots, and bounded document history.
 - The Session tab remains available without a server.
 - Password text is cleared after every sign-in or registration attempt and is not persisted.
 
 ### Checks
 
 - `Baccarat.Core.Checks` exercises session rules and authentication outcomes without network access.
-- `Baccarat.Desktop.Checks` starts Avalonia headlessly and checks navigation and essential controls.
+- `Baccarat.Core.Checks` also exercises viewer round-trips, incompatible-version rejection, duplicate-property rejection, ordered delivery and subscriber isolation.
+- `Baccarat.Desktop.Checks` starts Avalonia headlessly and checks navigation, essential controls and live viewer updates.
 - Python tests cover static resource extraction and Phase 2 analysis helpers.
 
 ## Dependency direction
