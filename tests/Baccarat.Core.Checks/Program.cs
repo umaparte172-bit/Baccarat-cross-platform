@@ -52,6 +52,15 @@ Check(strategyWin is { Won: true, ProfitChange: 1.90m } && strategy.Profit == 0.
 var strategyPush = strategy.Record(Outcome.Tie);
 Check(strategyPush is { Won: null, ProfitChange: 0m } && strategy.Recommendation.Stake == 1m,
     "A tie must be a push and preserve the recommendation");
+Check(strategy.Undo() && strategy.Rounds.Count == 2 && strategy.Profit == 0.90m,
+    "Undo must restore the exact state before the latest strategy round");
+Check(strategy.ToCsv().StartsWith("Round,Outcome,Selector", StringComparison.Ordinal) &&
+      strategy.ToCsv().Contains("1,Banker,PLAYER,Player,1,-1,-1,True,False", StringComparison.Ordinal),
+    "Strategy CSV must include settled round details using invariant numbers");
+strategy.Reset();
+Check(strategy.Rounds.Count == 0 && strategy.Profit == 0 && !strategy.Undo() &&
+      strategy.Recommendation is { Side: BetSide.Player, Stake: 1m },
+    "Reset must restore the complete initial strategy state");
 
 var manualDefinition = martingale with
 {

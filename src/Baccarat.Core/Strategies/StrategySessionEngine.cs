@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 namespace Baccarat.Core.Strategies;
 
 public enum BetSide
@@ -25,6 +28,7 @@ public sealed record BetRecommendation(
 public sealed record StrategyRound(
     int Number,
     Outcome Outcome,
+    string? Selector,
     BetSide? Side,
     decimal? Stake,
     decimal ProfitChange,
@@ -36,6 +40,7 @@ public sealed class StrategySessionEngine
 {
     private readonly StrategyDefinition definition;
     private readonly List<StrategyRound> rounds = [];
+    private readonly Stack<EngineSnapshot> snapshots = [];
     private StrategyRule currentRule;
     private int sequenceIndex;
     private decimal? currentStake;
@@ -101,10 +106,11 @@ public sealed class StrategySessionEngine
 
         if (pauseRemaining > 0)
         {
+            snapshots.Push(Capture());
             pauseRemaining--;
             RememberWinner(outcome);
             var observation = new StrategyRound(
-                rounds.Count + 1, outcome, null, null, 0, Profit, false, null);
+                rounds.Count + 1, outcome, null, null, null, 0, Profit, false, null);
             rounds.Add(observation);
             return observation;
         }
@@ -113,6 +119,7 @@ public sealed class StrategySessionEngine
         if (recommendation.State != StrategyEngineState.Ready || recommendation.Side is null || recommendation.Stake is null)
             throw new InvalidOperationException(recommendation.Message);
 
+        snapshots.Push(Capture());
         var side = recommendation.Side.Value;
         var stake = recommendation.Stake.Value;
         bool? won = outcome == Outcome.Tie ? null :
@@ -130,7 +137,7 @@ public sealed class StrategySessionEngine
         else if (won == true) ConsecutiveLosses = 0;
 
         var completed = new StrategyRound(
-            rounds.Count + 1, outcome, side, stake, change, Profit, true, won);
+            rounds.Count + 1, outcome, currentRule.Selector, side, stake, change, Profit, true, won);
         rounds.Add(completed);
         RememberWinner(outcome);
 
@@ -145,9 +152,39 @@ public sealed class StrategySessionEngine
         return completed;
     }
 
+    public bool Undo()
+    {
+        if (rounds.Count == 0) return false;
+        var snapshot = snapshots.Pop();
+        rounds.RemoveAt(rounds.Count - 1);
+        Restore(snapshot);
+        return true;
+    }
+
+    public string ToCsv()
+    {
+        var result = new StringBuilder("Round,Outcome,Selector,Side,Stake,ProfitChange,TotalProfit,WasBet,Won\n");
+        foreach (var round in rounds)
+        {
+            result.Append(round.Number).Append(',')
+                .Append(round.Outcome).Append(',')
+                .Append(EscapeCsv(round.Selector)).Append(',')
+                .Append(round.Side?.ToString()).Append(',')
+                .Append(Format(round.Stake)).Append(',')
+                .Append(Format(round.ProfitChange)).Append(',')
+                .Append(Format(round.TotalProfit)).Append(',')
+                .Append(round.WasBet).Append(',')
+                .Append(round.Won?.ToString())
+                .Append('\n');
+        }
+
+        return result.ToString();
+    }
+
     public void Reset()
     {
         rounds.Clear();
+        snapshots.Clear();
         Profit = 0;
         ConsecutiveLosses = 0;
         StopReason = null;
@@ -228,4 +265,48 @@ public sealed class StrategySessionEngine
     {
         if (StopReason is not null) throw new InvalidOperationException(StopReason);
     }
+
+    private EngineSnapshot Capture() => new(
+        Profit,
+        ConsecutiveLosses,
+        StopReason,
+        currentRule,
+        sequenceIndex,
+        currentStake,
+        manualSide,
+        lastWinner,
+        pauseRemaining);
+
+    private void Restore(EngineSnapshot snapshot)
+    {
+        Profit = snapshot.Profit;
+        ConsecutiveLosses = snapshot.ConsecutiveLosses;
+        StopReason = snapshot.StopReason;
+        currentRule = snapshot.CurrentRule;
+        sequenceIndex = snapshot.SequenceIndex;
+        currentStake = snapshot.CurrentStake;
+        manualSide = snapshot.ManualSide;
+        lastWinner = snapshot.LastWinner;
+        pauseRemaining = snapshot.PauseRemaining;
+    }
+
+    private static string Format(decimal? value) =>
+        value?.ToString("0.############################", CultureInfo.InvariantCulture) ?? string.Empty;
+
+    private static string EscapeCsv(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value.IndexOfAny([',', '"', '\r', '\n']) < 0 ? value : $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+    }
+
+    private sealed record EngineSnapshot(
+        decimal Profit,
+        int ConsecutiveLosses,
+        string? StopReason,
+        StrategyRule CurrentRule,
+        int SequenceIndex,
+        decimal? CurrentStake,
+        BetSide? ManualSide,
+        BetSide? LastWinner,
+        int PauseRemaining);
 }

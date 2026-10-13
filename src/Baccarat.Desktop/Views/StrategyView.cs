@@ -19,6 +19,8 @@ public sealed class StrategyView : StackPanel
     private readonly StackPanel history = new() { Spacing = 6 };
     private readonly TextBox manualStake = new() { Watermark = "Manual stake", Width = 150 };
     private readonly Button reset = Button("Reset strategy");
+    private readonly Button undo = Button("Undo strategy round");
+    private readonly Button export = Button("Export strategy CSV");
     private readonly Button choosePlayer = Button("Use Player");
     private readonly Button chooseBanker = Button("Use Banker");
     private readonly Button applyStake = Button("Apply stake");
@@ -46,6 +48,8 @@ public sealed class StrategyView : StackPanel
         var load = Button("Load strategy");
         fileActions.Children.Add(load);
         fileActions.Children.Add(reset);
+        fileActions.Children.Add(undo);
+        fileActions.Children.Add(export);
         Children.Add(fileActions);
 
         Children.Add(Text("MANUAL RESOLUTION", 13, "#91A1B9"));
@@ -67,6 +71,8 @@ public sealed class StrategyView : StackPanel
 
         load.Click += async (_, _) => await LoadAsync();
         reset.Click += (_, _) => { engine?.Reset(); Refresh(); };
+        undo.Click += (_, _) => { engine?.Undo(); Refresh(); };
+        export.Click += async (_, _) => await ExportAsync();
         choosePlayer.Click += (_, _) => Choose(BetSide.Player);
         chooseBanker.Click += (_, _) => Choose(BetSide.Banker);
         applyStake.Click += (_, _) => SetStake();
@@ -161,6 +167,36 @@ public sealed class StrategyView : StackPanel
         }
     }
 
+    private async Task ExportAsync()
+    {
+        if (engine is null || engine.Rounds.Count == 0) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+
+        try
+        {
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export strategy session",
+                SuggestedFileName = "strategy-session.csv",
+                DefaultExtension = "csv",
+                FileTypeChoices = [new FilePickerFileType("CSV") { Patterns = ["*.csv"] }]
+            });
+            if (file is null) return;
+            await using var stream = await file.OpenWriteAsync();
+            stream.SetLength(0);
+            await using var writer = new StreamWriter(stream);
+            await writer.WriteAsync(engine.ToCsv());
+            await writer.FlushAsync();
+            recommendation.Text = "Strategy session exported.";
+            recommendation.Foreground = Brush.Parse("#7BD88F");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            ShowError("Export failed. Choose a writable location and try again.");
+        }
+    }
+
     private void Refresh()
     {
         var next = engine?.Recommendation;
@@ -170,6 +206,7 @@ public sealed class StrategyView : StackPanel
         var rounds = engine?.Rounds ?? [];
         totals.Text = $"Profit {engine?.Profit ?? 0:0.00}  ·  Bets {rounds.Count(round => round.WasBet)}  ·  Observed rounds {rounds.Count}";
         reset.IsEnabled = engine is not null;
+        undo.IsEnabled = export.IsEnabled = rounds.Count > 0;
         choosePlayer.IsEnabled = chooseBanker.IsEnabled = next?.State == StrategyEngineState.AwaitingSide;
         manualStake.IsEnabled = applyStake.IsEnabled = next?.State == StrategyEngineState.AwaitingStake;
         var canRecord = next?.State is StrategyEngineState.Ready or StrategyEngineState.Paused;

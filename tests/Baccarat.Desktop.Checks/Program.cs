@@ -43,6 +43,12 @@ Click("Banker result");
 window.UpdateLayout();
 if (!HasText("Bet 2 on Banker.")) throw new Exception("Strategy loss progression was not shown");
 if (!HasText("Profit -1.00")) throw new Exception("Strategy settlement total was not updated");
+if (!FindButton("Undo strategy round").IsEnabled || !FindButton("Export strategy CSV").IsEnabled)
+    throw new Exception("Strategy session undo and export must be enabled after settlement");
+Click("Undo strategy round");
+window.UpdateLayout();
+if (!HasText("Profit 0.00") || !HasText("Bet 1 on Player."))
+    throw new Exception("Strategy undo did not restore its initial state");
 
 tabs.SelectedIndex = 2;
 window.UpdateLayout();
