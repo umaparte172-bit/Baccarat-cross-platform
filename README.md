@@ -26,6 +26,8 @@ The feature-complete simulated automation workflow and live-adapter evidence bou
 
 The macOS Keychain implementation, dual-architecture app packaging, validation evidence and remaining distribution boundary are documented in [the Stage 9 delivery report](docs/stage-9-macos-delivery-report.md).
 
+The final cross-platform security, packaging and acceptance status is documented in [the Phase 10 release-readiness report](docs/phase-10-release-readiness-report.md). See [the security policy](SECURITY.md) before supplying captures or publishing builds.
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in macOS Keychain. Choose exact package versions when creating the application scaffold.

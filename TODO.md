@@ -118,3 +118,19 @@ The controlled automation workflow is feature-complete in local simulation. No r
 - [ ] Verify live browser/table integration after the evidence-gated adapter exists.
 
 The unsigned `osx-arm64` and `osx-x64` app bundles are produced by CI. They are development artifacts, not public distribution packages. Actual signing and notarization deliberately require a configured Developer ID identity and `notarytool` Keychain profile; no credentials are stored in the repository. Real service contracts and the live browser/table adapter remain unknown.
+
+## 10. Final production readiness
+
+- [x] Protect Windows sessions with the current user's Credential Manager.
+- [x] Reject and remove corrupt persisted authentication sessions.
+- [x] Exercise protected-store save, read, UTF-8 round-trip and cleanup on Windows and macOS CI.
+- [x] Produce validated Windows x64, macOS Apple Silicon and macOS Intel development packages.
+- [x] Publish a SHA-256 sidecar with every package.
+- [x] Provide fail-closed Windows Authenticode and macOS Developer ID/notarization hooks.
+- [x] Run builds, formatting, core checks, headless UI checks and static-analysis tests across the supported platforms.
+- [x] Audit direct and transitive dependencies for known vulnerabilities and deprecations.
+- [x] Document the release procedure, security policy, verified capabilities and remaining evidence boundaries.
+- [ ] Sign public artifacts and complete interactive acceptance on physical Windows and macOS machines when owner credentials and hardware are available.
+- [ ] Enable legacy-service and live-table adapters only after sanitized evidence supplies the missing contracts.
+
+Phase 10 completes the replacement application's evidence-backed implementation and automated release-readiness work. The two open items require external credentials, physical acceptance environments or protocol evidence and are not substituted with guessed behavior.

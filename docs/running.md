@@ -56,6 +56,47 @@ macOS stores authenticated sessions as generic-password items in the user's Keyc
 
 The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests and creates both unsigned macOS architecture artifacts.
 
+## Windows package
+
+On Windows with the .NET 10 SDK on `PATH`:
+
+```powershell
+./tools/package-windows.ps1 `
+  -Runtime win-x64 `
+  -Configuration Release `
+  -OutputDirectory artifacts/windows/win-x64
+```
+
+This creates a self-contained application directory, an unsigned development ZIP and its SHA-256 sidecar. CI publishes the same files as `baccarat-workspace-win-x64-unsigned`.
+
+For public distribution, install a code-signing certificate in the current user's certificate store and make `signtool.exe` available, then run:
+
+```powershell
+$env:WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT = 'CERTIFICATE_THUMBPRINT'
+./tools/sign-windows.ps1 `
+  -ApplicationDirectory 'artifacts/windows/win-x64/Baccarat Workspace' `
+  -OutputArchive 'artifacts/windows/win-x64/Baccarat-Workspace-win-x64-signed.zip'
+```
+
+The signing hook signs and timestamp-verifies only the replacement application's executable and assemblies. It does not import, export or store a private key.
+
+## Verify downloaded artifacts
+
+Keep the ZIP and `.sha256` file in the same directory. On macOS:
+
+```sh
+shasum -a 256 -c Baccarat-Workspace-osx-arm64-unsigned.zip.sha256
+```
+
+On Windows, calculate the ZIP hash and compare it with the lowercase value in the sidecar:
+
+```powershell
+(Get-FileHash Baccarat-Workspace-win-x64-unsigned.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+Get-Content Baccarat-Workspace-win-x64-unsigned.zip.sha256
+```
+
+A checksum detects accidental or unauthenticated modification after CI produced an artifact; it does not replace Authenticode, Developer ID signing or notarization for a public release.
+
 ## Validation record
 
 The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-13. The same build and checks passed on a GitHub-hosted macOS runner, including default Keychain selection and a missing-item lookup. CI also created and validated native `osx-arm64` and `osx-x64` app bundles. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. Interactive installation, Developer ID signing/notarization and live browser integration have not been tested.
