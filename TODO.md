@@ -36,6 +36,7 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 
 ## 4. Verified behavior
 
+- [x] Define the sanitized VMware network-evidence package required for exact contract recovery.
 - [ ] Specify authentication and WebSocket contracts from evidence.
 - [ ] Implement authenticated sessions, expiry and reconnection.
 - [ ] Implement browser workflows once selectors and intended actions are established.

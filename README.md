@@ -8,6 +8,8 @@ The completed evidence baseline is documented in [the Phase 1 evidence index](do
 
 [The Phase 2 static recovery report](docs/phase-2-static-recovery.md) records the recovered form structure, startup branch, protected method tokens, configuration-decoder inputs and resource classification.
 
+Exact Stage 3 network compatibility requires the sanitized evidence described in [the VMware network-capture guide](docs/network-evidence-capture.md). Raw captures and credentials must not be committed.
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in macOS Keychain. Choose exact package versions when creating the application scaffold.
