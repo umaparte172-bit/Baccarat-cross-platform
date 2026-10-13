@@ -91,7 +91,23 @@ Exact automation for protected selector and amount algorithms remains dependent 
 
 The replacement document contract is complete at version 1.0. It is deliberately not presented as the original server protocol. Unknown versions and document types are rejected rather than guessed.
 
-## 8. macOS delivery
+## 8. Controlled automation workflows
+
+- [x] Map recovered `InitialBet`, `AutoBet`, `PlaceBet`, `DummyBet` and `GetChips` workflow names to replacement boundaries without inventing protected algorithms.
+- [x] Implement a serialized automation state machine with explicit disconnected, approval, chip-selection, placement, recovery, paused, stopped and faulted states.
+- [x] Implement exact bounded chip composition and Player/Banker placement requests.
+- [x] Implement separately controlled initial-bet and auto-bet workflows.
+- [x] Require explicit approval and enforce per-bet, cumulative-session and chip-action limits.
+- [x] Implement bounded reconnect with exponential backoff and recovery into a paused review state.
+- [x] Treat lost or missing placement acknowledgements as indeterminate and never replay those bets.
+- [x] Cancel stale approvals when strategy state changes and safely handle strategy undo/reset.
+- [x] Add an idempotent local simulation adapter and a complete Automation workspace.
+- [x] Publish versioned automation state to the Viewer and verify the complete headless UI flow.
+- [ ] Implement a live browser/table adapter only after verified selectors, chip denominations, readiness checks and placement acknowledgements are supplied.
+
+The controlled automation workflow is feature-complete in local simulation. No real browser, account or monetary action is enabled by default.
+
+## 9. macOS delivery
 
 - [ ] Build for Apple Silicon and Intel as appropriate.
 - [ ] Verify UI, browser integration and Keychain on macOS.

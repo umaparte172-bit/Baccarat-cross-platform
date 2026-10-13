@@ -20,7 +20,9 @@ The completed offline strategy/session engine and its protected-algorithm bounda
 
 The live versioned viewer, communication boundary and compatibility rules are documented in [the Stage 7 integration report](docs/stage-7-viewer-communication-report.md).
 
-The security hardening performed before macOS delivery is recorded in [the pre-Stage 8 readiness report](docs/pre-stage-8-hardening-report.md).
+The security hardening performed before controlled automation is recorded in [the pre-Stage 8 readiness report](docs/pre-stage-8-hardening-report.md).
+
+The feature-complete simulated automation workflow and live-adapter evidence boundary are documented in [the Stage 8 automation report](docs/stage-8-automation-report.md).
 
 ## Intended stack
 

@@ -4,7 +4,7 @@ Review date: 2026-10-13.
 
 ## Outcome
 
-The implementation through Stage 7 was re-audited and hardened before macOS delivery work. The original executable was not run. The replacement remains offline by default and contains no recovered or guessed legacy endpoint.
+The implementation through Stage 7 was re-audited and hardened before controlled automation work. The original executable was not run. The replacement remains offline by default and contains no recovered or guessed legacy endpoint.
 
 ## Remediated findings
 
@@ -29,8 +29,8 @@ The implementation through Stage 7 was re-audited and hardened before macOS deli
 
 ## Stage 8 entry boundary
 
-The codebase is ready to begin macOS delivery work: runtime publishing, application-bundle construction, platform secret storage, UI verification on macOS, signing and notarization.
+The codebase is ready to implement controlled automation behind a simulation-first adapter. Recovered workflow names establish feature presence, but exact browser selectors and placement algorithms remain protected.
 
-An Apple Developer identity, signing certificate and notarization credentials will be required only for the signing/notarization portion. They must be supplied through protected CI secrets and must never be committed.
+Stage 8 must require explicit approval, enforce bounded exposure, use idempotent operation identifiers, and never retry a placement whose outcome is unknown. A live adapter must remain absent until verified table-state and acknowledgement evidence is supplied.
 
 Legacy server integration remains a separate evidence-gated task. It still requires sanitized fixtures for endpoints, authentication, WebSocket framing, acknowledgements, heartbeats and reconnection behavior. Stage 8 must not invent these values or enable external actions.
