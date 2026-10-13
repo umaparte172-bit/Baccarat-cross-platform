@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../../src/Baccarat.Core/Baccarat.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Baccarat.Core/Baccarat.Core.csproj" />
+    <ProjectReference Include="../../src/Baccarat.Infrastructure/Baccarat.Infrastructure.csproj" />
+  </ItemGroup>
 </Project>

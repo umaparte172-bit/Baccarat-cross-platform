@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Diagnostics;
 using Baccarat.Desktop.Views;
 
 namespace Baccarat.Desktop;
@@ -19,7 +20,7 @@ public sealed class MainWindow : Window
     private readonly Button clear;
     private readonly Button export;
 
-    public MainWindow(IAuthenticationService? authenticationService = null)
+    public MainWindow(IAuthenticationService? authenticationService = null, IDiagnosticSink? diagnostics = null)
     {
         Title = "Baccarat Workspace";
         Width = 1040; Height = 760; MinWidth = 700; MinHeight = 550;
@@ -43,12 +44,17 @@ public sealed class MainWindow : Window
         overview.Children.Add(Label("ROUND HISTORY", 13, "#91A1B9"));
         overview.Children.Add(history);
 
-        var account = new AccountView(authenticationService ?? new OfflineAuthenticationService());
+        var account = new AccountView(
+            authenticationService ?? ApplicationServices.CreateDefault().Authentication,
+            diagnostics);
 
-        var tabs = new TabControl { ItemsSource = new[] {
+        var tabs = new TabControl
+        {
+            ItemsSource = new[] {
             new TabItem { Header = "Session", Content = new ScrollViewer { Content = overview } },
             new TabItem { Header = "Account", Content = new ScrollViewer { Content = account } }
-        }};
+        }
+        };
         var layout = new DockPanel { Margin = new Thickness(24) };
         var heading = Label("BACCARAT  /  WORKSPACE", 18);
         heading.Margin = new Thickness(0, 0, 0, 20);
@@ -97,8 +103,11 @@ public sealed class MainWindow : Window
         try
         {
             var csv = session.ToCsv();
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions {
-                Title = "Export session", SuggestedFileName = "baccarat-session.csv", DefaultExtension = "csv",
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export session",
+                SuggestedFileName = "baccarat-session.csv",
+                DefaultExtension = "csv",
                 FileTypeChoices = new[] { new FilePickerFileType("CSV") { Patterns = new[] { "*.csv" } } }
             });
             if (file is null) return;

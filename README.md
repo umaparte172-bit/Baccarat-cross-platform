@@ -12,6 +12,8 @@ Exact Stage 3 network compatibility requires the sanitized evidence described in
 
 The verified project boundaries and dependency direction are described in [the application architecture](docs/architecture.md).
 
+The cumulative implementation status through Stage 4 is recorded in [the architecture and audit report](docs/stage-4-audit-report.md).
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in macOS Keychain. Choose exact package versions when creating the application scaffold.

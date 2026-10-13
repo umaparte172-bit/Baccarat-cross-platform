@@ -1,4 +1,6 @@
-namespace Baccarat.Core.Authentication;
+using Baccarat.Core.Authentication;
+
+namespace Baccarat.Infrastructure.Authentication;
 
 public sealed class OfflineAuthenticationService : IAuthenticationService
 {
@@ -13,4 +15,3 @@ public sealed class OfflineAuthenticationService : IAuthenticationService
         AuthenticatedSession session,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
-

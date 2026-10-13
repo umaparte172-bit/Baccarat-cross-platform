@@ -1,5 +1,8 @@
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Configuration;
+using Baccarat.Infrastructure.Diagnostics;
+using Baccarat.Infrastructure.Security;
 
 static void Check(bool value, string message) { if (!value) throw new Exception(message); }
 var session = new Session();
@@ -56,6 +59,30 @@ authentication.ThrowOnSignIn = true;
 Check((await controller.SignInAsync("test@example.com", "secret")).Outcome == AuthenticationOutcome.UnexpectedError,
     "Service exceptions must become controlled errors");
 Console.WriteLine("PASS: authentication validation, rejection, empty/malformed responses, session and exception handling");
+
+Check(NetworkClientOptions.Disconnected.Validate().Count == 0 && !NetworkClientOptions.Disconnected.IsConfigured,
+    "Disconnected configuration must be valid");
+var insecureOptions = new NetworkClientOptions(
+    new Uri("http://example.invalid"), new Uri("ws://example.invalid"), TimeSpan.FromMilliseconds(100));
+Check(insecureOptions.Validate().Count == 3, "Insecure endpoints and invalid timeout must be rejected");
+
+var secrets = new VolatileSecretStore();
+await secrets.SaveAsync("session", "fixture-secret");
+Check(await secrets.ReadAsync("session") == "fixture-secret", "Volatile secret store must round-trip in memory");
+await secrets.DeleteAsync("session");
+Check(await secrets.ReadAsync("session") is null, "Deleted secrets must not remain available");
+
+var diagnosticLines = new List<string>();
+var redactingSink = new RedactingDiagnosticSink(diagnosticLines.Add);
+redactingSink.Write(Baccarat.Core.Diagnostics.DiagnosticLevel.Error, "fixture",
+    "email=user@example.com password=hunter2 Authorization: Bearer abc.def token=xyz");
+Check(diagnosticLines.Count == 1 &&
+      !diagnosticLines[0].Contains("user@example.com") &&
+      !diagnosticLines[0].Contains("hunter2") &&
+      !diagnosticLines[0].Contains("abc.def") &&
+      !diagnosticLines[0].Contains("xyz"),
+    "Diagnostics must redact email, password, bearer token and token assignments");
+Console.WriteLine("PASS: configuration validation, volatile secrets and diagnostic redaction");
 
 sealed class StubAuthenticationService(Queue<AuthenticationResult?> responses) : IAuthenticationService
 {

@@ -36,7 +36,18 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 - [x] Build and test the initial application, including headless desktop checks.
 - [x] Update Avalonia and verify no known vulnerable direct or transitive packages.
 
-## 4. Verified behavior
+## 4. Application architecture
+
+- [x] Separate Core, Infrastructure and Desktop projects with one-way dependencies.
+- [x] Add a canonical solution, SDK selection and centralized package versions.
+- [x] Enable deterministic builds, nullable analysis and warnings-as-errors.
+- [x] Add validated disconnected/HTTPS/WSS network configuration.
+- [x] Add secret-storage and diagnostic abstractions.
+- [x] Implement volatile secret storage and redacted diagnostic adapters.
+- [x] Add a desktop composition root and verify all projects together.
+- [x] Audit and document completion of Stages 1–4.
+
+## 5. Verified behavior and network integration
 
 - [x] Define the sanitized VMware network-evidence package required for exact contract recovery.
 - [ ] Specify authentication and WebSocket contracts from evidence.
@@ -47,7 +58,7 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 
 If the old backend is unavailable, record that dependency explicitly. Rebuilding a UI cannot restore an unavailable service.
 
-## 5. macOS delivery
+## 6. macOS delivery
 
 - [ ] Build for Apple Silicon and Intel as appropriate.
 - [ ] Verify UI, browser integration and Keychain on macOS.

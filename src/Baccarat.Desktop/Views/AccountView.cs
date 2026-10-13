@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Diagnostics;
 
 namespace Baccarat.Desktop.Views;
 
@@ -15,9 +16,9 @@ public sealed class AccountView : StackPanel
     private readonly Button signIn = new() { Content = "Sign in", Padding = new Thickness(18, 12) };
     private readonly Button signOut = new() { Content = "Sign out", Padding = new Thickness(18, 12) };
 
-    public AccountView(IAuthenticationService service)
+    public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
     {
-        controller = new AuthenticationController(service);
+        controller = new AuthenticationController(service, diagnostics);
         Margin = new Thickness(24);
         Spacing = 16;
 

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Baccarat.Core/Baccarat.Core.csproj" />
+    <Project Path="src/Baccarat.Infrastructure/Baccarat.Infrastructure.csproj" />
+    <Project Path="src/Baccarat.Desktop/Baccarat.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Baccarat.Core.Checks/Baccarat.Core.Checks.csproj" />
+    <Project Path="tests/Baccarat.Desktop.Checks/Baccarat.Desktop.Checks.csproj" />
+  </Folder>
+</Solution>

@@ -1,13 +1,18 @@
 using System.Net.Mail;
+using Baccarat.Core.Diagnostics;
 
 namespace Baccarat.Core.Authentication;
 
 public sealed class AuthenticationController
 {
     private readonly IAuthenticationService service;
+    private readonly IDiagnosticSink diagnostics;
 
-    public AuthenticationController(IAuthenticationService service) =>
+    public AuthenticationController(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
+    {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
+        this.diagnostics = diagnostics ?? NullDiagnosticSink.Instance;
+    }
 
     public bool IsBusy { get; private set; }
     public AuthenticatedSession? Session { get; private set; }
@@ -24,7 +29,10 @@ public sealed class AuthenticationController
 
         var validation = Validate(email, password);
         if (validation is not null)
+        {
+            diagnostics.Write(DiagnosticLevel.Warning, "authentication.validation_failed", validation.Message);
             return LastResult = validation;
+        }
 
         IsBusy = true;
         try
@@ -35,6 +43,10 @@ public sealed class AuthenticationController
                 AuthenticationOutcome.EmptyResponse,
                 "The authentication service returned no result.");
             Session = LastResult.IsAuthenticated ? LastResult.Session : null;
+            diagnostics.Write(
+                LastResult.IsAuthenticated ? DiagnosticLevel.Information : DiagnosticLevel.Warning,
+                "authentication.completed",
+                $"Outcome={LastResult.Outcome}");
             return LastResult;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -44,6 +56,7 @@ public sealed class AuthenticationController
         catch
         {
             Session = null;
+            diagnostics.Write(DiagnosticLevel.Error, "authentication.failed", "The authentication service threw an exception.");
             return LastResult = new(
                 AuthenticationOutcome.UnexpectedError,
                 "Authentication failed because the service response could not be processed.");
@@ -65,6 +78,7 @@ public sealed class AuthenticationController
         try
         {
             await service.SignOutAsync(current, cancellationToken);
+            diagnostics.Write(DiagnosticLevel.Information, "authentication.signed_out", "The session was cleared.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -72,6 +86,7 @@ public sealed class AuthenticationController
         }
         catch
         {
+            diagnostics.Write(DiagnosticLevel.Error, "authentication.sign_out_failed", "Remote sign-out was not confirmed.");
             LastResult = new(
                 AuthenticationOutcome.UnexpectedError,
                 "The local session was cleared, but the remote sign-out could not be confirmed.");

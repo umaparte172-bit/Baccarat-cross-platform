@@ -11,9 +11,18 @@ Platform-independent application rules:
 - `Session` records Player, Banker and Tie outcomes and produces CSV.
 - `AuthenticationContracts` defines sign-in input, normalized outcomes and authenticated session state.
 - `AuthenticationController` validates input, serializes sign-in state transitions, clears failed sessions and converts service failures into controlled results.
-- `OfflineAuthenticationService` is the safe default until the original protocol is evidenced.
+- `IDiagnosticSink` and `ISecretStore` define logging and secret-storage boundaries without platform dependencies.
+- `NetworkClientOptions` validates disconnected mode and requires HTTPS/WSS when endpoints are eventually supplied.
 
-The future HTTP/WebSocket implementation will implement the existing service boundary. It will not require changes to session logic or UI state handling.
+### `Baccarat.Infrastructure`
+
+Replaceable technical adapters:
+
+- `OfflineAuthenticationService` is the safe default until the original protocol is evidenced.
+- `RedactingDiagnosticSink` removes email addresses, passwords, API keys, secrets and bearer/token values before output.
+- `VolatileSecretStore` keeps temporary values in memory and never persists credentials to disk.
+
+Future HTTP/WebSocket and Windows Credential Manager/macOS Keychain adapters belong here. They will implement existing core boundaries without changing session logic or UI state handling.
 
 ### `Baccarat.Desktop`
 
@@ -33,10 +42,11 @@ Cross-platform Avalonia presentation:
 ## Dependency direction
 
 ```text
-Baccarat.Desktop  ->  Baccarat.Core  ->  IAuthenticationService
-                                              ^
-                                              |
-                         offline adapter now / recovered network adapter later
+Baccarat.Desktop  ->  Baccarat.Infrastructure  ->  Baccarat.Core
+        |                                                ^
+        +------------------------------------------------+
+
+Core defines interfaces; Infrastructure implements them; Desktop composes them.
 ```
 
 UI code cannot access HTTP or WebSocket APIs directly. Network code cannot update controls directly. This keeps the recovered protocol isolated and testable when Stage 3 evidence becomes available.
