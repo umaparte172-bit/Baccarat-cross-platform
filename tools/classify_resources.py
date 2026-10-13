@@ -3,6 +3,7 @@ import argparse
 import bz2
 import gzip
 import hashlib
+import io
 import json
 import lzma
 import math
@@ -22,6 +23,36 @@ MAGIC = {
     b"\xd0\xcf\x11\xe0": "OLE compound document",
 }
 
+MAX_DECOMPRESSED_BYTES = 8 * 1024 * 1024
+
+
+class DecompressionLimitExceeded(ValueError):
+    """Raised when a resource expands beyond the analysis safety limit."""
+
+
+def _read_bounded(stream) -> bytes:
+    decoded = stream.read(MAX_DECOMPRESSED_BYTES + 1)
+    if len(decoded) > MAX_DECOMPRESSED_BYTES:
+        raise DecompressionLimitExceeded(
+            f"decoded resource exceeds {MAX_DECOMPRESSED_BYTES} bytes"
+        )
+    return decoded
+
+
+def _decompress_zlib(data: bytes) -> bytes:
+    decoder = zlib.decompressobj()
+    decoded = decoder.decompress(data, MAX_DECOMPRESSED_BYTES + 1)
+    if len(decoded) > MAX_DECOMPRESSED_BYTES or not decoder.eof:
+        raise DecompressionLimitExceeded(
+            f"decoded resource exceeds {MAX_DECOMPRESSED_BYTES} bytes or is incomplete"
+        )
+    return decoded
+
+
+def _decompress_stream(data: bytes, opener) -> bytes:
+    with opener(io.BytesIO(data)) as stream:
+        return _read_bounded(stream)
+
 
 def entropy(data: bytes) -> float:
     if not data:
@@ -36,11 +67,18 @@ def classify(path: Path) -> dict:
     detected = [label for prefix, label in MAGIC.items() if data.startswith(prefix)]
     printable = sum(byte in b"\t\n\r" or 32 <= byte <= 126 for byte in data)
     decompression = []
+    rejected_decompression = []
     attempts = {
-        "zlib": zlib.decompress,
-        "gzip": gzip.decompress,
-        "bzip2": bz2.decompress,
-        "lzma/xz": lzma.decompress,
+        "zlib": _decompress_zlib,
+        "gzip": lambda value: _decompress_stream(
+            value, lambda stream: gzip.GzipFile(fileobj=stream, mode="rb")
+        ),
+        "bzip2": lambda value: _decompress_stream(
+            value, lambda stream: bz2.BZ2File(stream, mode="rb")
+        ),
+        "lzma/xz": lambda value: _decompress_stream(
+            value, lambda stream: lzma.LZMAFile(stream, mode="rb")
+        ),
     }
     for name, operation in attempts.items():
         try:
@@ -50,6 +88,12 @@ def classify(path: Path) -> dict:
                 "size": len(decoded),
                 "sha256": hashlib.sha256(decoded).hexdigest(),
                 "prefix_hex": decoded[:16].hex(),
+            })
+        except DecompressionLimitExceeded as exception:
+            rejected_decompression.append({
+                "format": name,
+                "reason": str(exception),
+                "limit": MAX_DECOMPRESSED_BYTES,
             })
         except (OSError, EOFError, ValueError, zlib.error, lzma.LZMAError):
             pass
@@ -62,6 +106,7 @@ def classify(path: Path) -> dict:
         "printable_ratio": round(printable / len(data), 4) if data else 0.0,
         "recognized_magic": detected,
         "standard_decompression": decompression,
+        "rejected_decompression": rejected_decompression,
     }
 
 

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.classify_resources import classify, entropy
+from tools.classify_resources import MAX_DECOMPRESSED_BYTES, classify, entropy
 from tools.phase2_metadata import compressed_uint
 
 
@@ -24,6 +24,18 @@ class Phase2ToolTests(unittest.TestCase):
             result = classify(path)
             self.assertIn("gzip", result["recognized_magic"])
             self.assertEqual(result["standard_decompression"][0]["size"], 19)
+
+    def test_oversized_gzip_is_rejected_without_materializing_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "oversized.bin"
+            path.write_bytes(gzip.compress(b"A" * (MAX_DECOMPRESSED_BYTES + 1)))
+            result = classify(path)
+            self.assertEqual(result["standard_decompression"], [])
+            self.assertEqual(result["rejected_decompression"][0]["format"], "gzip")
+            self.assertEqual(
+                result["rejected_decompression"][0]["limit"],
+                MAX_DECOMPRESSED_BYTES,
+            )
 
 
 if __name__ == "__main__":

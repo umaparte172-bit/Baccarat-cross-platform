@@ -11,7 +11,7 @@ The evidence root is the ignored `Original Application/` directory. It contains 
 3. `Wetalkbet (CUsersElioAppDataLocal)/` — per-user configuration snapshots.
 4. `strategies/` — client-provided strategy variants.
 
-The reproducible inventory contains **49 files** totaling **54,540,580 bytes**. Run `tools/inventory-original.ps1` from PowerShell to regenerate the ignored `artifacts/phase1-evidence-inventory.json` manifest. The manifest records normalized relative paths, sizes, SHA-256 hashes, extensions, Authenticode status and available version-resource metadata.
+The reproducible inventory contains **49 files** totaling **54,540,580 bytes**. Run `tools/inventory-original.ps1` from Windows PowerShell 5.1 or PowerShell 7 to regenerate the ignored `artifacts/phase1-evidence-inventory.json` manifest. The manifest records normalized relative paths, sizes, SHA-256 hashes, extensions, Authenticode status and available version-resource metadata.
 
 ## Primary artifacts
 

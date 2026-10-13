@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $sourcePath = (Resolve-Path -LiteralPath $Source).Path
 $workspacePath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$sourcePrefix = $sourcePath.TrimEnd([char[]]'\/') + [System.IO.Path]::DirectorySeparatorChar
 
 if (-not $sourcePath.StartsWith($workspacePath, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Source must be inside the workspace: $workspacePath"
@@ -16,7 +17,10 @@ $files = @(Get-ChildItem -LiteralPath $sourcePath -Recurse -File | Sort-Object F
 $totalBytes = [long]0
 $records = foreach ($file in $files) {
     $totalBytes += $file.Length
-    $relative = [System.IO.Path]::GetRelativePath($sourcePath, $file.FullName)
+    if (-not $file.FullName.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Inventory file escaped the source directory: $($file.FullName)"
+    }
+    $relative = $file.FullName.Substring($sourcePrefix.Length)
     $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
     $signatureStatus = $null
     $signer = $null
