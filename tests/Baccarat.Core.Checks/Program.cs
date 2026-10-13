@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
 using Baccarat.Core.Configuration;
@@ -100,6 +103,62 @@ Check((await expiredController.RestoreSessionAsync()).Outcome == AuthenticationO
     "Expired stored sessions must be rejected and removed");
 Console.WriteLine("PASS: authentication session validation, persistence, restoration, expiry and cleanup");
 
+try
+{
+    using var _ = new HttpAuthenticationService(
+        new Uri("http://example.invalid"), TimeSpan.FromSeconds(10), new FixtureAuthenticationProtocol());
+    throw new Exception("Insecure authentication origin accepted");
+}
+catch (ArgumentException)
+{
+}
+
+var transport = new ScriptedHttpMessageHandler();
+transport.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK)
+{
+    Content = new StringContent("fixture-user|fixture-token|2026-10-13T01:00:00+00:00")
+});
+using var httpAuthentication = new HttpAuthenticationService(
+    new Uri("https://auth.example.test/api/"),
+    TimeSpan.FromSeconds(10),
+    new FixtureAuthenticationProtocol(),
+    handler: transport);
+var httpResult = await httpAuthentication.SignInAsync(new SignInRequest("test@example.com", "secret"));
+Check(httpResult.IsAuthenticated && transport.LastUri == new Uri("https://auth.example.test/api/fixture/sign-in"),
+    "HTTP authentication must resolve protocol routes against the configured HTTPS origin");
+Check(transport.LastBody?.Contains("secret", StringComparison.Ordinal) == true,
+    "The fixture transport must receive the protocol-produced request body");
+
+transport.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.Unauthorized));
+Check((await httpAuthentication.SignInAsync(new SignInRequest("test@example.com", "wrong"))).Outcome ==
+      AuthenticationOutcome.Rejected,
+    "HTTP 401 must be normalized as rejected credentials");
+transport.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+Check((await httpAuthentication.SignInAsync(new SignInRequest("test@example.com", "secret"))).Outcome ==
+      AuthenticationOutcome.Unavailable,
+    "HTTP 5xx must be normalized as service unavailable");
+
+transport.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK));
+await httpAuthentication.SignOutAsync(new AuthenticatedSession("fixture-user", "signout-token", null));
+Check(transport.LastAuthorization == "Bearer signout-token", "Sign-out must use the protocol-produced authorization header");
+
+var foreignOriginTransport = new ScriptedHttpMessageHandler();
+using var foreignOriginService = new HttpAuthenticationService(
+    new Uri("https://auth.example.test/"),
+    TimeSpan.FromSeconds(10),
+    new ForeignOriginProtocol(),
+    handler: foreignOriginTransport);
+try
+{
+    await foreignOriginService.SignInAsync(new SignInRequest("test@example.com", "secret"));
+    throw new Exception("Cross-origin authentication request accepted");
+}
+catch (InvalidOperationException)
+{
+    Check(foreignOriginTransport.CallCount == 0, "Cross-origin requests must be rejected before transmission");
+}
+Console.WriteLine("PASS: HTTPS authentication transport, response normalization and origin confinement");
+
 Check(NetworkClientOptions.Disconnected.Validate().Count == 0 && !NetworkClientOptions.Disconnected.IsConfigured,
     "Disconnected configuration must be valid");
 var insecureOptions = new NetworkClientOptions(
@@ -149,4 +208,68 @@ sealed class StubAuthenticationService(Queue<AuthenticationResult?> responses) :
 sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => value;
+}
+
+sealed class ScriptedHttpMessageHandler : HttpMessageHandler
+{
+    public Queue<HttpResponseMessage> Responses { get; } = new();
+    public int CallCount { get; private set; }
+    public Uri? LastUri { get; private set; }
+    public string? LastBody { get; private set; }
+    public string? LastAuthorization { get; private set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        CallCount++;
+        LastUri = request.RequestUri;
+        LastBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+        LastAuthorization = request.Headers.Authorization?.ToString();
+        return Responses.Dequeue();
+    }
+}
+
+class FixtureAuthenticationProtocol : IAuthenticationHttpProtocol
+{
+    public virtual HttpRequestMessage CreateSignInRequest(SignInRequest request) => new(
+        HttpMethod.Post,
+        "fixture/sign-in")
+    {
+        Content = new StringContent($"{request.Email}|{request.Password}", Encoding.UTF8, "text/plain")
+    };
+
+    public async ValueTask<AuthenticationResult> ReadSignInResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default)
+    {
+        var fields = (await response.Content.ReadAsStringAsync(cancellationToken)).Split('|');
+        if (fields.Length != 3 || !DateTimeOffset.TryParse(fields[2], out var expiresAt))
+            throw new FormatException("Invalid fixture response.");
+        return new(
+            AuthenticationOutcome.Authenticated,
+            "Connected.",
+            new AuthenticatedSession(fields[0], fields[1], expiresAt));
+    }
+
+    public HttpRequestMessage CreateSignOutRequest(AuthenticatedSession session)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "fixture/sign-out");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        return request;
+    }
+
+    public ValueTask ReadSignOutResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default)
+    {
+        response.EnsureSuccessStatusCode();
+        return ValueTask.CompletedTask;
+    }
+}
+
+sealed class ForeignOriginProtocol : FixtureAuthenticationProtocol
+{
+    public override HttpRequestMessage CreateSignInRequest(SignInRequest request) =>
+        new(HttpMethod.Post, "https://other.example.test/sign-in");
 }
