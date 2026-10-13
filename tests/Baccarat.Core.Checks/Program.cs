@@ -8,6 +8,7 @@ using Baccarat.Core.Strategies;
 using Baccarat.Infrastructure.Authentication;
 using Baccarat.Infrastructure.Diagnostics;
 using Baccarat.Infrastructure.Security;
+using Baccarat.Infrastructure.Strategies;
 
 static void Check(bool value, string message) { if (!value) throw new Exception(message); }
 var session = new Session();
@@ -108,6 +109,62 @@ stoppedStrategy.Record(Outcome.Player);
 Check(stoppedStrategy.Recommendation.State == StrategyEngineState.Stopped,
     "The strategy must stop when its profit limit is reached");
 Console.WriteLine("PASS: strategy recommendations, settlement, progression and guarded opaque rules");
+
+const string strategyJson = """
+    {
+      "strategy_name":"Fixture Sequence",
+      "rule_condition":"5,3,5,1",
+      "initial_condition":{"bet_on":"PLAYER","amount":{"type":"set","value":"1,2,3"}},
+      "win_condition":{"bet_on":"WINNER","amount":{"type":"Reset Sequence","value":"2"}},
+      "loss_condition":{"bet_on":"WINNER","amount":{"type":"Next Sequence","value":"2"}},
+      "stop_profit":"10",
+      "stop_loss":"5",
+      "stop_consecutive_loss":{"action":"STOP BET","count":"4"},
+      "pause_consecutive_loss":{"pause_bets":"2","count":"3"}
+    }
+    """;
+var strategyLoader = new StrategyFileLoader();
+await using var strategyStream = new MemoryStream(Encoding.UTF8.GetBytes(strategyJson));
+var importedStrategy = await strategyLoader.LoadAsync(strategyStream);
+Check(importedStrategy.Name == "Fixture Sequence" &&
+      importedStrategy.Initial.Values.SequenceEqual([1m, 2m, 3m]) &&
+      importedStrategy.AfterWin.AmountRule == AmountRuleKind.ResetSequence &&
+      importedStrategy.AfterLoss.AmountRule == AmountRuleKind.NextSequence &&
+      importedStrategy is
+      {
+          StopProfit: 10m,
+          StopLoss: 5m,
+          StopAfterConsecutiveLosses: 4,
+          PauseAfterConsecutiveLosses: 3,
+          PauseRounds: 2
+      },
+    "The recovered strategy JSON schema must map to a validated definition");
+
+await using var unknownFieldStream = new MemoryStream(Encoding.UTF8.GetBytes(strategyJson.Replace(
+    "\"strategy_name\":\"Fixture Sequence\"",
+    "\"strategy_name\":\"Fixture Sequence\",\"unexpected\":true",
+    StringComparison.Ordinal)));
+try
+{
+    await strategyLoader.LoadAsync(unknownFieldStream);
+    throw new Exception("Unknown strategy field accepted");
+}
+catch (StrategyFormatException)
+{
+}
+
+var suppliedStrategyDirectory = Path.Combine("Original Application", "strategies");
+if (Directory.Exists(suppliedStrategyDirectory))
+{
+    var suppliedFiles = Directory.GetFiles(suppliedStrategyDirectory, "*.txt", SearchOption.TopDirectoryOnly);
+    Check(suppliedFiles.Length == 8, "The supplied strategy inventory changed unexpectedly");
+    foreach (var suppliedFile in suppliedFiles)
+    {
+        await using var suppliedStream = File.OpenRead(suppliedFile);
+        await strategyLoader.LoadAsync(suppliedStream);
+    }
+}
+Console.WriteLine("PASS: strict strategy import and supplied schema compatibility");
 
 var response = new Queue<AuthenticationResult?>();
 var authentication = new StubAuthenticationService(response);
