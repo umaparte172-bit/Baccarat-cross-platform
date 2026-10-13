@@ -65,7 +65,14 @@ public sealed class ViewerCommunicationModule
         cancellationToken.ThrowIfCancellationRequested();
         var document = codec.Decode(message.Span);
         if (store.Apply(document) == ViewerDocumentApplyResult.Applied)
-            DocumentReceived?.Invoke(document);
+        {
+            var handlers = DocumentReceived?.GetInvocationList() ?? [];
+            foreach (Action<ViewerDocument> handler in handlers.Cast<Action<ViewerDocument>>())
+            {
+                try { handler(document); }
+                catch { }
+            }
+        }
         return ValueTask.CompletedTask;
     }
 

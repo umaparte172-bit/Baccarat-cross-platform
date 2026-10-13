@@ -221,6 +221,18 @@ catch (ViewerDocumentFormatException)
 try
 {
     viewerCodec.Decode(Encoding.UTF8.GetBytes(encodedViewerText.Replace(
+        "\"sequence\":1",
+        "\"sequence\":1,\"sequence\":2",
+        StringComparison.Ordinal)));
+    throw new Exception("Duplicate viewer document property accepted");
+}
+catch (ViewerDocumentFormatException)
+{
+}
+
+try
+{
+    viewerCodec.Decode(Encoding.UTF8.GetBytes(encodedViewerText.Replace(
         "\"document_version\":\"1.0\"",
         "\"document_version\":\"1.1\"",
         StringComparison.Ordinal)));
@@ -238,6 +250,7 @@ var viewerTransport = new LoopbackViewerMessageTransport();
 var viewerModule = new ViewerCommunicationModule(viewerTransport, viewerCodec, new ViewerDocumentStore(3));
 var receivedViewerDocuments = new List<ViewerDocument>();
 viewerModule.DocumentReceived += receivedViewerDocuments.Add;
+viewerModule.DocumentReceived += _ => throw new InvalidOperationException("Subscriber fixture failure");
 await viewerModule.PublishAsync(new CommunicationStatusPayload("offline", "Local viewer ready."));
 await viewerModule.PublishAsync(new StrategySnapshotPayload(
     "Fixture", 1.25m, 3, 2, StrategyEngineState.Ready, "Bet 1 on Player."));

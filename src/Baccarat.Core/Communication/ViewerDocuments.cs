@@ -125,11 +125,18 @@ public enum ViewerDocumentApplyResult
     Invalid
 }
 
-public sealed class ViewerDocumentStore(int capacity = 100)
+public sealed class ViewerDocumentStore
 {
     private readonly List<ViewerDocument> documents = [];
     private readonly object gate = new();
+    private readonly int capacity;
     private long lastSequence;
+
+    public ViewerDocumentStore(int capacity = 100)
+    {
+        if (capacity is < 1 or > 10_000) throw new ArgumentOutOfRangeException(nameof(capacity));
+        this.capacity = capacity;
+    }
 
     public IReadOnlyList<ViewerDocument> Documents
     {
@@ -141,7 +148,6 @@ public sealed class ViewerDocumentStore(int capacity = 100)
 
     public ViewerDocumentApplyResult Apply(ViewerDocument document)
     {
-        if (capacity is < 1 or > 10_000) throw new ArgumentOutOfRangeException(nameof(capacity));
         if (ViewerDocumentValidator.Validate(document).Count != 0) return ViewerDocumentApplyResult.Invalid;
 
         lock (gate)

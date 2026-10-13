@@ -15,7 +15,8 @@ public sealed class VersionedViewerDocumentCodec
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = false,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        MaxDepth = 16
     };
 
     public byte[] Encode(ViewerDocument document)
@@ -56,6 +57,8 @@ public sealed class VersionedViewerDocumentCodec
 
         try
         {
+            using var parsed = JsonDocument.Parse(value.ToArray(), new JsonDocumentOptions { MaxDepth = 16 });
+            RejectDuplicateProperties(parsed.RootElement);
             var envelope = JsonSerializer.Deserialize<EnvelopeDocument>(value, Options) ??
                 throw new ViewerDocumentFormatException("The viewer document does not contain an envelope.");
             var envelopeVersion = DocumentVersion.Parse(envelope.ProtocolVersion);
@@ -86,6 +89,24 @@ public sealed class VersionedViewerDocumentCodec
         catch (FormatException exception)
         {
             throw new ViewerDocumentFormatException(exception.Message, exception);
+        }
+    }
+
+    private static void RejectDuplicateProperties(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in element.EnumerateObject())
+            {
+                if (!names.Add(property.Name))
+                    throw new ViewerDocumentFormatException($"Duplicate JSON property '{property.Name}' is not allowed.");
+                RejectDuplicateProperties(property.Value);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray()) RejectDuplicateProperties(item);
         }
     }
 
