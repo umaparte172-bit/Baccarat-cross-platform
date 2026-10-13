@@ -6,7 +6,9 @@ using Avalonia.Platform.Storage;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
 using Baccarat.Core.Diagnostics;
+using Baccarat.Core.Strategies;
 using Baccarat.Desktop.Views;
+using Baccarat.Infrastructure.Strategies;
 
 namespace Baccarat.Desktop;
 
@@ -23,7 +25,8 @@ public sealed class MainWindow : Window
     public MainWindow(
         IAuthenticationService? authenticationService = null,
         IDiagnosticSink? diagnostics = null,
-        IAuthenticationSessionStore? authenticationSessions = null)
+        IAuthenticationSessionStore? authenticationSessions = null,
+        StrategyDefinition? initialStrategy = null)
     {
         Title = "Baccarat Workspace";
         Width = 1040; Height = 760; MinWidth = 700; MinHeight = 550;
@@ -51,11 +54,13 @@ public sealed class MainWindow : Window
             authenticationService ?? ApplicationServices.CreateDefault().Authentication,
             diagnostics,
             authenticationSessions);
+        var strategies = new StrategyView(new StrategyFileLoader(), initialStrategy);
 
         var tabs = new TabControl
         {
             ItemsSource = new[] {
             new TabItem { Header = "Session", Content = new ScrollViewer { Content = overview } },
+            new TabItem { Header = "Strategies", Content = new ScrollViewer { Content = strategies } },
             new TabItem { Header = "Account", Content = new ScrollViewer { Content = account } }
         }
         };

@@ -5,9 +5,21 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Baccarat.Desktop;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Strategies;
 
 AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
-var window = new MainWindow();
+var strategyDefinition = new StrategyDefinition(
+    "UI Fixture",
+    null,
+    new StrategyRule("PLAYER", AmountRuleKind.Set, [1m]),
+    new StrategyRule("WINNER", AmountRuleKind.ResetAmount, [2m]),
+    new StrategyRule("WINNER", AmountRuleKind.MultiplyAmount, [2m]),
+    null,
+    null,
+    null,
+    null,
+    0);
+var window = new MainWindow(initialStrategy: strategyDefinition);
 window.Show();
 window.UpdateLayout();
 Button FindButton(string name) => window.GetVisualDescendants().OfType<Button>()
@@ -25,6 +37,14 @@ if (!HasText("1 rounds")) throw new Exception("Undo did not update UI");
 if (!FindButton("Export CSV").IsEnabled) throw new Exception("Export should be enabled");
 var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
 tabs.SelectedIndex = 1;
+window.UpdateLayout();
+if (!HasText("Bet 1 on Player.")) throw new Exception("Initial strategy recommendation was not shown");
+Click("Banker result");
+window.UpdateLayout();
+if (!HasText("Bet 2 on Banker.")) throw new Exception("Strategy loss progression was not shown");
+if (!HasText("Profit -1.00")) throw new Exception("Strategy settlement total was not updated");
+
+tabs.SelectedIndex = 2;
 window.UpdateLayout();
 if (FindButton("Sign out").IsEnabled) throw new Exception("Offline account must not expose sign-out");
 if (!FindButton("Sign in").IsEnabled || !FindButton("Create account").IsEnabled)
