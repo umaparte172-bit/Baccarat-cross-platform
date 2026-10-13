@@ -4,6 +4,7 @@ using System.Text;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
 using Baccarat.Core.Configuration;
+using Baccarat.Core.Strategies;
 using Baccarat.Infrastructure.Authentication;
 using Baccarat.Infrastructure.Diagnostics;
 using Baccarat.Infrastructure.Security;
@@ -24,6 +25,89 @@ catch (ArgumentOutOfRangeException) { }
 session.Clear();
 Check(session.Rounds.Count == 0, "Clear must empty results");
 Console.WriteLine("PASS: record, counts, undo, numbering, export, invalid input and clear");
+
+var martingale = new StrategyDefinition(
+    "Fixture Martingale",
+    null,
+    new StrategyRule("PLAYER", AmountRuleKind.Set, [1m]),
+    new StrategyRule("WINNER", AmountRuleKind.ResetAmount, [2m]),
+    new StrategyRule("WINNER", AmountRuleKind.MultiplyAmount, [2m]),
+    null,
+    null,
+    null,
+    null,
+    0);
+var strategy = new StrategySessionEngine(martingale);
+Check(strategy.Recommendation is { State: StrategyEngineState.Ready, Side: BetSide.Player, Stake: 1m },
+    "A fixed initial selector must produce a ready recommendation");
+var strategyLoss = strategy.Record(Outcome.Banker);
+Check(strategyLoss is { Won: false, ProfitChange: -1m } &&
+      strategy.Recommendation is { Side: BetSide.Banker, Stake: 2m },
+    "A loss must apply the multiplier and resolve WINNER to the latest table winner");
+var strategyWin = strategy.Record(Outcome.Banker);
+Check(strategyWin is { Won: true, ProfitChange: 1.90m } && strategy.Profit == 0.90m &&
+      strategy.Recommendation.Stake == 1m,
+    "A Banker win must apply commission and reset the amount");
+var strategyPush = strategy.Record(Outcome.Tie);
+Check(strategyPush is { Won: null, ProfitChange: 0m } && strategy.Recommendation.Stake == 1m,
+    "A tie must be a push and preserve the recommendation");
+
+var manualDefinition = martingale with
+{
+    Name = "Opaque fixture",
+    Initial = new StrategyRule("OPAQUE SIGNAL", AmountRuleKind.Set, [5m]),
+    AfterWin = new StrategyRule("OPAQUE SIGNAL", AmountRuleKind.Pattern, [2m])
+};
+var manualStrategy = new StrategySessionEngine(manualDefinition);
+Check(manualStrategy.Recommendation.State == StrategyEngineState.AwaitingSide,
+    "Unknown selectors must require an explicit side instead of being guessed");
+manualStrategy.ChooseSide(BetSide.Player);
+manualStrategy.Record(Outcome.Player);
+Check(manualStrategy.Recommendation.State == StrategyEngineState.AwaitingSide,
+    "Each opaque selector decision must be explicitly resolved");
+manualStrategy.ChooseSide(BetSide.Banker);
+Check(manualStrategy.Recommendation.State == StrategyEngineState.AwaitingStake,
+    "Unrecovered amount algorithms must require an explicit stake");
+manualStrategy.SetManualStake(7m);
+Check(manualStrategy.Recommendation is { State: StrategyEngineState.Ready, Stake: 7m },
+    "A manual stake must make an opaque amount rule executable");
+
+var sequenceDefinition = martingale with
+{
+    Name = "Sequence fixture",
+    Initial = new StrategyRule("PLAYER", AmountRuleKind.Set, [1m, 2m]),
+    AfterLoss = new StrategyRule("PLAYER", AmountRuleKind.NextSequence, [2m]),
+    StopProfit = 5m,
+    StopLoss = 10m
+};
+var sequenceStrategy = new StrategySessionEngine(sequenceDefinition);
+sequenceStrategy.Record(Outcome.Banker);
+Check(sequenceStrategy.Recommendation.Stake == 2m, "Next Sequence must advance through the initial sequence");
+sequenceStrategy.Record(Outcome.Banker);
+Check(sequenceStrategy.Recommendation.State == StrategyEngineState.Stopped,
+    "A completed sequence must stop instead of inventing a rollover rule");
+
+var pausedDefinition = martingale with
+{
+    Name = "Pause fixture",
+    PauseAfterConsecutiveLosses = 1,
+    PauseRounds = 2
+};
+var pausedStrategy = new StrategySessionEngine(pausedDefinition);
+pausedStrategy.Record(Outcome.Banker);
+Check(pausedStrategy.Recommendation.State == StrategyEngineState.Paused,
+    "The configured consecutive-loss trigger must pause betting");
+Check(!pausedStrategy.Record(Outcome.Player).WasBet && !pausedStrategy.Record(Outcome.Banker).WasBet,
+    "Paused rounds must be observed without placing a wager");
+Check(pausedStrategy.Recommendation.State == StrategyEngineState.Ready,
+    "Betting must resume after the configured number of observed rounds");
+
+var stoppedDefinition = martingale with { Name = "Stop fixture", StopProfit = 1m };
+var stoppedStrategy = new StrategySessionEngine(stoppedDefinition);
+stoppedStrategy.Record(Outcome.Player);
+Check(stoppedStrategy.Recommendation.State == StrategyEngineState.Stopped,
+    "The strategy must stop when its profit limit is reached");
+Console.WriteLine("PASS: strategy recommendations, settlement, progression and guarded opaque rules");
 
 var response = new Queue<AuthenticationResult?>();
 var authentication = new StubAuthenticationService(response);
