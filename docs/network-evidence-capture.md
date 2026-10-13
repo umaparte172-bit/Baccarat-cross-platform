@@ -1,4 +1,4 @@
-# Network evidence required for Stage 3
+# Network evidence required to finish Stage 5
 
 The repository currently contains no `.pcap`, `.pcapng`, `.har`, `.saz`, proxy-flow export or application network log. Static analysis recovered the network components and protected configuration call sites, but the protector hides the plaintext hosts, routes and message bodies.
 
@@ -76,7 +76,7 @@ Do not include the dummy password in this note.
 
 ## What can be recovered
 
-From the supplied evidence, Stage 3 can implement and test:
+From the supplied evidence, Stage 5 can implement and test:
 
 - HTTP and WebSocket hostnames;
 - routes and HTTP methods;
@@ -91,5 +91,5 @@ Sensitive values will be replaced with placeholders before fixtures or documenta
 
 ## Static-only boundary
 
-If runtime observation of any kind is prohibited, exact network compatibility cannot be guaranteed from this protected executable. Continued static work may recover more implementation detail, but the current on-disk authentication bodies are stubs and their real strings and request construction are restored only at runtime. In that situation Stage 3 must remain an adapter implementation with unverified contract placeholders, not a claim of compatibility.
+If runtime observation of any kind is prohibited, exact network compatibility cannot be guaranteed from this protected executable. Continued static work may recover more implementation detail, but the current on-disk authentication bodies are stubs and their real strings and request construction are restored only at runtime. In that situation Stage 5 must remain an adapter implementation with an unbound protocol boundary, not a claim of compatibility.
 

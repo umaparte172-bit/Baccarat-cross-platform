@@ -27,5 +27,11 @@ var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
 tabs.SelectedIndex = 1;
 window.UpdateLayout();
 if (FindButton("Sign out").IsEnabled) throw new Exception("Offline account must not expose sign-out");
+if (!FindButton("Sign in").IsEnabled || !FindButton("Create account").IsEnabled)
+    throw new Exception("Offline account must expose sign-in and registration validation");
+Click("Create account");
+window.UpdateLayout();
+if (!HasText("Name, phone and country are required."))
+    throw new Exception("Registration validation was not shown in the account UI");
 window.Close();
-Console.WriteLine("PASS: headless desktop startup, record, undo and export availability");
+Console.WriteLine("PASS: headless desktop startup, session tools and account validation UI");

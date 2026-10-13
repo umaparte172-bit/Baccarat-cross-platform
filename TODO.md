@@ -51,7 +51,11 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 
 - [x] Define the sanitized VMware network-evidence package required for exact contract recovery.
 - [ ] Specify authentication and WebSocket contracts from evidence.
-- [ ] Implement authenticated sessions, expiry and reconnection.
+- [x] Implement sign-in and sign-up validation behind a replaceable service boundary.
+- [x] Implement authenticated session validation, protected-store persistence, restoration, expiry and sign-out cleanup.
+- [x] Implement a TLS-only, same-origin HTTP authentication transport with bounded timeouts and normalized failures.
+- [ ] Bind the HTTP transport to the recovered legacy authentication codec and endpoint.
+- [ ] Implement WebSocket authentication and reconnection after its contract is recovered.
 - [ ] Implement browser workflows once selectors and intended actions are established.
 - [ ] Recover and implement the required strategy/settings workflows.
 - [ ] Implement Keychain storage and redacted diagnostic logging.
