@@ -17,8 +17,16 @@ public sealed class AccountView : StackPanel
     private readonly Button signOut = new() { Content = "Sign out", Padding = new Thickness(18, 12) };
 
     public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
+        : this(service, diagnostics, null)
     {
-        controller = new AuthenticationController(service, diagnostics);
+    }
+
+    public AccountView(
+        IAuthenticationService service,
+        IDiagnosticSink? diagnostics,
+        IAuthenticationSessionStore? sessionStore)
+    {
+        controller = new AuthenticationController(service, diagnostics, sessionStore);
         Margin = new Thickness(24);
         Spacing = 16;
 
@@ -38,6 +46,14 @@ public sealed class AccountView : StackPanel
 
         signIn.Click += async (_, _) => await SignInAsync();
         signOut.Click += async (_, _) => await SignOutAsync();
+        AttachedToVisualTree += async (_, _) => await RestoreSessionAsync();
+        Refresh();
+    }
+
+    private async Task RestoreSessionAsync()
+    {
+        var authentication = await controller.RestoreSessionAsync();
+        result.Text = authentication.Message;
         Refresh();
     }
 

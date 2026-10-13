@@ -17,7 +17,10 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var services = ApplicationServices.CreateDefault();
-            desktop.MainWindow = new MainWindow(services.Authentication, services.Diagnostics);
+            desktop.MainWindow = new MainWindow(
+                services.Authentication,
+                services.Diagnostics,
+                services.AuthenticationSessions);
         }
         base.OnFrameworkInitializationCompleted();
     }

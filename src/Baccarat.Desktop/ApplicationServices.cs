@@ -10,6 +10,7 @@ namespace Baccarat.Desktop;
 
 public sealed record ApplicationServices(
     IAuthenticationService Authentication,
+    IAuthenticationSessionStore AuthenticationSessions,
     ISecretStore Secrets,
     IDiagnosticSink Diagnostics,
     NetworkClientOptions Network)
@@ -20,9 +21,11 @@ public sealed record ApplicationServices(
         if (network.Validate().Count != 0)
             throw new InvalidOperationException("Default network configuration is invalid.");
 
+        var secrets = new VolatileSecretStore();
         return new(
             new OfflineAuthenticationService(),
-            new VolatileSecretStore(),
+            new SecretAuthenticationSessionStore(secrets),
+            secrets,
             new RedactingDiagnosticSink(_ => { }),
             network);
     }

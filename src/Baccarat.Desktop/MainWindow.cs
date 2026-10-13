@@ -20,7 +20,10 @@ public sealed class MainWindow : Window
     private readonly Button clear;
     private readonly Button export;
 
-    public MainWindow(IAuthenticationService? authenticationService = null, IDiagnosticSink? diagnostics = null)
+    public MainWindow(
+        IAuthenticationService? authenticationService = null,
+        IDiagnosticSink? diagnostics = null,
+        IAuthenticationSessionStore? authenticationSessions = null)
     {
         Title = "Baccarat Workspace";
         Width = 1040; Height = 760; MinWidth = 700; MinHeight = 550;
@@ -46,7 +49,8 @@ public sealed class MainWindow : Window
 
         var account = new AccountView(
             authenticationService ?? ApplicationServices.CreateDefault().Authentication,
-            diagnostics);
+            diagnostics,
+            authenticationSessions);
 
         var tabs = new TabControl
         {

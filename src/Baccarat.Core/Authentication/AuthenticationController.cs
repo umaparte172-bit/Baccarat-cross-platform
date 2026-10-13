@@ -6,12 +6,20 @@ namespace Baccarat.Core.Authentication;
 public sealed class AuthenticationController
 {
     private readonly IAuthenticationService service;
+    private readonly IAuthenticationSessionStore sessionStore;
     private readonly IDiagnosticSink diagnostics;
+    private readonly TimeProvider timeProvider;
 
-    public AuthenticationController(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
+    public AuthenticationController(
+        IAuthenticationService service,
+        IDiagnosticSink? diagnostics = null,
+        IAuthenticationSessionStore? sessionStore = null,
+        TimeProvider? timeProvider = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.diagnostics = diagnostics ?? NullDiagnosticSink.Instance;
+        this.sessionStore = sessionStore ?? NullAuthenticationSessionStore.Instance;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public bool IsBusy { get; private set; }
@@ -42,7 +50,12 @@ public sealed class AuthenticationController
             LastResult = result ?? new(
                 AuthenticationOutcome.EmptyResponse,
                 "The authentication service returned no result.");
+            LastResult = Normalize(LastResult);
             Session = LastResult.IsAuthenticated ? LastResult.Session : null;
+            if (Session is not null)
+                await SaveSessionAsync(Session, cancellationToken);
+            else
+                await ClearStoredSessionAsync(cancellationToken);
             diagnostics.Write(
                 LastResult.IsAuthenticated ? DiagnosticLevel.Information : DiagnosticLevel.Warning,
                 "authentication.completed",
@@ -67,13 +80,53 @@ public sealed class AuthenticationController
         }
     }
 
+    public async Task<AuthenticationResult> RestoreSessionAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsBusy)
+            return LastResult;
+
+        IsBusy = true;
+        try
+        {
+            var stored = await sessionStore.ReadAsync(cancellationToken);
+            if (stored is null)
+                return LastResult = new(AuthenticationOutcome.Unavailable, "Not signed in.");
+
+            var restored = Normalize(new(AuthenticationOutcome.Authenticated, "Session restored.", stored));
+            if (!restored.IsAuthenticated)
+            {
+                Session = null;
+                await ClearStoredSessionAsync(cancellationToken);
+                return LastResult = restored;
+            }
+
+            Session = stored;
+            diagnostics.Write(DiagnosticLevel.Information, "authentication.session_restored", "A saved session was restored.");
+            return LastResult = restored;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            Session = null;
+            diagnostics.Write(DiagnosticLevel.Error, "authentication.session_restore_failed", "The saved session could not be restored.");
+            return LastResult = new(AuthenticationOutcome.UnexpectedError, "The saved session could not be restored.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public async Task SignOutAsync(CancellationToken cancellationToken = default)
     {
         var current = Session;
         Session = null;
         LastResult = new(AuthenticationOutcome.Unavailable, "Signed out.");
-        if (current is null)
-            return;
+        await ClearStoredSessionAsync(cancellationToken);
+        if (current is null) return;
 
         try
         {
@@ -90,6 +143,53 @@ public sealed class AuthenticationController
             LastResult = new(
                 AuthenticationOutcome.UnexpectedError,
                 "The local session was cleared, but the remote sign-out could not be confirmed.");
+        }
+    }
+
+    private AuthenticationResult Normalize(AuthenticationResult result)
+    {
+        if (result.Outcome != AuthenticationOutcome.Authenticated)
+            return result with { Session = null };
+
+        var session = result.Session;
+        if (session is null || string.IsNullOrWhiteSpace(session.UserId) || string.IsNullOrWhiteSpace(session.AccessToken))
+            return new(AuthenticationOutcome.MalformedResponse, "The authentication service returned an invalid session.");
+
+        if (session.ExpiresAt is { } expiry && expiry <= timeProvider.GetUtcNow())
+            return new(AuthenticationOutcome.Expired, "The saved session has expired. Sign in again.");
+
+        return result;
+    }
+
+    private async ValueTask SaveSessionAsync(AuthenticatedSession session, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await sessionStore.SaveAsync(session, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            diagnostics.Write(DiagnosticLevel.Warning, "authentication.session_save_failed", "The session is active but could not be saved.");
+        }
+    }
+
+    private async ValueTask ClearStoredSessionAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await sessionStore.ClearAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            diagnostics.Write(DiagnosticLevel.Warning, "authentication.session_clear_failed", "The saved session could not be cleared.");
         }
     }
 

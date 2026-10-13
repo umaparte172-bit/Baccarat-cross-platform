@@ -1,6 +1,7 @@
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
 using Baccarat.Core.Configuration;
+using Baccarat.Infrastructure.Authentication;
 using Baccarat.Infrastructure.Diagnostics;
 using Baccarat.Infrastructure.Security;
 
@@ -60,6 +61,45 @@ Check((await controller.SignInAsync("test@example.com", "secret")).Outcome == Au
     "Service exceptions must become controlled errors");
 Console.WriteLine("PASS: authentication validation, rejection, empty/malformed responses, session and exception handling");
 
+var sessionSecrets = new VolatileSecretStore();
+var sessionStore = new SecretAuthenticationSessionStore(sessionSecrets);
+var fixedTime = new FixedTimeProvider(new DateTimeOffset(2026, 10, 13, 0, 0, 0, TimeSpan.Zero));
+var lifecycleResponses = new Queue<AuthenticationResult?>();
+var lifecycleService = new StubAuthenticationService(lifecycleResponses);
+var lifecycle = new AuthenticationController(lifecycleService, sessionStore: sessionStore, timeProvider: fixedTime);
+
+lifecycleResponses.Enqueue(new(AuthenticationOutcome.Authenticated, "Connected.",
+    new AuthenticatedSession("fixture-user", "", fixedTime.GetUtcNow().AddHours(1))));
+Check((await lifecycle.SignInAsync("test@example.com", "secret")).Outcome == AuthenticationOutcome.MalformedResponse,
+    "Authenticated responses without a token must be rejected");
+
+lifecycleResponses.Enqueue(new(AuthenticationOutcome.Authenticated, "Connected.",
+    new AuthenticatedSession("fixture-user", "fixture-token", fixedTime.GetUtcNow().AddMinutes(-1))));
+Check((await lifecycle.SignInAsync("test@example.com", "secret")).Outcome == AuthenticationOutcome.Expired,
+    "Already-expired sessions must be rejected");
+
+var savedSession = new AuthenticatedSession("fixture-user", "stored-token", fixedTime.GetUtcNow().AddHours(1));
+await sessionStore.SaveAsync(savedSession);
+var restoredController = new AuthenticationController(
+    new StubAuthenticationService(new Queue<AuthenticationResult?>()),
+    sessionStore: sessionStore,
+    timeProvider: fixedTime);
+Check((await restoredController.RestoreSessionAsync()).IsAuthenticated &&
+      restoredController.Session?.AccessToken == "stored-token",
+    "A valid protected session must be restored");
+await restoredController.SignOutAsync();
+Check(await sessionStore.ReadAsync() is null, "Sign-out must remove the stored session");
+
+await sessionStore.SaveAsync(savedSession with { ExpiresAt = fixedTime.GetUtcNow().AddSeconds(-1) });
+var expiredController = new AuthenticationController(
+    new StubAuthenticationService(new Queue<AuthenticationResult?>()),
+    sessionStore: sessionStore,
+    timeProvider: fixedTime);
+Check((await expiredController.RestoreSessionAsync()).Outcome == AuthenticationOutcome.Expired &&
+      await sessionStore.ReadAsync() is null,
+    "Expired stored sessions must be rejected and removed");
+Console.WriteLine("PASS: authentication session validation, persistence, restoration, expiry and cleanup");
+
 Check(NetworkClientOptions.Disconnected.Validate().Count == 0 && !NetworkClientOptions.Disconnected.IsConfigured,
     "Disconnected configuration must be valid");
 var insecureOptions = new NetworkClientOptions(
@@ -104,4 +144,9 @@ sealed class StubAuthenticationService(Queue<AuthenticationResult?> responses) :
         if (ThrowOnSignOut) throw new InvalidOperationException("fixture failure");
         return Task.CompletedTask;
     }
+}
+
+sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => value;
 }

@@ -7,6 +7,7 @@ public sealed record AuthenticatedSession(string UserId, string AccessToken, Dat
 public enum AuthenticationOutcome
 {
     Authenticated,
+    Expired,
     ValidationFailed,
     Rejected,
     EmptyResponse,
@@ -27,5 +28,29 @@ public interface IAuthenticationService
 {
     Task<AuthenticationResult> SignInAsync(SignInRequest request, CancellationToken cancellationToken = default);
     Task SignOutAsync(AuthenticatedSession session, CancellationToken cancellationToken = default);
+}
+
+public interface IAuthenticationSessionStore
+{
+    ValueTask SaveAsync(AuthenticatedSession session, CancellationToken cancellationToken = default);
+    ValueTask<AuthenticatedSession?> ReadAsync(CancellationToken cancellationToken = default);
+    ValueTask ClearAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed class NullAuthenticationSessionStore : IAuthenticationSessionStore
+{
+    public static NullAuthenticationSessionStore Instance { get; } = new();
+
+    private NullAuthenticationSessionStore()
+    {
+    }
+
+    public ValueTask SaveAsync(AuthenticatedSession session, CancellationToken cancellationToken = default) =>
+        ValueTask.CompletedTask;
+
+    public ValueTask<AuthenticatedSession?> ReadAsync(CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult<AuthenticatedSession?>(null);
+
+    public ValueTask ClearAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 }
 
