@@ -10,11 +10,11 @@ namespace Baccarat.Desktop.Views;
 public sealed class AccountView : StackPanel
 {
     private readonly AuthenticationController controller;
-    private readonly TextBox name = new() { Watermark = "Name (for registration)", MaxWidth = 460 };
-    private readonly TextBox email = new() { Watermark = "Email", MaxWidth = 460 };
-    private readonly TextBox password = new() { Watermark = "Password", PasswordChar = '•', MaxWidth = 460 };
-    private readonly TextBox phone = new() { Watermark = "Phone (for registration)", MaxWidth = 460 };
-    private readonly TextBox country = new() { Watermark = "Country (for registration)", MaxWidth = 460 };
+    private readonly TextBox name = new() { Watermark = "Name (for registration)", MaxWidth = 460, MaxLength = AuthenticationController.MaximumNameLength };
+    private readonly TextBox email = new() { Watermark = "Email", MaxWidth = 460, MaxLength = AuthenticationController.MaximumEmailLength };
+    private readonly TextBox password = new() { Watermark = "Password", PasswordChar = '•', MaxWidth = 460, MaxLength = AuthenticationController.MaximumPasswordLength };
+    private readonly TextBox phone = new() { Watermark = "Phone (for registration)", MaxWidth = 460, MaxLength = AuthenticationController.MaximumPhoneLength };
+    private readonly TextBox country = new() { Watermark = "Country (for registration)", MaxWidth = 460, MaxLength = AuthenticationController.MaximumCountryLength };
     private readonly TextBlock result = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 680 };
     private readonly Button signIn = new() { Content = "Sign in", Padding = new Thickness(18, 12) };
     private readonly Button signUp = new() { Content = "Create account", Padding = new Thickness(18, 12) };

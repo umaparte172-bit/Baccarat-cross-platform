@@ -38,14 +38,16 @@ public static class StrategyDefinitionValidator
 
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(definition.Name)) errors.Add("Strategy name is required.");
-        if (definition.Name.Length > 100) errors.Add("Strategy name must not exceed 100 characters.");
+        else if (definition.Name.Length > 100) errors.Add("Strategy name must not exceed 100 characters.");
         ValidateRule(definition.Initial, "Initial", errors);
         ValidateRule(definition.AfterWin, "Win", errors);
         ValidateRule(definition.AfterLoss, "Loss", errors);
         if (definition.Initial.AmountRule != AmountRuleKind.Set)
             errors.Add("The initial amount rule must be Set.");
         if (definition.StopProfit is <= 0) errors.Add("Stop profit must be positive when supplied.");
+        if (definition.StopProfit > MaximumSupportedAmount) errors.Add("Stop profit exceeds the supported limit.");
         if (definition.StopLoss is <= 0) errors.Add("Stop loss must be positive when supplied.");
+        if (definition.StopLoss > MaximumSupportedAmount) errors.Add("Stop loss exceeds the supported limit.");
         if (definition.StopAfterConsecutiveLosses is <= 0)
             errors.Add("Consecutive-loss stop count must be positive when supplied.");
         if (definition.PauseAfterConsecutiveLosses is <= 0)
@@ -68,8 +70,12 @@ public static class StrategyDefinitionValidator
         }
 
         if (string.IsNullOrWhiteSpace(rule.Selector)) errors.Add($"{label} selector is required.");
-        if (rule.Selector.Length > 200) errors.Add($"{label} selector must not exceed 200 characters.");
-        if (rule.Values.Count == 0) errors.Add($"{label} amount value is required.");
+        else if (rule.Selector.Length > 200) errors.Add($"{label} selector must not exceed 200 characters.");
+        if (rule.Values is null || rule.Values.Count == 0)
+        {
+            errors.Add($"{label} amount value is required.");
+            return;
+        }
         if (rule.Values.Count > 100) errors.Add($"{label} amount sequence is too long.");
         if (rule.Values.Any(value => value <= 0)) errors.Add($"{label} amount values must be positive.");
         if (rule.Values.Any(value => value > MaximumSupportedAmount))

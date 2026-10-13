@@ -178,6 +178,41 @@ catch (StrategyFormatException)
 {
 }
 
+await using var duplicateStrategyFieldStream = new MemoryStream(Encoding.UTF8.GetBytes(strategyJson.Replace(
+    "\"strategy_name\":\"Fixture Sequence\"",
+    "\"strategy_name\":\"Fixture Sequence\",\"strategy_name\":\"Ambiguous\"",
+    StringComparison.Ordinal)));
+try
+{
+    await strategyLoader.LoadAsync(duplicateStrategyFieldStream);
+    throw new Exception("Duplicate strategy field accepted");
+}
+catch (StrategyFormatException)
+{
+}
+
+await using var oversizedStrategyStream = new MemoryStream(new byte[StrategyFileLoader.MaximumFileBytes + 1]);
+try
+{
+    await strategyLoader.LoadAsync(oversizedStrategyStream);
+    throw new Exception("Oversized strategy file accepted");
+}
+catch (StrategyFormatException)
+{
+}
+
+var deeplyNestedStrategy = "{\"strategy_name\":\"Nested\",\"nested\":" +
+    new string('[', 20) + "0" + new string(']', 20) + "}";
+await using var deeplyNestedStrategyStream = new MemoryStream(Encoding.UTF8.GetBytes(deeplyNestedStrategy));
+try
+{
+    await strategyLoader.LoadAsync(deeplyNestedStrategyStream);
+    throw new Exception("Excessively nested strategy file accepted");
+}
+catch (StrategyFormatException)
+{
+}
+
 var suppliedStrategyDirectory = Path.Combine("Original Application", "strategies");
 if (Directory.Exists(suppliedStrategyDirectory))
 {
@@ -270,6 +305,11 @@ Check((await controller.SignInAsync("", "")).Outcome == AuthenticationOutcome.Va
 Check(authentication.SignInCalls == 0, "Invalid input must not call authentication transport");
 Check((await controller.SignInAsync("not-an-email", "secret")).Outcome == AuthenticationOutcome.ValidationFailed,
     "Malformed email must fail before transport");
+Check((await controller.SignInAsync(
+        new string('a', AuthenticationController.MaximumEmailLength + 1), "secret")).Outcome ==
+      AuthenticationOutcome.ValidationFailed,
+    "Oversized credentials must fail before transport");
+Check(authentication.SignInCalls == 0, "Oversized credentials must not call authentication transport");
 
 response.Enqueue(new(AuthenticationOutcome.Rejected, "Invalid credentials."));
 Check((await controller.SignInAsync("test@example.com", "secret")).Outcome == AuthenticationOutcome.Rejected,
@@ -346,6 +386,11 @@ Check((await registrationController.SignUpAsync("", "test@example.com", "secret"
       AuthenticationOutcome.ValidationFailed,
     "Registration must require a name");
 Check(registrationService.SignUpCalls == 0, "Invalid registration must not call the transport");
+Check((await registrationController.SignUpAsync(
+        new string('a', AuthenticationController.MaximumNameLength + 1),
+        "test@example.com", "secret", "123", "Testland")).Outcome == AuthenticationOutcome.ValidationFailed,
+    "Oversized registration details must fail before transport");
+Check(registrationService.SignUpCalls == 0, "Oversized registration must not call the transport");
 registrationResponses.Enqueue(new(
     AuthenticationOutcome.Authenticated,
     "Account created.",

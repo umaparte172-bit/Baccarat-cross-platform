@@ -5,6 +5,12 @@ namespace Baccarat.Core.Authentication;
 
 public sealed class AuthenticationController
 {
+    public const int MaximumEmailLength = 254;
+    public const int MaximumPasswordLength = 1024;
+    public const int MaximumNameLength = 100;
+    public const int MaximumPhoneLength = 50;
+    public const int MaximumCountryLength = 100;
+
     private readonly IAuthenticationService service;
     private readonly IAuthenticationSessionStore sessionStore;
     private readonly IDiagnosticSink diagnostics;
@@ -233,6 +239,9 @@ public sealed class AuthenticationController
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password))
             return new(AuthenticationOutcome.ValidationFailed, "Email and password are required.");
 
+        if (email.Length > MaximumEmailLength || password.Length > MaximumPasswordLength)
+            return new(AuthenticationOutcome.ValidationFailed, "Email or password exceeds the supported length.");
+
         if (!MailAddress.TryCreate(email.Trim(), out var address) ||
             !string.Equals(address.Address, email.Trim(), StringComparison.OrdinalIgnoreCase))
             return new(AuthenticationOutcome.ValidationFailed, "Enter a valid email address.");
@@ -249,6 +258,9 @@ public sealed class AuthenticationController
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(country))
             return new(AuthenticationOutcome.ValidationFailed, "Name, phone and country are required.");
+
+        if (name.Length > MaximumNameLength || phone.Length > MaximumPhoneLength || country.Length > MaximumCountryLength)
+            return new(AuthenticationOutcome.ValidationFailed, "Registration details exceed the supported length.");
 
         return ValidateSignIn(email, password);
     }

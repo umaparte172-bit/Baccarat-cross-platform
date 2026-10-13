@@ -15,7 +15,8 @@ public sealed class StrategyFileLoader
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = false,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        MaxDepth = 16
     };
 
     public async ValueTask<StrategyDefinition> LoadAsync(
@@ -39,8 +40,10 @@ public sealed class StrategyFileLoader
             }
 
             if (buffer.Length == 0) throw new StrategyFormatException("The strategy file is empty.");
-            buffer.Position = 0;
-            var document = await JsonSerializer.DeserializeAsync<StrategyDocument>(buffer, JsonOptions, cancellationToken) ??
+            cancellationToken.ThrowIfCancellationRequested();
+            using var parsed = JsonDocument.Parse(buffer.ToArray(), new JsonDocumentOptions { MaxDepth = 16 });
+            RejectDuplicateProperties(parsed.RootElement);
+            var document = parsed.RootElement.Deserialize<StrategyDocument>(JsonOptions) ??
                 throw new StrategyFormatException("The strategy file does not contain an object.");
             var definition = Convert(document);
             var errors = StrategyDefinitionValidator.Validate(definition);
@@ -58,6 +61,24 @@ public sealed class StrategyFileLoader
         catch (OverflowException exception)
         {
             throw new StrategyFormatException("A strategy number is outside the supported range.", exception);
+        }
+    }
+
+    private static void RejectDuplicateProperties(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in element.EnumerateObject())
+            {
+                if (!names.Add(property.Name))
+                    throw new StrategyFormatException($"Duplicate JSON property '{property.Name}' is not allowed.");
+                RejectDuplicateProperties(property.Value);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray()) RejectDuplicateProperties(item);
         }
     }
 
