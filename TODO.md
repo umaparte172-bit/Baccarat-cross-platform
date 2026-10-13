@@ -62,7 +62,27 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 
 If the old backend is unavailable, record that dependency explicitly. Rebuilding a UI cannot restore an unavailable service.
 
-## 6. macOS delivery
+## 6. Strategy and session engine
+
+- [x] Recover and document the supplied strategy JSON schema.
+- [x] Strictly import bounded strategy files and reject unknown or invalid fields.
+- [x] Validate all eight supplied client strategy files without modifying or executing the original application.
+- [x] Implement deterministic recommendations, Player/Banker settlement, Banker commission and tie pushes.
+- [x] Implement set, reset amount, multiply amount, reset sequence and next sequence progression.
+- [x] Implement stop-profit, stop-loss, consecutive-loss stop and pause controls.
+- [x] Preserve opaque selectors and Grinding/Pattern amount rules through explicit manual resolution instead of guessed algorithms.
+- [x] Implement exact-state undo, reset and CSV export.
+- [x] Add an interactive, offline Strategies workspace and headless UI checks.
+
+Exact automation for protected selector and amount algorithms remains dependent on additional evidence. Manual resolution keeps those definitions operational without making unsupported compatibility claims.
+
+## 7. Viewer/service integration
+
+- [ ] Confirm the Stage 7 integration target and its input/output contract.
+- [ ] Connect verified authentication, strategy recommendations and session events through adapters.
+- [ ] Keep all external actions disabled until their contracts and safety behavior are tested.
+
+## 8. macOS delivery
 
 - [ ] Build for Apple Silicon and Intel as appropriate.
 - [ ] Verify UI, browser integration and Keychain on macOS.

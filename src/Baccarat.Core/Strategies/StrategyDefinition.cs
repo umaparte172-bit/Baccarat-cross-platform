@@ -30,6 +30,8 @@ public sealed record StrategyDefinition(
 
 public static class StrategyDefinitionValidator
 {
+    public const decimal MaximumSupportedAmount = 1_000_000_000_000m;
+
     public static IReadOnlyList<string> Validate(StrategyDefinition? definition)
     {
         if (definition is null) return ["A strategy definition is required."];
@@ -70,5 +72,7 @@ public static class StrategyDefinitionValidator
         if (rule.Values.Count == 0) errors.Add($"{label} amount value is required.");
         if (rule.Values.Count > 100) errors.Add($"{label} amount sequence is too long.");
         if (rule.Values.Any(value => value <= 0)) errors.Add($"{label} amount values must be positive.");
+        if (rule.Values.Any(value => value > MaximumSupportedAmount))
+            errors.Add($"{label} amount values exceed the supported limit.");
     }
 }

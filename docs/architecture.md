@@ -9,6 +9,8 @@ The replacement is organized around verified behavior and replaceable external a
 Platform-independent application rules:
 
 - `Session` records Player, Banker and Tie outcomes and produces CSV.
+- `StrategyDefinition` and its validator represent the recovered declarative strategy schema without depending on JSON or the desktop.
+- `StrategySessionEngine` produces deterministic recommendations, settles observed outcomes, applies progression and limits, and supports exact-state undo/reset/export.
 - `AuthenticationContracts` defines sign-in and registration input, normalized outcomes, authenticated sessions and the session-store boundary.
 - `AuthenticationController` validates input, serializes authentication state transitions, persists valid sessions, rejects expired/malformed sessions and converts service failures into controlled results.
 - `IDiagnosticSink` and `ISecretStore` define logging and secret-storage boundaries without platform dependencies.
@@ -24,6 +26,7 @@ Replaceable technical adapters:
 - `SecretAuthenticationSessionStore` serializes session state exclusively through `ISecretStore`; it never stores the user's password.
 - `RedactingDiagnosticSink` removes email addresses, passwords, API keys, secrets and bearer/token values before output.
 - `VolatileSecretStore` keeps temporary values in memory and never persists credentials to disk.
+- `StrategyFileLoader` performs bounded, strict JSON parsing and maps recovered strategy files into validated Core definitions.
 
 Future WebSocket and Windows Credential Manager/macOS Keychain adapters belong here. The recovered HTTP protocol codec will implement the existing protocol boundary without changing session logic or UI state handling.
 
@@ -33,6 +36,7 @@ Cross-platform Avalonia presentation:
 
 - `MainWindow` owns top-level navigation.
 - `AccountView` owns account input and displays normalized authentication state.
+- `StrategyView` imports strategy files, displays recommendations, accepts observed outcomes and exposes manual resolution, undo, reset and export.
 - The Session tab remains available without a server.
 - Password text is cleared after every sign-in or registration attempt and is not persisted.
 

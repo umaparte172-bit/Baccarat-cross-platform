@@ -9,7 +9,9 @@ dotnet run --project tests/Baccarat.Core.Checks
 
 On this Windows workspace, a downloaded SDK may be used via `.tools/sdk/dotnet.exe` instead of `dotnet`.
 
-The application currently supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. Records are held in memory: export before closing. The Account tab exercises validation and explicit offline state through a replaceable authentication boundary; it does not send credentials. There is no live authentication, automated betting, outcome prediction or connection to the original service. This is the foundation build, not feature parity with the original executable.
+The application supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. The Strategies tab imports the supplied JSON-shaped `.txt` definitions, calculates verified progression rules, accepts observed table outcomes, tracks profit and limits, and exports its own CSV history. Opaque protected rules require a manual side or stake rather than being guessed. Records remain in memory, so export before closing.
+
+The Account tab exercises validation and explicit offline state through a replaceable authentication boundary; it does not send credentials. There is no live authentication, automated betting, outcome prediction or connection to the original service.
 
 ## Self-contained publish
 

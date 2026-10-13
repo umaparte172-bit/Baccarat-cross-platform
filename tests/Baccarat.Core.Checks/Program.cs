@@ -117,6 +117,20 @@ var stoppedStrategy = new StrategySessionEngine(stoppedDefinition);
 stoppedStrategy.Record(Outcome.Player);
 Check(stoppedStrategy.Recommendation.State == StrategyEngineState.Stopped,
     "The strategy must stop when its profit limit is reached");
+
+var customPayoutStrategy = new StrategySessionEngine(martingale, new BaccaratPayoutRules(2m, 1m));
+Check(customPayoutStrategy.Record(Outcome.Player).ProfitChange == 2m,
+    "Configured payout rules must control settlement without changing strategy logic");
+var boundedDefinition = martingale with
+{
+    Name = "Bounded fixture",
+    Initial = new StrategyRule("PLAYER", AmountRuleKind.Set, [StrategyDefinitionValidator.MaximumSupportedAmount]),
+    AfterLoss = new StrategyRule("PLAYER", AmountRuleKind.MultiplyAmount, [2m])
+};
+var boundedStrategy = new StrategySessionEngine(boundedDefinition);
+boundedStrategy.Record(Outcome.Banker);
+Check(boundedStrategy.Recommendation.State == StrategyEngineState.Stopped,
+    "Stake multiplication beyond the supported limit must stop safely");
 Console.WriteLine("PASS: strategy recommendations, settlement, progression and guarded opaque rules");
 
 const string strategyJson = """

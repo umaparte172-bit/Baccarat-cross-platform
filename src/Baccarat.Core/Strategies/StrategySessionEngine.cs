@@ -36,9 +36,21 @@ public sealed record StrategyRound(
     bool WasBet,
     bool? Won);
 
+public sealed record BaccaratPayoutRules(decimal PlayerWinProfit, decimal BankerWinProfit)
+{
+    public static BaccaratPayoutRules Standard { get; } = new(1m, 0.95m);
+
+    public void Validate()
+    {
+        if (PlayerWinProfit <= 0 || BankerWinProfit <= 0)
+            throw new ArgumentOutOfRangeException(nameof(PlayerWinProfit), "Win-profit multipliers must be positive.");
+    }
+}
+
 public sealed class StrategySessionEngine
 {
     private readonly StrategyDefinition definition;
+    private readonly BaccaratPayoutRules payoutRules;
     private readonly List<StrategyRound> rounds = [];
     private readonly Stack<EngineSnapshot> snapshots = [];
     private StrategyRule currentRule;
@@ -48,12 +60,14 @@ public sealed class StrategySessionEngine
     private BetSide? lastWinner;
     private int pauseRemaining;
 
-    public StrategySessionEngine(StrategyDefinition definition)
+    public StrategySessionEngine(StrategyDefinition definition, BaccaratPayoutRules? payoutRules = null)
     {
         var errors = StrategyDefinitionValidator.Validate(definition);
         if (errors.Count != 0) throw new ArgumentException(string.Join(" ", errors), nameof(definition));
 
         this.definition = definition;
+        this.payoutRules = payoutRules ?? BaccaratPayoutRules.Standard;
+        this.payoutRules.Validate();
         currentRule = definition.Initial;
         currentStake = definition.Initial.Values[0];
     }
@@ -95,7 +109,8 @@ public sealed class StrategySessionEngine
     public void SetManualStake(decimal stake)
     {
         EnsureRunning();
-        if (stake <= 0) throw new ArgumentOutOfRangeException(nameof(stake), "Stake must be positive.");
+        if (stake <= 0 || stake > StrategyDefinitionValidator.MaximumSupportedAmount)
+            throw new ArgumentOutOfRangeException(nameof(stake), "Stake must be positive and within the supported limit.");
         currentStake = stake;
     }
 
@@ -126,8 +141,8 @@ public sealed class StrategySessionEngine
             side == BetSide.Player ? outcome == Outcome.Player : outcome == Outcome.Banker;
         var change = won switch
         {
-            true when side == BetSide.Banker => stake * 0.95m,
-            true => stake,
+            true when side == BetSide.Banker => stake * payoutRules.BankerWinProfit,
+            true => stake * payoutRules.PlayerWinProfit,
             false => -stake,
             null => 0
         };
@@ -209,7 +224,20 @@ public sealed class StrategySessionEngine
                 currentStake = definition.Initial.Values[0];
                 break;
             case AmountRuleKind.MultiplyAmount:
-                currentStake *= rule.Values[0];
+                decimal multiplied;
+                try
+                {
+                    multiplied = checked(currentStake!.Value * rule.Values[0]);
+                }
+                catch (OverflowException)
+                {
+                    StopReason = "The stake progression exceeded the supported limit.";
+                    break;
+                }
+
+                if (multiplied > StrategyDefinitionValidator.MaximumSupportedAmount)
+                    StopReason = "The stake progression exceeded the supported limit.";
+                else currentStake = multiplied;
                 break;
             case AmountRuleKind.ResetSequence:
                 sequenceIndex = 0;
