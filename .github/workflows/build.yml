@@ -41,9 +41,34 @@ jobs:
       - name: Create and validate app bundle
         run: bash tools/package-macos.sh "${{ matrix.runtime }}" Release "artifacts/macos/${{ matrix.runtime }}"
       - name: Preserve bundle permissions in ZIP
-        run: ditto -c -k --sequesterRsrc --keepParent "artifacts/macos/${{ matrix.runtime }}/Baccarat Workspace.app" "artifacts/macos/${{ matrix.runtime }}/Baccarat-Workspace-${{ matrix.runtime }}-unsigned.zip"
+        run: |
+          archive="artifacts/macos/${{ matrix.runtime }}/Baccarat-Workspace-${{ matrix.runtime }}-unsigned.zip"
+          ditto -c -k --sequesterRsrc --keepParent "artifacts/macos/${{ matrix.runtime }}/Baccarat Workspace.app" "$archive"
+          archive_directory="$(dirname "$archive")"
+          archive_name="$(basename "$archive")"
+          (cd "$archive_directory" && shasum -a 256 "$archive_name" > "$archive_name.sha256")
       - uses: actions/upload-artifact@v4
         with:
           name: baccarat-workspace-${{ matrix.runtime }}-unsigned
-          path: artifacts/macos/${{ matrix.runtime }}/Baccarat-Workspace-${{ matrix.runtime }}-unsigned.zip
+          path: |
+            artifacts/macos/${{ matrix.runtime }}/Baccarat-Workspace-${{ matrix.runtime }}-unsigned.zip
+            artifacts/macos/${{ matrix.runtime }}/Baccarat-Workspace-${{ matrix.runtime }}-unsigned.zip.sha256
+          if-no-files-found: error
+
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Create and validate Windows package
+        shell: pwsh
+        run: ./tools/package-windows.ps1 -Runtime win-x64 -Configuration Release -OutputDirectory artifacts/windows/win-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baccarat-workspace-win-x64-unsigned
+          path: |
+            artifacts/windows/win-x64/Baccarat-Workspace-win-x64-unsigned.zip
+            artifacts/windows/win-x64/Baccarat-Workspace-win-x64-unsigned.zip.sha256
           if-no-files-found: error
