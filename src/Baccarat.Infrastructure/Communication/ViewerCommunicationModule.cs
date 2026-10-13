@@ -28,6 +28,8 @@ public sealed class ViewerCommunicationModule
     private readonly VersionedViewerDocumentCodec codec;
     private readonly IViewerMessageTransport transport;
     private readonly ViewerDocumentStore store;
+    private readonly SemaphoreSlim publishGate = new(1, 1);
+    private readonly SemaphoreSlim receiveGate = new(1, 1);
     private long sequence;
 
     public ViewerCommunicationModule(
@@ -45,35 +47,49 @@ public sealed class ViewerCommunicationModule
 
     public IReadOnlyList<ViewerDocument> Documents => store.Documents;
 
-    public ValueTask PublishAsync(ViewerPayload payload, CancellationToken cancellationToken = default)
+    public async ValueTask PublishAsync(ViewerPayload payload, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
-        var (type, version) = ContractFor(payload);
-        var document = new ViewerDocument(
-            ViewerDocumentContract.EnvelopeVersion,
-            type,
-            version,
-            Guid.NewGuid(),
-            Interlocked.Increment(ref sequence),
-            DateTimeOffset.UtcNow,
-            payload);
-        return transport.SendAsync(codec.Encode(document), cancellationToken);
+        await publishGate.WaitAsync(cancellationToken);
+        try
+        {
+            var (type, version) = ContractFor(payload);
+            var document = new ViewerDocument(
+                ViewerDocumentContract.EnvelopeVersion,
+                type,
+                version,
+                Guid.NewGuid(),
+                Interlocked.Increment(ref sequence),
+                DateTimeOffset.UtcNow,
+                payload);
+            await transport.SendAsync(codec.Encode(document), cancellationToken);
+        }
+        finally
+        {
+            publishGate.Release();
+        }
     }
 
-    public ValueTask ReceiveAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken = default)
+    public async ValueTask ReceiveAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var document = codec.Decode(message.Span);
-        if (store.Apply(document) == ViewerDocumentApplyResult.Applied)
+        await receiveGate.WaitAsync(cancellationToken);
+        try
         {
-            var handlers = DocumentReceived?.GetInvocationList() ?? [];
-            foreach (Action<ViewerDocument> handler in handlers.Cast<Action<ViewerDocument>>())
+            var document = codec.Decode(message.Span);
+            if (store.Apply(document) == ViewerDocumentApplyResult.Applied)
             {
-                try { handler(document); }
-                catch { }
+                var handlers = DocumentReceived?.GetInvocationList() ?? [];
+                foreach (Action<ViewerDocument> handler in handlers.Cast<Action<ViewerDocument>>())
+                {
+                    try { handler(document); }
+                    catch { }
+                }
             }
         }
-        return ValueTask.CompletedTask;
+        finally
+        {
+            receiveGate.Release();
+        }
     }
 
     private static (string Type, DocumentVersion Version) ContractFor(ViewerPayload payload) => payload switch

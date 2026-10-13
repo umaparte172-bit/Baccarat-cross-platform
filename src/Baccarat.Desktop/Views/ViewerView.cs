@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Baccarat.Core.Communication;
 using Baccarat.Infrastructure.Communication;
 
@@ -39,6 +40,12 @@ public sealed class ViewerView : StackPanel
 
     private void OnDocumentReceived(ViewerDocument document)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnDocumentReceived(document));
+            return;
+        }
+
         switch (document.Payload)
         {
             case SessionSnapshotPayload value:

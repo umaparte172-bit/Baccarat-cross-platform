@@ -57,8 +57,10 @@ Acceptance: reproducible inventory, known limits, and sufficient evidence for ea
 - [ ] Bind the HTTP transport to the recovered legacy authentication codec and endpoint.
 - [ ] Implement WebSocket authentication and reconnection after its contract is recovered.
 - [ ] Implement browser workflows once selectors and intended actions are established.
-- [ ] Recover and implement the required strategy/settings workflows.
-- [ ] Implement Keychain storage and redacted diagnostic logging.
+- [x] Recover and implement the supplied strategy workflows, preserving protected algorithms as manual decisions.
+- [ ] Recover remaining settings workflows when evidence establishes their behavior.
+- [x] Implement redacted diagnostic logging.
+- [ ] Implement Windows Credential Manager and macOS Keychain storage.
 
 If the old backend is unavailable, record that dependency explicitly. Rebuilding a UI cannot restore an unavailable service.
 
@@ -84,6 +86,7 @@ Exact automation for protected selector and amount algorithms remains dependent 
 - [x] Connect manual session events, strategy state and communication status to the viewer through a replaceable transport.
 - [x] Add a live Viewer workspace and verify it headlessly.
 - [x] Keep the default transport local and offline so the application performs no unsupported external action.
+- [x] Serialize concurrent publications, serialize receive processing and marshal Viewer updates to the UI thread.
 - [ ] Bind a WebSocket transport only after the legacy endpoint, framing, authentication and reconnection contract is recovered from sanitized evidence.
 
 The replacement document contract is complete at version 1.0. It is deliberately not presented as the original server protocol. Unknown versions and document types are rejected rather than guessed.

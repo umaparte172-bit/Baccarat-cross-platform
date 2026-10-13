@@ -277,10 +277,54 @@ catch (ViewerDocumentFormatException)
 {
 }
 
+try
+{
+    viewerCodec.Decode(new byte[VersionedViewerDocumentCodec.MaximumDocumentBytes + 1]);
+    throw new Exception("Oversized viewer document accepted");
+}
+catch (ViewerDocumentFormatException)
+{
+}
+
+try
+{
+    viewerCodec.Decode(Encoding.UTF8.GetBytes(new string('[', 20) + "0" + new string(']', 20)));
+    throw new Exception("Excessively nested viewer document accepted");
+}
+catch (ViewerDocumentFormatException)
+{
+}
+
+try
+{
+    viewerCodec.Decode(Encoding.UTF8.GetBytes(encodedViewerText.Replace(
+        ViewerDocumentContract.SessionSnapshotType,
+        "unsupported.snapshot",
+        StringComparison.Ordinal)));
+    throw new Exception("Unknown viewer document type accepted");
+}
+catch (ViewerDocumentFormatException)
+{
+}
+
 var viewerStore = new ViewerDocumentStore(2);
 Check(viewerStore.Apply(viewerDocument) == ViewerDocumentApplyResult.Applied &&
       viewerStore.Apply(viewerDocument) == ViewerDocumentApplyResult.DuplicateOrOutOfOrder,
     "Viewer state must reject duplicate or out-of-order sequences");
+Check(viewerStore.Apply(viewerDocument with { DocumentId = Guid.NewGuid(), Sequence = 2 }) ==
+      ViewerDocumentApplyResult.Applied &&
+      viewerStore.Apply(viewerDocument with { DocumentId = Guid.NewGuid(), Sequence = 3 }) ==
+      ViewerDocumentApplyResult.Applied &&
+      viewerStore.Documents.Select(document => document.Sequence).SequenceEqual([2L, 3L]),
+    "Viewer state must enforce its configured history capacity");
+try
+{
+    _ = new ViewerDocumentStore(0);
+    throw new Exception("Invalid viewer history capacity accepted");
+}
+catch (ArgumentOutOfRangeException)
+{
+}
 var viewerTransport = new LoopbackViewerMessageTransport();
 var viewerModule = new ViewerCommunicationModule(viewerTransport, viewerCodec, new ViewerDocumentStore(3));
 var receivedViewerDocuments = new List<ViewerDocument>();
@@ -294,6 +338,16 @@ Check(receivedViewerDocuments.Count == 2 &&
       receivedViewerDocuments[1].Sequence == 2 &&
       receivedViewerDocuments[1].Payload is StrategySnapshotPayload,
     "The communication module must encode, transport, validate and deliver ordered documents");
+
+var concurrentViewerTransport = new ConcurrentViewerMessageTransport();
+var concurrentViewerModule = new ViewerCommunicationModule(concurrentViewerTransport);
+var concurrentSequences = new List<long>();
+concurrentViewerModule.DocumentReceived += document => concurrentSequences.Add(document.Sequence);
+await Task.WhenAll(Enumerable.Range(0, 10).Select(index =>
+    concurrentViewerModule.PublishAsync(new CommunicationStatusPayload("test", $"Message {index}")).AsTask()));
+Check(concurrentViewerTransport.MaximumConcurrency == 1 &&
+      concurrentSequences.SequenceEqual(Enumerable.Range(1, 10).Select(value => (long)value)),
+    "Concurrent viewer publications must be serialized and delivered in sequence order");
 Console.WriteLine("PASS: versioned viewer documents, compatibility rejection and ordered communication");
 
 var response = new Queue<AuthenticationResult?>();
@@ -601,4 +655,44 @@ sealed class ForeignOriginProtocol : FixtureAuthenticationProtocol
 {
     public override HttpRequestMessage CreateSignInRequest(SignInRequest request) =>
         new(HttpMethod.Post, "https://other.example.test/sign-in");
+}
+
+sealed class ConcurrentViewerMessageTransport : IViewerMessageTransport
+{
+    private Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask>? receiver;
+    private int active;
+    private int maximumConcurrency;
+
+    public int MaximumConcurrency => maximumConcurrency;
+
+    public void SetReceiver(Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask> value) =>
+        receiver = value ?? throw new ArgumentNullException(nameof(value));
+
+    public async ValueTask SendAsync(
+        ReadOnlyMemory<byte> message,
+        CancellationToken cancellationToken = default)
+    {
+        var current = Interlocked.Increment(ref active);
+        UpdateMaximum(current);
+        try
+        {
+            await Task.Delay(5, cancellationToken);
+            await (receiver ?? throw new InvalidOperationException("No receiver configured."))(
+                message.ToArray(), cancellationToken);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref active);
+        }
+    }
+
+    private void UpdateMaximum(int value)
+    {
+        while (true)
+        {
+            var current = maximumConcurrency;
+            if (value <= current || Interlocked.CompareExchange(ref maximumConcurrency, value, current) == current)
+                return;
+        }
+    }
 }
