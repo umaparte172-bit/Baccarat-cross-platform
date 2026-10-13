@@ -58,8 +58,9 @@ Commands executed against the reconstructed source:
 - Release build of `Baccarat.slnx`: **passed**, zero warnings and zero errors.
 - Core checks: **passed**.
 - Headless Avalonia checks: **passed**.
-- Static-analysis Python tests: tracked separately and previously passed; rerun for this milestone before commit.
-- NuGet direct/transitive vulnerability audit: rerun for this milestone before commit.
+- Static-analysis Python tests: **passed**, 5 tests.
+- NuGet direct/transitive vulnerability audit: **passed**, no known vulnerable packages reported.
+- GitHub Actions run `38328513478`: **passed** on `macos-latest` and `windows-latest`; both jobs built the solution and passed the Core and headless Desktop checks.
 
 ## Known limits and next inputs
 
