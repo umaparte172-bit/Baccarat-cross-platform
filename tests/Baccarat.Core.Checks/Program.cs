@@ -609,6 +609,12 @@ Check(await secrets.ReadAsync("session") == "fixture-secret", "Volatile secret s
 await secrets.DeleteAsync("session");
 Check(await secrets.ReadAsync("session") is null, "Deleted secrets must not remain available");
 
+var defaultSecrets = SecretStoreFactory.CreateDefault();
+Check(OperatingSystem.IsMacOS()
+        ? defaultSecrets is MacOsKeychainSecretStore
+        : defaultSecrets is VolatileSecretStore,
+    "Default secret storage must use macOS Keychain only on macOS");
+
 var diagnosticLines = new List<string>();
 var redactingSink = new RedactingDiagnosticSink(diagnosticLines.Add);
 redactingSink.Write(Baccarat.Core.Diagnostics.DiagnosticLevel.Error, "fixture",

@@ -26,7 +26,7 @@ public sealed record ApplicationServices(
         if (network.Validate().Count != 0)
             throw new InvalidOperationException("Default network configuration is invalid.");
 
-        var secrets = new VolatileSecretStore();
+        var secrets = SecretStoreFactory.CreateDefault();
         return new(
             new OfflineAuthenticationService(),
             new SecretAuthenticationSessionStore(secrets),
