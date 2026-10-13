@@ -3,9 +3,11 @@ using System.Net.Http.Headers;
 using System.Text;
 using Baccarat.Core;
 using Baccarat.Core.Authentication;
+using Baccarat.Core.Communication;
 using Baccarat.Core.Configuration;
 using Baccarat.Core.Strategies;
 using Baccarat.Infrastructure.Authentication;
+using Baccarat.Infrastructure.Communication;
 using Baccarat.Infrastructure.Diagnostics;
 using Baccarat.Infrastructure.Security;
 using Baccarat.Infrastructure.Strategies;
@@ -188,6 +190,63 @@ if (Directory.Exists(suppliedStrategyDirectory))
     }
 }
 Console.WriteLine("PASS: strict strategy import and supplied schema compatibility");
+
+var viewerCodec = new VersionedViewerDocumentCodec();
+var viewerDocument = new ViewerDocument(
+    ViewerDocumentContract.EnvelopeVersion,
+    ViewerDocumentContract.SessionSnapshotType,
+    ViewerDocumentContract.SessionSnapshotVersion,
+    Guid.NewGuid(),
+    1,
+    new DateTimeOffset(2026, 10, 13, 0, 0, 0, TimeSpan.Zero),
+    new SessionSnapshotPayload(3, 1, 1, 1));
+var encodedViewerDocument = viewerCodec.Encode(viewerDocument);
+var decodedViewerDocument = viewerCodec.Decode(encodedViewerDocument);
+Check(decodedViewerDocument == viewerDocument,
+    "A supported viewer document must round-trip without losing its versions or payload");
+
+var encodedViewerText = Encoding.UTF8.GetString(encodedViewerDocument);
+try
+{
+    viewerCodec.Decode(Encoding.UTF8.GetBytes(encodedViewerText.Replace(
+        "\"protocol_version\":\"1.0\"",
+        "\"protocol_version\":\"2.0\"",
+        StringComparison.Ordinal)));
+    throw new Exception("Unsupported viewer protocol version accepted");
+}
+catch (ViewerDocumentFormatException)
+{
+}
+
+try
+{
+    viewerCodec.Decode(Encoding.UTF8.GetBytes(encodedViewerText.Replace(
+        "\"document_version\":\"1.0\"",
+        "\"document_version\":\"1.1\"",
+        StringComparison.Ordinal)));
+    throw new Exception("Unsupported viewer document version accepted");
+}
+catch (ViewerDocumentFormatException)
+{
+}
+
+var viewerStore = new ViewerDocumentStore(2);
+Check(viewerStore.Apply(viewerDocument) == ViewerDocumentApplyResult.Applied &&
+      viewerStore.Apply(viewerDocument) == ViewerDocumentApplyResult.DuplicateOrOutOfOrder,
+    "Viewer state must reject duplicate or out-of-order sequences");
+var viewerTransport = new LoopbackViewerMessageTransport();
+var viewerModule = new ViewerCommunicationModule(viewerTransport, viewerCodec, new ViewerDocumentStore(3));
+var receivedViewerDocuments = new List<ViewerDocument>();
+viewerModule.DocumentReceived += receivedViewerDocuments.Add;
+await viewerModule.PublishAsync(new CommunicationStatusPayload("offline", "Local viewer ready."));
+await viewerModule.PublishAsync(new StrategySnapshotPayload(
+    "Fixture", 1.25m, 3, 2, StrategyEngineState.Ready, "Bet 1 on Player."));
+Check(receivedViewerDocuments.Count == 2 &&
+      receivedViewerDocuments[0].Sequence == 1 &&
+      receivedViewerDocuments[1].Sequence == 2 &&
+      receivedViewerDocuments[1].Payload is StrategySnapshotPayload,
+    "The communication module must encode, transport, validate and deliver ordered documents");
+Console.WriteLine("PASS: versioned viewer documents, compatibility rejection and ordered communication");
 
 var response = new Queue<AuthenticationResult?>();
 var authentication = new StubAuthenticationService(response);
