@@ -10,10 +10,20 @@ internal static class WorkspaceUi
     internal static StackPanel Page(string eyebrow, string title, string description)
     {
         var page = new StackPanel { Margin = new Thickness(24), Spacing = 16 };
-        page.Children.Add(Text(eyebrow, 12, LegacyTheme.Gold, FontWeight.Bold));
-        page.Children.Add(Text(title, 28, LegacyTheme.Text, FontWeight.Bold));
-        page.Children.Add(Text(description, 14, LegacyTheme.Muted));
+        var heading = new StackPanel { Spacing = 10, HorizontalAlignment = HorizontalAlignment.Stretch };
+        heading.Children.Add(CenteredText(eyebrow, 12, LegacyTheme.Gold, FontWeight.Bold));
+        heading.Children.Add(CenteredText(title, 28, LegacyTheme.Text, FontWeight.Bold));
+        heading.Children.Add(CenteredText(description, 14, LegacyTheme.Muted));
+        page.Children.Add(heading);
         return page;
+    }
+
+    private static TextBlock CenteredText(string value, double size, IBrush color, FontWeight? weight = null)
+    {
+        var text = Text(value, size, color, weight);
+        text.HorizontalAlignment = HorizontalAlignment.Center;
+        text.TextAlignment = TextAlignment.Center;
+        return text;
     }
 
     internal static Border Card(string heading, Control content)

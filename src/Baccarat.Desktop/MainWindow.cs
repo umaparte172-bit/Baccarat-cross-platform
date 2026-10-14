@@ -196,12 +196,7 @@ public sealed class MainWindow : Window
         var screen = new DockPanel();
         var back = WorkspaceUi.Action("Back to home");
         back.HorizontalAlignment = HorizontalAlignment.Left;
-        back.Margin = new Thickness(22, 12, 0, 0);
-        back.MinHeight = 32;
-        back.Padding = new Thickness(10, 5);
-        back.Background = Brushes.Transparent;
-        back.BorderBrush = Brushes.Transparent;
-        back.Foreground = LegacyTheme.Gold;
+        back.Margin = new Thickness(24, 16, 0, 0);
         back.Click += (_, _) => showHome();
         DockPanel.SetDock(back, Dock.Top);
         screen.Children.Add(back);

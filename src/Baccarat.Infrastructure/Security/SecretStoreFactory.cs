@@ -6,12 +6,16 @@ public static class SecretStoreFactory
 {
     public const string ServiceName = "com.baccarat.crossplatform";
 
-    public static ISecretStore CreateDefault()
+    public static ISecretStore CreateDefault() => CreateForService(ServiceName);
+
+    public static ISecretStore CreateForService(string serviceName)
     {
+        if (string.IsNullOrWhiteSpace(serviceName))
+            throw new ArgumentException("A service name is required.", nameof(serviceName));
         if (OperatingSystem.IsWindows())
-            return new WindowsCredentialManagerSecretStore(ServiceName);
+            return new WindowsCredentialManagerSecretStore(serviceName);
         if (OperatingSystem.IsMacOS())
-            return new MacOsKeychainSecretStore(ServiceName);
+            return new MacOsKeychainSecretStore(serviceName);
         return new VolatileSecretStore();
     }
 }

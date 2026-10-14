@@ -27,9 +27,10 @@ public sealed record ApplicationServices(
             throw new InvalidOperationException("Default network configuration is invalid.");
 
         var secrets = SecretStoreFactory.CreateDefault();
+        var demoSecrets = SecretStoreFactory.CreateForService($"{SecretStoreFactory.ServiceName}.demo");
         return new(
             new DemoAuthenticationService(),
-            NullAuthenticationSessionStore.Instance,
+            new SecretAuthenticationSessionStore(demoSecrets),
             new AutomationController(new SimulatedAutomationTableAdapter()),
             new ViewerCommunicationModule(new LoopbackViewerMessageTransport()),
             secrets,

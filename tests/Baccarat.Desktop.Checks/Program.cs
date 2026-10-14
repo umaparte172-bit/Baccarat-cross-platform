@@ -2,12 +2,15 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Baccarat.Desktop;
 using Baccarat.Desktop.Views;
 using Baccarat.Core.Authentication;
 using Baccarat.Core.Strategies;
 using Baccarat.Infrastructure.Authentication;
+using Baccarat.Infrastructure.Security;
 
 AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
 var strategyDefinition = new StrategyDefinition(
@@ -35,6 +38,8 @@ if (HasText("Session tracker") || window.GetVisualDescendants().OfType<Button>()
 if (!FindButton("SIGN IN").IsEnabled || !FindButton("SIGN UP").IsEnabled ||
     !window.GetVisualDescendants().OfType<CheckBox>().Any(box => Equals(box.Content, "REMEMBER ME")))
     throw new Exception("The SignIn screen was not shown");
+if (!window.GetVisualDescendants().OfType<CheckBox>().Single(box => Equals(box.Content, "REMEMBER ME")).IsEnabled)
+    throw new Exception("Remember Me must be available in local demo mode");
 Click("SIGN UP");
 window.UpdateLayout();
 if (!HasText("NAME :") || !HasText("PHONE NO :") || !HasText("COUNTRY :"))
@@ -70,9 +75,12 @@ if (Grid.GetColumn(FindButton("SIGN OUT")) != 1 ||
 
 Click("OPEN SESSION");
 window.UpdateLayout();
-if (DockPanel.GetDock(FindButton("Back to home")) != Dock.Top ||
+var back = FindButton("Back to home");
+if (DockPanel.GetDock(back) != Dock.Top || back.BorderThickness.Left != 1 || back.Margin.Left != 24 ||
     !window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "SIGN OUT")))
-    throw new Exception("Back to home must be in the workspace content and Sign Out must remain available");
+    throw new Exception("Back to home must match workspace actions and Sign Out must remain available");
+if (window.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == "Session tracker").HorizontalAlignment != HorizontalAlignment.Center)
+    throw new Exception("Workspace headings must be centered");
 if (!HasText("TABLE WORKSPACE") || !HasText("RECORD TABLE RESULT") || !HasText("ROUND HISTORY"))
     throw new Exception("The session workspace layout was not shown");
 if (FindButton("Undo last").IsEnabled) throw new Exception("Empty undo must be disabled");
@@ -164,4 +172,48 @@ var rejected = await demo.SignInAsync(new SignInRequest(DemoAuthenticationServic
 if (rejected.Outcome != AuthenticationOutcome.Rejected || rejected.Session is not null)
     throw new Exception("Incorrect demo credentials must not create a session");
 window.Close();
+var rememberedStore = new SecretAuthenticationSessionStore(new VolatileSecretStore());
+var rememberedWindow = new MainWindow(authenticationSessions: rememberedStore);
+rememberedWindow.Show();
+rememberedWindow.UpdateLayout();
+var remember = rememberedWindow.GetVisualDescendants().OfType<CheckBox>()
+    .Single(box => Equals(box.Content, "REMEMBER ME"));
+remember.IsChecked = true;
+var rememberedFields = rememberedWindow.GetVisualDescendants().OfType<TextBox>().ToArray();
+rememberedFields[0].Text = DemoAuthenticationService.Email;
+rememberedFields[1].Text = DemoAuthenticationService.Password;
+rememberedWindow.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "SIGN IN"))
+    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+rememberedWindow.UpdateLayout();
+if (!rememberedWindow.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "WORKSPACE HOME") ||
+    await rememberedStore.ReadAsync() is null)
+    throw new Exception("Remember Me did not save the local demo session");
+rememberedWindow.Close();
+
+var restoredWindow = new MainWindow(authenticationSessions: rememberedStore);
+restoredWindow.Show();
+Dispatcher.UIThread.RunJobs();
+restoredWindow.UpdateLayout();
+if (!restoredWindow.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "WORKSPACE HOME"))
+    throw new Exception("Remember Me did not restore the local demo session");
+restoredWindow.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "SIGN OUT"))
+    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+restoredWindow.UpdateLayout();
+if (await rememberedStore.ReadAsync() is not null ||
+    restoredWindow.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "WORKSPACE HOME"))
+    throw new Exception("Sign-out did not clear the remembered session");
+restoredWindow.Close();
+var transientStore = new SecretAuthenticationSessionStore(new VolatileSecretStore());
+var transientWindow = new MainWindow(authenticationSessions: transientStore);
+transientWindow.Show();
+transientWindow.UpdateLayout();
+var transientFields = transientWindow.GetVisualDescendants().OfType<TextBox>().ToArray();
+transientFields[0].Text = DemoAuthenticationService.Email;
+transientFields[1].Text = DemoAuthenticationService.Password;
+transientWindow.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "SIGN IN"))
+    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+transientWindow.UpdateLayout();
+if (await transientStore.ReadAsync() is not null)
+    throw new Exception("An unchecked Remember Me must not save a session");
+transientWindow.Close();
 Console.WriteLine("PASS: headless desktop startup, session tools and account validation UI");
