@@ -82,6 +82,7 @@ public sealed class MainWindow : Window
             authenticationService ?? defaults.Authentication,
             this.diagnostics,
             authenticationSessions ?? defaults.AuthenticationSessions);
+        var accountScreen = new ScrollViewer { Content = account };
         var viewer = new ViewerView(this.viewerCommunication);
         var controlledAutomation = automationController ?? defaults.Automation;
         controlledAutomation.SnapshotChanged += PublishAutomation;
@@ -92,17 +93,34 @@ public sealed class MainWindow : Window
             automation.UpdateStrategy(engine);
         });
 
-        var tabs = new TabControl
+        var workspaceHost = new ContentControl();
+        var homeButton = WorkspaceUi.Action("Back to home");
+        var sessionScreen = new ScrollViewer { Content = overview };
+        var strategyScreen = new ScrollViewer { Content = strategies };
+        var automationScreen = new ScrollViewer { Content = automation };
+        var viewerScreen = new ScrollViewer { Content = viewer };
+        var dashboard = BuildDashboard(
+            () => OpenWorkspace("Session", sessionScreen),
+            () => OpenWorkspace("Strategies", strategyScreen),
+            () => OpenWorkspace("Automation", automationScreen),
+            () => OpenWorkspace("Viewer", viewerScreen),
+            async () => await account.SignOutAsync());
+
+        void ShowHome()
         {
-            ItemsSource = new[] {
-            new TabItem { Header = "SESSION", Content = new ScrollViewer { Content = overview } },
-            new TabItem { Header = "STRATEGIES", Content = new ScrollViewer { Content = strategies } },
-            new TabItem { Header = "AUTOMATION", Content = new ScrollViewer { Content = automation } },
-            new TabItem { Header = "VIEWER", Content = new ScrollViewer { Content = viewer } },
-            new TabItem { Header = "ACCOUNT", Content = new ScrollViewer { Content = account } }
+            workspaceHost.Content = dashboard;
+            homeButton.IsVisible = false;
+            Title = "Baccarat (Evolution) — Home";
         }
-        };
-        account.Authenticated += () => tabs.SelectedIndex = 0;
+
+        void OpenWorkspace(string name, Control workspace)
+        {
+            workspaceHost.Content = workspace;
+            homeButton.IsVisible = true;
+            Title = $"Baccarat (Evolution) — {name}";
+        }
+
+        homeButton.Click += (_, _) => ShowHome();
         var layout = new DockPanel { Margin = new Thickness(28, 16, 28, 18) };
         var header = new StackPanel
         {
@@ -115,6 +133,9 @@ public sealed class MainWindow : Window
         heading.Children.Add(Label("BACCARAT (EVOLUTION)", 20, "#E9A43A"));
         heading.Children.Add(Label("WETALKBET CONTROL PANEL", 12, "#A7B3C7"));
         header.Children.Add(heading);
+        homeButton.Margin = new Thickness(24, 0, 0, 0);
+        homeButton.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(homeButton);
         DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header);
         status.Margin = new Thickness(0, 12, 0, 0);
         status.Foreground = LegacyTheme.Muted;
@@ -124,9 +145,21 @@ public sealed class MainWindow : Window
             Background = LegacyTheme.Panel,
             BorderBrush = LegacyTheme.FieldBorder,
             BorderThickness = new Thickness(1),
-            Child = tabs
+            Child = workspaceHost
         });
-        Content = layout;
+        account.Authenticated += () => { Content = layout; ShowHome(); };
+        account.SignedOut += () =>
+        {
+            if (controlledAutomation.Snapshot.State != AutomationRunState.Disconnected)
+            {
+                controlledAutomation.CancelPending("Pending simulation cancelled on sign-out.");
+                controlledAutomation.Pause("Signed out.");
+            }
+            Content = accountScreen;
+            Title = "Baccarat (Evolution) — Sign In";
+        };
+        Content = accountScreen;
+        Title = "Baccarat (Evolution) — Sign In";
         Refresh();
         Publish(new CommunicationStatusPayload("offline", "Local versioned communication is ready."));
         PublishSession();
@@ -135,6 +168,48 @@ public sealed class MainWindow : Window
 
     private static TextBlock Label(string text, double size, string color = "#E9EEF6") =>
         new() { Text = text, FontSize = size, Foreground = Brush.Parse(color), TextWrapping = TextWrapping.Wrap };
+
+    private static StackPanel BuildDashboard(
+        Action openSession,
+        Action openStrategies,
+        Action openAutomation,
+        Action openViewer,
+        Action signOut)
+    {
+        var page = WorkspaceUi.Page("WORKSPACE HOME", "Baccarat workspace",
+            "Choose a workspace to begin. This replacement remains offline and uses local demo access.");
+        var choices = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto"),
+            ColumnSpacing = 16,
+            RowSpacing = 16
+        };
+        AddChoice(choices, 0, 0, "SESSION", "Record Player, Banker and Tie outcomes.", "OPEN SESSION", openSession);
+        AddChoice(choices, 1, 0, "STRATEGIES", "Import strategies and track recommendations.", "OPEN STRATEGIES", openStrategies);
+        AddChoice(choices, 0, 1, "AUTOMATION", "Review controlled local simulation.", "OPEN AUTOMATION", openAutomation);
+        AddChoice(choices, 1, 1, "VIEWER", "Inspect local versioned snapshots.", "OPEN VIEWER", openViewer);
+        page.Children.Add(choices);
+        var exit = WorkspaceUi.Action("SIGN OUT");
+        exit.HorizontalAlignment = HorizontalAlignment.Left;
+        exit.Click += (_, _) => signOut();
+        page.Children.Add(exit);
+        return page;
+    }
+
+    private static void AddChoice(Grid grid, int column, int row, string title, string description, string action, Action open)
+    {
+        var content = new StackPanel { Spacing = 14 };
+        content.Children.Add(WorkspaceUi.Text(description, 15, LegacyTheme.Muted));
+        var button = WorkspaceUi.Action(action, LegacyTheme.Green, LegacyTheme.Ink);
+        button.HorizontalAlignment = HorizontalAlignment.Left;
+        button.Click += (_, _) => open();
+        content.Children.Add(button);
+        var card = WorkspaceUi.Card(title, content);
+        Grid.SetColumn(card, column);
+        Grid.SetRow(card, row);
+        grid.Children.Add(card);
+    }
 
     private static Button ActionButton(string text, Action action)
     {

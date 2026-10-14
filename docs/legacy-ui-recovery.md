@@ -28,7 +28,7 @@ The public introduction-video channel could not be reached from the analysis env
 - Core behavioral checks: passed.
 - Headless Avalonia startup, navigation, strategy, automation, Viewer, and Account checks: passed.
 
-The WETALKBET header asset is a visual reconstruction from the supplied screenshot, not the original embedded bitmap. The authentication layouts appear inside the replacement's Account workspace; reproducing the original top-level window chrome and exact appearance still requires visual comparison on the target machines.
+The WETALKBET header asset is a visual reconstruction from the supplied screenshot, not the original embedded bitmap. Authentication is the replacement's initial screen; the workspace home and its individual screens appear only after local demo authentication. Reproducing the original post-sign-in window chrome and exact appearance still requires visual comparison on the target machines.
 
 ## Evidence required for exact Main-form parity
 

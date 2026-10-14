@@ -28,6 +28,7 @@ public sealed class AccountView : Grid
     private readonly bool demoMode;
 
     public event Action? Authenticated;
+    public event Action? SignedOut;
 
     public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
         : this(service, diagnostics, null)
@@ -173,11 +174,12 @@ public sealed class AccountView : Grid
         if (authentication.IsAuthenticated) Authenticated?.Invoke();
     }
 
-    private async Task SignOutAsync()
+    public async Task SignOutAsync()
     {
         await controller.SignOutAsync();
         result.Text = controller.LastResult.Message;
-        Refresh();
+        ShowSignIn();
+        SignedOut?.Invoke();
     }
 
     private void Refresh()
