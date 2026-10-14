@@ -94,48 +94,47 @@ public sealed class MainWindow : Window
         });
 
         var workspaceHost = new ContentControl();
-        var homeButton = WorkspaceUi.Action("Back to home");
-        var sessionScreen = new ScrollViewer { Content = overview };
-        var strategyScreen = new ScrollViewer { Content = strategies };
-        var automationScreen = new ScrollViewer { Content = automation };
-        var viewerScreen = new ScrollViewer { Content = viewer };
-        var dashboard = BuildDashboard(
+        StackPanel? dashboard = null;
+        var sessionScreen = WorkspaceScreen(overview, ShowHome);
+        var strategyScreen = WorkspaceScreen(strategies, ShowHome);
+        var automationScreen = WorkspaceScreen(automation, ShowHome);
+        var viewerScreen = WorkspaceScreen(viewer, ShowHome);
+        dashboard = BuildDashboard(
             () => OpenWorkspace("Session", sessionScreen),
             () => OpenWorkspace("Strategies", strategyScreen),
             () => OpenWorkspace("Automation", automationScreen),
-            () => OpenWorkspace("Viewer", viewerScreen),
-            async () => await account.SignOutAsync());
+            () => OpenWorkspace("Viewer", viewerScreen));
 
         void ShowHome()
         {
             workspaceHost.Content = dashboard;
-            homeButton.IsVisible = false;
             Title = "Baccarat (Evolution) — Home";
         }
 
         void OpenWorkspace(string name, Control workspace)
         {
             workspaceHost.Content = workspace;
-            homeButton.IsVisible = true;
             Title = $"Baccarat (Evolution) — {name}";
         }
 
-        homeButton.Click += (_, _) => ShowHome();
         var layout = new DockPanel { Margin = new Thickness(28, 16, 28, 18) };
-        var header = new StackPanel
+        var header = new Grid
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 18,
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
             Margin = new Thickness(0, 0, 0, 10)
         };
-        header.Children.Add(LegacyTheme.Brand(138, 72));
+        var identity = WorkspaceUi.Row(18);
+        identity.Children.Add(LegacyTheme.Brand(138, 72));
         var heading = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
         heading.Children.Add(Label("BACCARAT (EVOLUTION)", 20, "#E9A43A"));
         heading.Children.Add(Label("WETALKBET CONTROL PANEL", 12, "#A7B3C7"));
-        header.Children.Add(heading);
-        homeButton.Margin = new Thickness(24, 0, 0, 0);
-        homeButton.VerticalAlignment = VerticalAlignment.Center;
-        header.Children.Add(homeButton);
+        identity.Children.Add(heading);
+        header.Children.Add(identity);
+        var signOut = WorkspaceUi.Action("SIGN OUT");
+        signOut.VerticalAlignment = VerticalAlignment.Center;
+        signOut.Click += async (_, _) => await account.SignOutAsync();
+        Grid.SetColumn(signOut, 1);
+        header.Children.Add(signOut);
         DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header);
         status.Margin = new Thickness(0, 12, 0, 0);
         status.Foreground = LegacyTheme.Muted;
@@ -173,8 +172,7 @@ public sealed class MainWindow : Window
         Action openSession,
         Action openStrategies,
         Action openAutomation,
-        Action openViewer,
-        Action signOut)
+        Action openViewer)
     {
         var page = WorkspaceUi.Page("WORKSPACE HOME", "Baccarat workspace",
             "Choose a workspace to begin. This replacement remains offline and uses local demo access.");
@@ -190,11 +188,25 @@ public sealed class MainWindow : Window
         AddChoice(choices, 0, 1, "AUTOMATION", "Review controlled local simulation.", "OPEN AUTOMATION", openAutomation);
         AddChoice(choices, 1, 1, "VIEWER", "Inspect local versioned snapshots.", "OPEN VIEWER", openViewer);
         page.Children.Add(choices);
-        var exit = WorkspaceUi.Action("SIGN OUT");
-        exit.HorizontalAlignment = HorizontalAlignment.Left;
-        exit.Click += (_, _) => signOut();
-        page.Children.Add(exit);
         return page;
+    }
+
+    private static DockPanel WorkspaceScreen(Control content, Action showHome)
+    {
+        var screen = new DockPanel();
+        var back = WorkspaceUi.Action("Back to home");
+        back.HorizontalAlignment = HorizontalAlignment.Left;
+        back.Margin = new Thickness(22, 12, 0, 0);
+        back.MinHeight = 32;
+        back.Padding = new Thickness(10, 5);
+        back.Background = Brushes.Transparent;
+        back.BorderBrush = Brushes.Transparent;
+        back.Foreground = LegacyTheme.Gold;
+        back.Click += (_, _) => showHome();
+        DockPanel.SetDock(back, Dock.Top);
+        screen.Children.Add(back);
+        screen.Children.Add(new ScrollViewer { Content = content });
+        return screen;
     }
 
     private static void AddChoice(Grid grid, int column, int row, string title, string description, string action, Action open)

@@ -64,9 +64,15 @@ if (!HasText("Baccarat workspace") || !HasText("WORKSPACE HOME") ||
     throw new Exception("Local demo registration did not open the workspace home");
 if (window.GetVisualDescendants().OfType<AccountView>().Any() || window.GetVisualDescendants().OfType<TabControl>().Any())
     throw new Exception("The sign-in form and tab bar must be hidden after authentication");
+if (Grid.GetColumn(FindButton("SIGN OUT")) != 1 ||
+    window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "Back to home")))
+    throw new Exception("Sign Out must be in the upper-right header, with no Back button on Home");
 
 Click("OPEN SESSION");
 window.UpdateLayout();
+if (DockPanel.GetDock(FindButton("Back to home")) != Dock.Top ||
+    !window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "SIGN OUT")))
+    throw new Exception("Back to home must be in the workspace content and Sign Out must remain available");
 if (!HasText("TABLE WORKSPACE") || !HasText("RECORD TABLE RESULT") || !HasText("ROUND HISTORY"))
     throw new Exception("The session workspace layout was not shown");
 if (FindButton("Undo last").IsEnabled) throw new Exception("Empty undo must be disabled");
