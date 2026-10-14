@@ -29,7 +29,7 @@ Run `Baccarat.Desktop.exe` on Windows. The raw macOS publish commands are useful
 
 ## macOS app bundle
 
-On a Mac with the .NET 10 SDK, choose the runtime matching the target machine:
+On a Mac with the .NET 10 SDK, choose the runtime matching the target machine. The standard package supports macOS 14 and newer:
 
 ```sh
 bash tools/package-macos.sh osx-arm64 Release artifacts/macos/osx-arm64
@@ -37,6 +37,15 @@ bash tools/package-macos.sh osx-x64 Release artifacts/macos/osx-x64
 ```
 
 Each command creates and validates `Baccarat Workspace.app` for macOS 14 or newer. The output directory must not already contain that bundle, which prevents stale files from leaking into a package. CI runs both commands and publishes separate unsigned ZIP artifacts from the `Desktop build` workflow. Those artifacts are appropriate for development verification only; they are not signed public releases.
+
+For macOS 11–13, create the isolated legacy package instead:
+
+```sh
+bash tools/package-macos-legacy.sh osx-arm64 Release artifacts/macos-legacy/osx-arm64
+bash tools/package-macos-legacy.sh osx-x64 Release artifacts/macos-legacy/osx-x64
+```
+
+The legacy package uses the final .NET 6 runtime because current supported .NET releases do not support macOS 11. It is built and checked separately, is never substituted for the modern package, and must not be represented as a currently supported or security-maintained runtime. Use `osx-arm64` for Apple Silicon and `osx-x64` for Intel. See [the compatibility guide](macos-11-compatibility.md).
 
 For distribution, first install a Developer ID Application certificate in the login Keychain and create a `notarytool` profile interactively:
 
@@ -99,4 +108,4 @@ A checksum detects accidental or unauthenticated modification after CI produced 
 
 ## Validation record
 
-The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-14. The same build and checks passed on a GitHub-hosted macOS runner, including a Keychain save/read/delete round trip. CI also created and validated native `osx-arm64` and `osx-x64` app bundles. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. Interactive installation, Developer ID signing/notarization and live browser integration have not been tested.
+The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-14. The same build and checks passed on a GitHub-hosted macOS runner, including a Keychain save/read/delete round trip. CI creates and validates modern and macOS 11 compatibility bundles for `osx-arm64` and `osx-x64`. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. Interactive installation on macOS 11, Developer ID signing/notarization and live browser integration still require owner testing.

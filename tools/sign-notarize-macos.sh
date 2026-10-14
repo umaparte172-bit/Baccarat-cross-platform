@@ -23,8 +23,9 @@ fi
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 entitlements="$root/packaging/macos/Baccarat.entitlements"
 main_executable="$app/Contents/MacOS/Baccarat.Desktop"
+minimum_system_version="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$app/Contents/Info.plist")"
 
-bash "$root/tools/validate-macos-app.sh" "$app" "$rid"
+bash "$root/tools/validate-macos-app.sh" "$app" "$rid" "$minimum_system_version"
 security find-identity -v -p codesigning | grep -F -- "$identity" >/dev/null
 
 # Sign nested Mach-O files first. The main executable and outer bundle are signed last.

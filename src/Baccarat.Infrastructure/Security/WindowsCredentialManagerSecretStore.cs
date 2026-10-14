@@ -21,7 +21,8 @@ public sealed class WindowsCredentialManagerSecretStore : ISecretStore
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Windows Credential Manager storage is available only on Windows.");
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(service);
+        if (string.IsNullOrWhiteSpace(service))
+            throw new ArgumentException("The service name is required.", nameof(service));
         this.service = service;
     }
 
@@ -137,7 +138,8 @@ public sealed class WindowsCredentialManagerSecretStore : ISecretStore
 
     private string GetTarget(string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ArgumentException("The secret key is required.", nameof(key));
         if (key.Length > MaximumKeyLength)
             throw new ArgumentException("The secret key is too long.", nameof(key));
         return $"{service}:{key}";

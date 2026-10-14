@@ -28,6 +28,8 @@ The macOS Keychain implementation, dual-architecture app packaging, validation e
 
 The final cross-platform security, packaging and acceptance status is documented in [the Phase 10 release-readiness report](docs/phase-10-release-readiness-report.md). See [the security policy](SECURITY.md) before supplying captures or publishing builds.
 
+macOS 11–13 use a separately isolated legacy package, while macOS 14 and newer use the supported .NET 10 package. The compatibility and security boundaries are documented in [the macOS 11 compatibility guide](docs/macos-11-compatibility.md).
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in Windows Credential Manager or macOS Keychain. Choose exact package versions when creating the application scaffold.

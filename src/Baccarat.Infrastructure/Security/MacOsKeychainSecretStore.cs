@@ -20,7 +20,8 @@ public sealed class MacOsKeychainSecretStore : ISecretStore
         if (!OperatingSystem.IsMacOS())
             throw new PlatformNotSupportedException("macOS Keychain storage is available only on macOS.");
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(service);
+        if (string.IsNullOrWhiteSpace(service))
+            throw new ArgumentException("The service name is required.", nameof(service));
         this.service = service;
     }
 
@@ -119,7 +120,8 @@ public sealed class MacOsKeychainSecretStore : ISecretStore
 
     private static void ValidateKey(string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ArgumentException("The secret key is required.", nameof(key));
         if (key.Length > MaximumKeyLength)
             throw new ArgumentException("The secret key is too long.", nameof(key));
     }

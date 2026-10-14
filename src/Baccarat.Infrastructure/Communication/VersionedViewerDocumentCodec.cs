@@ -16,8 +16,25 @@ public sealed class VersionedViewerDocumentCodec
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = false,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         MaxDepth = 16
+    };
+
+    private static readonly HashSet<string> EnvelopeProperties = new(StringComparer.Ordinal)
+    {
+        "protocol_version", "document_type", "document_version", "document_id", "sequence", "created_at", "payload"
+    };
+    private static readonly HashSet<string> SessionProperties = new(StringComparer.Ordinal)
+    {
+        "round_count", "player_count", "banker_count", "tie_count"
+    };
+    private static readonly HashSet<string> StrategyProperties = new(StringComparer.Ordinal)
+    {
+        "strategy_name", "profit", "observed_rounds", "bets", "state", "recommendation"
+    };
+    private static readonly HashSet<string> StatusProperties = new(StringComparer.Ordinal) { "state", "message" };
+    private static readonly HashSet<string> AutomationProperties = new(StringComparer.Ordinal)
+    {
+        "state", "auto_bet_enabled", "is_simulation", "session_stake", "accepted_bets", "message"
     };
 
     public byte[] Encode(ViewerDocument document)
@@ -64,6 +81,7 @@ public sealed class VersionedViewerDocumentCodec
         {
             using var parsed = JsonDocument.Parse(value.ToArray(), new JsonDocumentOptions { MaxDepth = 16 });
             RejectDuplicateProperties(parsed.RootElement);
+            RejectUnknownProperties(parsed.RootElement, EnvelopeProperties, "viewer envelope");
             var envelope = JsonSerializer.Deserialize<EnvelopeDocument>(value, Options) ??
                 throw new ViewerDocumentFormatException("The viewer document does not contain an envelope.");
             var envelopeVersion = DocumentVersion.Parse(envelope.ProtocolVersion);
@@ -98,6 +116,22 @@ public sealed class VersionedViewerDocumentCodec
         }
     }
 
+    private static void RejectUnknownProperties(
+        JsonElement element,
+        IReadOnlySet<string> allowedProperties,
+        string context)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            throw new ViewerDocumentFormatException($"The {context} must be a JSON object.");
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!allowedProperties.Contains(property.Name))
+                throw new ViewerDocumentFormatException(
+                    $"Unknown JSON property '{property.Name}' is not allowed in the {context}.");
+        }
+    }
+
     private static void RejectDuplicateProperties(JsonElement element)
     {
         if (element.ValueKind == JsonValueKind.Object)
@@ -118,6 +152,7 @@ public sealed class VersionedViewerDocumentCodec
 
     private static SessionSnapshotPayload DecodeSession(JsonElement payload)
     {
+        RejectUnknownProperties(payload, SessionProperties, "session payload");
         var value = payload.Deserialize<SessionPayloadDocument>(Options) ??
             throw new ViewerDocumentFormatException("The session payload is missing.");
         return new(value.RoundCount, value.PlayerCount, value.BankerCount, value.TieCount);
@@ -125,6 +160,7 @@ public sealed class VersionedViewerDocumentCodec
 
     private static StrategySnapshotPayload DecodeStrategy(JsonElement payload)
     {
+        RejectUnknownProperties(payload, StrategyProperties, "strategy payload");
         var value = payload.Deserialize<StrategyPayloadDocument>(Options) ??
             throw new ViewerDocumentFormatException("The strategy payload is missing.");
         if (!Enum.TryParse<StrategyEngineState>(value.State, false, out var state))
@@ -134,6 +170,7 @@ public sealed class VersionedViewerDocumentCodec
 
     private static CommunicationStatusPayload DecodeStatus(JsonElement payload)
     {
+        RejectUnknownProperties(payload, StatusProperties, "status payload");
         var value = payload.Deserialize<StatusPayloadDocument>(Options) ??
             throw new ViewerDocumentFormatException("The status payload is missing.");
         return new(value.State, value.Message);
@@ -141,6 +178,7 @@ public sealed class VersionedViewerDocumentCodec
 
     private static AutomationSnapshotPayload DecodeAutomation(JsonElement payload)
     {
+        RejectUnknownProperties(payload, AutomationProperties, "automation payload");
         var value = payload.Deserialize<AutomationPayloadDocument>(Options) ??
             throw new ViewerDocumentFormatException("The automation payload is missing.");
         if (!Enum.TryParse<AutomationRunState>(value.State, false, out var state))

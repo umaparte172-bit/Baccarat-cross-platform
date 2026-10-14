@@ -15,9 +15,18 @@ public sealed class StrategyFileLoader
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = false,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         MaxDepth = 16
     };
+
+    private static readonly HashSet<string> RootProperties = new(StringComparer.Ordinal)
+    {
+        "strategy_name", "rule_condition", "initial_condition", "win_condition", "loss_condition",
+        "stop_profit", "stop_loss", "stop_consecutive_loss", "pause_consecutive_loss"
+    };
+    private static readonly HashSet<string> ConditionProperties = new(StringComparer.Ordinal) { "bet_on", "amount" };
+    private static readonly HashSet<string> AmountProperties = new(StringComparer.Ordinal) { "type", "value" };
+    private static readonly HashSet<string> StopProperties = new(StringComparer.Ordinal) { "action", "count" };
+    private static readonly HashSet<string> PauseProperties = new(StringComparer.Ordinal) { "pause_bets", "count" };
 
     public async ValueTask<StrategyDefinition> LoadAsync(
         Stream stream,
@@ -43,6 +52,12 @@ public sealed class StrategyFileLoader
             cancellationToken.ThrowIfCancellationRequested();
             using var parsed = JsonDocument.Parse(buffer.ToArray(), new JsonDocumentOptions { MaxDepth = 16 });
             RejectDuplicateProperties(parsed.RootElement);
+            RejectUnknownProperties(parsed.RootElement, RootProperties, "strategy");
+            RejectCondition(parsed.RootElement, "initial_condition");
+            RejectCondition(parsed.RootElement, "win_condition");
+            RejectCondition(parsed.RootElement, "loss_condition");
+            RejectNestedObject(parsed.RootElement, "stop_consecutive_loss", StopProperties);
+            RejectNestedObject(parsed.RootElement, "pause_consecutive_loss", PauseProperties);
             var document = parsed.RootElement.Deserialize<StrategyDocument>(JsonOptions) ??
                 throw new StrategyFormatException("The strategy file does not contain an object.");
             var definition = Convert(document);
@@ -79,6 +94,37 @@ public sealed class StrategyFileLoader
         else if (element.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in element.EnumerateArray()) RejectDuplicateProperties(item);
+        }
+    }
+
+    private static void RejectCondition(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var condition) || condition.ValueKind == JsonValueKind.Null) return;
+        RejectUnknownProperties(condition, ConditionProperties, name);
+        RejectNestedObject(condition, "amount", AmountProperties);
+    }
+
+    private static void RejectNestedObject(
+        JsonElement parent,
+        string name,
+        IReadOnlySet<string> allowedProperties)
+    {
+        if (!parent.TryGetProperty(name, out var nested) || nested.ValueKind == JsonValueKind.Null) return;
+        RejectUnknownProperties(nested, allowedProperties, name);
+    }
+
+    private static void RejectUnknownProperties(
+        JsonElement element,
+        IReadOnlySet<string> allowedProperties,
+        string context)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            throw new StrategyFormatException($"{context} must be a JSON object.");
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!allowedProperties.Contains(property.Name))
+                throw new StrategyFormatException($"Unknown JSON property '{property.Name}' is not allowed in {context}.");
         }
     }
 

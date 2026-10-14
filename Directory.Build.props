@@ -1,6 +1,9 @@
 <Project>
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework Condition="'$(LegacyMacBuild)' != 'true'">net10.0</TargetFramework>
+    <TargetFramework Condition="'$(LegacyMacBuild)' == 'true'">net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <CheckEolTargetFramework Condition="'$(LegacyMacBuild)' == 'true'">false</CheckEolTargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest</AnalysisLevel>

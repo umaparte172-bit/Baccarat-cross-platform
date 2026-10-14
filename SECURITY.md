@@ -17,4 +17,5 @@ Include the affected commit, platform, impact, minimal reproduction and any rele
 - Never use a development build with real funds or production credentials.
 - Windows sessions use Credential Manager and macOS sessions use Keychain. Storage failures are surfaced; the application does not silently write secrets to ordinary settings.
 - CI artifacts are unsigned development packages. Verify their SHA-256 sidecars, but publish only artifacts signed with the platform owner's certificate. macOS releases must also be notarized and stapled.
+- The macOS 11–13 package contains the end-of-life .NET 6 runtime. It exists only for compatibility testing, receives no Microsoft security maintenance, and must be disclosed as a legacy build. Prefer the supported .NET 10 package on macOS 14 and newer.
 - The intentionally vulnerable legacy updater is not reproduced. Releases must come from the repository's controlled packaging and signing process.

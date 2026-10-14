@@ -59,7 +59,7 @@ public sealed class HttpAuthenticationService : IAuthenticationService, IDisposa
         AuthenticatedSession session,
         CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(session);
 
         using var message = protocol.CreateSignOutRequest(session);
@@ -86,7 +86,7 @@ public sealed class HttpAuthenticationService : IAuthenticationService, IDisposa
         Func<HttpResponseMessage, CancellationToken, ValueTask<AuthenticationResult>> readResponse,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ThrowIfDisposed();
 
         try
         {
@@ -154,6 +154,11 @@ public sealed class HttpAuthenticationService : IAuthenticationService, IDisposa
 
     private static Uri EnsureTrailingSlash(Uri value) =>
         value.AbsolutePath.EndsWith('/') ? value : new Uri(value.AbsoluteUri + "/");
+
+    private void ThrowIfDisposed()
+    {
+        if (disposed) throw new ObjectDisposedException(nameof(HttpAuthenticationService));
+    }
 
     private static bool IsSameOrigin(Uri candidate, Uri expected) =>
         string.Equals(candidate.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&

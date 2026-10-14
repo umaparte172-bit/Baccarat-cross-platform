@@ -134,3 +134,15 @@ The unsigned `osx-arm64` and `osx-x64` app bundles are produced by CI. They are 
 - [ ] Enable legacy-service and live-table adapters only after sanitized evidence supplies the missing contracts.
 
 Phase 10 completes the replacement application's evidence-backed implementation and automated release-readiness work. The two open items require external credentials, physical acceptance environments or protocol evidence and are not substituted with guessed behavior.
+
+## macOS 11 compatibility extension
+
+- [x] Preserve the supported .NET 10 packages for macOS 14 and newer.
+- [x] Add an isolated .NET 6 compatibility target for macOS 11–13.
+- [x] Remove newer framework-only API dependencies without weakening strict JSON or diagnostic protections.
+- [x] Build and validate Intel and Apple Silicon legacy app bundles independently.
+- [x] Run core, headless UI and Keychain checks against the self-contained legacy runtime in CI.
+- [x] Publish separate architecture-specific ZIP files and SHA-256 sidecars.
+- [ ] Complete interactive acceptance on the client's macOS 11.7.8 computer.
+
+The legacy runtime is end-of-life and receives no Microsoft security servicing. It is an explicit compatibility exception, not the default package for newer Macs.

@@ -10,7 +10,8 @@ public sealed class VolatileSecretStore : ISecretStore
     public ValueTask SaveAsync(string key, string value, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ArgumentException("The secret key is required.", nameof(key));
         ArgumentNullException.ThrowIfNull(value);
         values[key] = value;
         return ValueTask.CompletedTask;
@@ -19,7 +20,8 @@ public sealed class VolatileSecretStore : ISecretStore
     public ValueTask<string?> ReadAsync(string key, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ArgumentException("The secret key is required.", nameof(key));
         values.TryGetValue(key, out var value);
         return ValueTask.FromResult(value);
     }
@@ -27,7 +29,8 @@ public sealed class VolatileSecretStore : ISecretStore
     public ValueTask DeleteAsync(string key, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ArgumentException("The secret key is required.", nameof(key));
         values.TryRemove(key, out _);
         return ValueTask.CompletedTask;
     }

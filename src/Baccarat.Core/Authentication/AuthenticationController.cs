@@ -14,18 +14,18 @@ public sealed class AuthenticationController
     private readonly IAuthenticationService service;
     private readonly IAuthenticationSessionStore sessionStore;
     private readonly IDiagnosticSink diagnostics;
-    private readonly TimeProvider timeProvider;
+    private readonly IAuthenticationClock clock;
 
     public AuthenticationController(
         IAuthenticationService service,
         IDiagnosticSink? diagnostics = null,
         IAuthenticationSessionStore? sessionStore = null,
-        TimeProvider? timeProvider = null)
+        IAuthenticationClock? clock = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.diagnostics = diagnostics ?? NullDiagnosticSink.Instance;
         this.sessionStore = sessionStore ?? NullAuthenticationSessionStore.Instance;
-        this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.clock = clock ?? SystemAuthenticationClock.Instance;
     }
 
     public bool IsBusy { get; private set; }
@@ -196,7 +196,7 @@ public sealed class AuthenticationController
         if (session is null || string.IsNullOrWhiteSpace(session.UserId) || string.IsNullOrWhiteSpace(session.AccessToken))
             return new(AuthenticationOutcome.MalformedResponse, "The authentication service returned an invalid session.");
 
-        if (session.ExpiresAt is { } expiry && expiry <= timeProvider.GetUtcNow())
+        if (session.ExpiresAt is { } expiry && expiry <= clock.GetUtcNow())
             return new(AuthenticationOutcome.Expired, "The saved session has expired. Sign in again.");
 
         return result;

@@ -57,6 +57,52 @@ jobs:
             artifacts/macos/${{ matrix.runtime }}/Baccarat-Workspace-${{ matrix.runtime }}-unsigned.zip.sha256
           if-no-files-found: error
 
+  macos-legacy-checks:
+    runs-on: macos-latest
+    env:
+      BACCARAT_RUN_PROTECTED_STORE_CHECKS: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run self-contained .NET 6 compatibility checks
+        run: |
+          if [[ "$(uname -m)" == "arm64" ]]; then rid="osx-arm64"; else rid="osx-x64"; fi
+          dotnet publish tests/Baccarat.Core.Checks -c Release -r "$rid" --self-contained true \
+            -p:LegacyMacBuild=true -o artifacts/legacy-checks/core
+          dotnet publish tests/Baccarat.Desktop.Checks -c Release -r "$rid" --self-contained true \
+            -p:LegacyMacBuild=true -o artifacts/legacy-checks/desktop
+          ./artifacts/legacy-checks/core/Baccarat.Core.Checks
+          ./artifacts/legacy-checks/desktop/Baccarat.Desktop.Checks
+
+  macos-legacy-packages:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        runtime: [osx-arm64, osx-x64]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Create and validate macOS 11 app bundle
+        run: bash tools/package-macos-legacy.sh "${{ matrix.runtime }}" Release "artifacts/macos-legacy/${{ matrix.runtime }}"
+      - name: Preserve bundle permissions in ZIP
+        run: |
+          archive="artifacts/macos-legacy/${{ matrix.runtime }}/Baccarat-Workspace-macos11-${{ matrix.runtime }}-unsigned.zip"
+          ditto -c -k --sequesterRsrc --keepParent "artifacts/macos-legacy/${{ matrix.runtime }}/Baccarat Workspace.app" "$archive"
+          archive_directory="$(dirname "$archive")"
+          archive_name="$(basename "$archive")"
+          (cd "$archive_directory" && shasum -a 256 "$archive_name" > "$archive_name.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baccarat-workspace-macos11-${{ matrix.runtime }}-unsigned
+          path: |
+            artifacts/macos-legacy/${{ matrix.runtime }}/Baccarat-Workspace-macos11-${{ matrix.runtime }}-unsigned.zip
+            artifacts/macos-legacy/${{ matrix.runtime }}/Baccarat-Workspace-macos11-${{ matrix.runtime }}-unsigned.zip.sha256
+          if-no-files-found: error
+
   windows-package:
     runs-on: windows-latest
     steps:

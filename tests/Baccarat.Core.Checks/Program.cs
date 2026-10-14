@@ -253,6 +253,19 @@ catch (StrategyFormatException)
 {
 }
 
+await using var unknownNestedStrategyFieldStream = new MemoryStream(Encoding.UTF8.GetBytes(strategyJson.Replace(
+    "\"bet_on\":\"PLAYER\"",
+    "\"bet_on\":\"PLAYER\",\"unexpected_nested\":true",
+    StringComparison.Ordinal)));
+try
+{
+    await strategyLoader.LoadAsync(unknownNestedStrategyFieldStream);
+    throw new Exception("Unknown nested strategy field accepted");
+}
+catch (StrategyFormatException)
+{
+}
+
 await using var duplicateStrategyFieldStream = new MemoryStream(Encoding.UTF8.GetBytes(strategyJson.Replace(
     "\"strategy_name\":\"Fixture Sequence\"",
     "\"strategy_name\":\"Fixture Sequence\",\"strategy_name\":\"Ambiguous\"",
@@ -323,6 +336,18 @@ try
         "\"protocol_version\":\"2.0\"",
         StringComparison.Ordinal)));
     throw new Exception("Unsupported viewer protocol version accepted");
+}
+catch (ViewerDocumentFormatException)
+{
+}
+
+try
+{
+    viewerCodec.Decode(Encoding.UTF8.GetBytes(encodedViewerText.Replace(
+        "\"round_count\":3",
+        "\"round_count\":3,\"unexpected_payload_field\":true",
+        StringComparison.Ordinal)));
+    throw new Exception("Unknown viewer payload property accepted");
 }
 catch (ViewerDocumentFormatException)
 {
@@ -478,7 +503,7 @@ var sessionStore = new SecretAuthenticationSessionStore(sessionSecrets);
 var fixedTime = new FixedTimeProvider(new DateTimeOffset(2026, 10, 13, 0, 0, 0, TimeSpan.Zero));
 var lifecycleResponses = new Queue<AuthenticationResult?>();
 var lifecycleService = new StubAuthenticationService(lifecycleResponses);
-var lifecycle = new AuthenticationController(lifecycleService, sessionStore: sessionStore, timeProvider: fixedTime);
+var lifecycle = new AuthenticationController(lifecycleService, sessionStore: sessionStore, clock: fixedTime);
 
 lifecycleResponses.Enqueue(new(AuthenticationOutcome.Authenticated, "Connected.",
     new AuthenticatedSession("fixture-user", "", fixedTime.GetUtcNow().AddHours(1))));
@@ -495,7 +520,7 @@ await sessionStore.SaveAsync(savedSession);
 var restoredController = new AuthenticationController(
     new StubAuthenticationService(new Queue<AuthenticationResult?>()),
     sessionStore: sessionStore,
-    timeProvider: fixedTime);
+    clock: fixedTime);
 Check((await restoredController.RestoreSessionAsync()).IsAuthenticated &&
       restoredController.Session?.AccessToken == "stored-token",
     "A valid protected session must be restored");
@@ -506,7 +531,7 @@ await sessionStore.SaveAsync(savedSession with { ExpiresAt = fixedTime.GetUtcNow
 var expiredController = new AuthenticationController(
     new StubAuthenticationService(new Queue<AuthenticationResult?>()),
     sessionStore: sessionStore,
-    timeProvider: fixedTime);
+    clock: fixedTime);
 Check((await expiredController.RestoreSessionAsync()).Outcome == AuthenticationOutcome.Expired &&
       await sessionStore.ReadAsync() is null,
     "Expired stored sessions must be rejected and removed");
@@ -683,9 +708,9 @@ sealed class StubAuthenticationService(Queue<AuthenticationResult?> responses) :
     }
 }
 
-sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
+sealed class FixedTimeProvider(DateTimeOffset value) : IAuthenticationClock
 {
-    public override DateTimeOffset GetUtcNow() => value;
+    public DateTimeOffset GetUtcNow() => value;
 }
 
 sealed class ScriptedHttpMessageHandler : HttpMessageHandler
