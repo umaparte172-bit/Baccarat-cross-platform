@@ -38,9 +38,9 @@ public sealed class MainWindow : Window
         var defaults = ApplicationServices.CreateDefault();
         this.diagnostics = diagnostics ?? defaults.Diagnostics;
         this.viewerCommunication = viewerCommunication ?? defaults.ViewerCommunication;
-        Title = "Baccarat Workspace";
-        Width = 1040; Height = 760; MinWidth = 700; MinHeight = 550;
-        Background = Brush.Parse("#10151F");
+        Title = "Baccarat (Evolution)";
+        Width = 1100; Height = 780; MinWidth = 760; MinHeight = 600;
+        Background = LegacyTheme.Window;
         undo = ActionButton("Undo last", () => { session.Undo(); Refresh(); PublishSession(); });
         clear = ActionButton("Clear session…", async () => await ConfirmClear());
         export = ActionButton("Export CSV", async () => await Export());
@@ -77,20 +77,36 @@ public sealed class MainWindow : Window
         var tabs = new TabControl
         {
             ItemsSource = new[] {
-            new TabItem { Header = "Session", Content = new ScrollViewer { Content = overview } },
-            new TabItem { Header = "Strategies", Content = new ScrollViewer { Content = strategies } },
-            new TabItem { Header = "Automation", Content = new ScrollViewer { Content = automation } },
-            new TabItem { Header = "Viewer", Content = new ScrollViewer { Content = viewer } },
-            new TabItem { Header = "Account", Content = new ScrollViewer { Content = account } }
+            new TabItem { Header = "SESSION", Content = new ScrollViewer { Content = overview } },
+            new TabItem { Header = "STRATEGIES", Content = new ScrollViewer { Content = strategies } },
+            new TabItem { Header = "AUTOMATION", Content = new ScrollViewer { Content = automation } },
+            new TabItem { Header = "VIEWER", Content = new ScrollViewer { Content = viewer } },
+            new TabItem { Header = "ACCOUNT", Content = new ScrollViewer { Content = account } }
         }
         };
-        var layout = new DockPanel { Margin = new Thickness(24) };
-        var heading = Label("BACCARAT  /  WORKSPACE", 18);
-        heading.Margin = new Thickness(0, 0, 0, 20);
-        DockPanel.SetDock(heading, Dock.Top); layout.Children.Add(heading);
-        status.Margin = new Thickness(0, 16, 0, 0);
+        var layout = new DockPanel { Margin = new Thickness(28, 16, 28, 18) };
+        var header = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 18,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        header.Children.Add(LegacyTheme.Brand(138, 72));
+        var heading = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
+        heading.Children.Add(Label("BACCARAT (EVOLUTION)", 20, "#E9A43A"));
+        heading.Children.Add(Label("WETALKBET CONTROL PANEL", 12, "#A7B3C7"));
+        header.Children.Add(heading);
+        DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header);
+        status.Margin = new Thickness(0, 12, 0, 0);
+        status.Foreground = LegacyTheme.Muted;
         DockPanel.SetDock(status, Dock.Bottom); layout.Children.Add(status);
-        layout.Children.Add(tabs);
+        layout.Children.Add(new Border
+        {
+            Background = LegacyTheme.Panel,
+            BorderBrush = LegacyTheme.FieldBorder,
+            BorderThickness = new Thickness(1),
+            Child = tabs
+        });
         Content = layout;
         Refresh();
         Publish(new CommunicationStatusPayload("offline", "Local versioned communication is ready."));

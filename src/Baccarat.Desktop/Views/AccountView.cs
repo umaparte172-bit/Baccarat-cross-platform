@@ -7,18 +7,24 @@ using Baccarat.Core.Diagnostics;
 
 namespace Baccarat.Desktop.Views;
 
-public sealed class AccountView : StackPanel
+public sealed class AccountView : Grid
 {
     private readonly AuthenticationController controller;
-    private readonly TextBox name = new() { Watermark = "Name (for registration)", MaxWidth = 460, MaxLength = AuthenticationController.MaximumNameLength };
-    private readonly TextBox email = new() { Watermark = "Email", MaxWidth = 460, MaxLength = AuthenticationController.MaximumEmailLength };
-    private readonly TextBox password = new() { Watermark = "Password", PasswordChar = '•', MaxWidth = 460, MaxLength = AuthenticationController.MaximumPasswordLength };
-    private readonly TextBox phone = new() { Watermark = "Phone (for registration)", MaxWidth = 460, MaxLength = AuthenticationController.MaximumPhoneLength };
-    private readonly TextBox country = new() { Watermark = "Country (for registration)", MaxWidth = 460, MaxLength = AuthenticationController.MaximumCountryLength };
-    private readonly TextBlock result = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 680 };
-    private readonly Button signIn = new() { Content = "Sign in", Padding = new Thickness(18, 12) };
-    private readonly Button signUp = new() { Content = "Create account", Padding = new Thickness(18, 12) };
-    private readonly Button signOut = new() { Content = "Sign out", Padding = new Thickness(18, 12) };
+    private readonly TextBox name = Field(AuthenticationController.MaximumNameLength);
+    private readonly TextBox email = Field(AuthenticationController.MaximumEmailLength);
+    private readonly TextBox password = Field(AuthenticationController.MaximumPasswordLength);
+    private readonly TextBox phone = Field(AuthenticationController.MaximumPhoneLength);
+    private readonly TextBox country = Field(AuthenticationController.MaximumCountryLength);
+    private readonly TextBlock result = LegacyTheme.TextBlock(string.Empty, 14, LegacyTheme.Gold);
+    private readonly Button signIn = SecondaryButton("SIGN IN");
+    private readonly Button signUp = PrimaryButton("SIGN UP");
+    private readonly Button signOut = SecondaryButton("SIGN OUT");
+    private readonly CheckBox showPassword = new()
+    {
+        Content = "Show Password",
+        Foreground = LegacyTheme.Blue,
+        FontSize = 12
+    };
 
     public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
         : this(service, diagnostics, null)
@@ -31,27 +37,62 @@ public sealed class AccountView : StackPanel
         IAuthenticationSessionStore? sessionStore)
     {
         controller = new AuthenticationController(service, diagnostics, sessionStore);
-        Margin = new Thickness(24);
-        Spacing = 16;
+        Background = LegacyTheme.Window;
+        MinHeight = 590;
 
-        Children.Add(Text("Account connection", 30));
-        Children.Add(Text(
-            "Sign-in and registration are ready for a verified protocol. Until that contract is recovered, no credentials leave this device.",
-            15,
-            "#A8B5CA"));
-        Children.Add(name);
-        Children.Add(email);
-        Children.Add(password);
-        Children.Add(phone);
-        Children.Add(country);
+        password.PasswordChar = '•';
+        var shell = new StackPanel
+        {
+            Width = 724,
+            Margin = new Thickness(26, 8, 26, 30),
+            Spacing = 10,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        shell.Children.Add(LegacyTheme.Brand());
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        actions.Children.Add(signIn);
-        actions.Children.Add(signUp);
-        actions.Children.Add(signOut);
-        Children.Add(actions);
-        Children.Add(result);
+        var form = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("180,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"),
+            ColumnSpacing = 24,
+            RowSpacing = 18
+        };
+        AddField(form, 0, "NAME :", name);
+        AddField(form, 1, "EMAIL :", email);
 
+        var passwordArea = new StackPanel { Spacing = 6 };
+        passwordArea.Children.Add(password);
+        passwordArea.Children.Add(showPassword);
+        AddField(form, 2, "PASSWORD :", passwordArea);
+        AddField(form, 3, "PHONE NO :", phone);
+        AddField(form, 4, "COUNTRY :", country);
+
+        signUp.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Grid.SetColumn(signUp, 1);
+        Grid.SetRow(signUp, 5);
+        form.Children.Add(signUp);
+
+        signIn.HorizontalAlignment = HorizontalAlignment.Center;
+        Grid.SetColumn(signIn, 1);
+        Grid.SetRow(signIn, 6);
+        form.Children.Add(signIn);
+
+        var feedback = new StackPanel { Spacing = 10 };
+        feedback.Children.Add(result);
+        feedback.Children.Add(signOut);
+        Grid.SetColumn(feedback, 1);
+        Grid.SetRow(feedback, 7);
+        form.Children.Add(feedback);
+
+        shell.Children.Add(new Border
+        {
+            Background = LegacyTheme.Panel,
+            Padding = new Thickness(54, 36, 84, 24),
+            Child = form
+        });
+        Children.Add(shell);
+
+        showPassword.Click += (_, _) => password.PasswordChar = showPassword.IsChecked == true ? '\0' : '•';
         signIn.Click += async (_, _) => await SignInAsync();
         signUp.Click += async (_, _) => await SignUpAsync();
         signOut.Click += async (_, _) => await SignOutAsync();
@@ -105,12 +146,52 @@ public sealed class AccountView : StackPanel
         signIn.IsEnabled = !authenticated && !controller.IsBusy;
         signUp.IsEnabled = !authenticated && !controller.IsBusy;
         signOut.IsEnabled = authenticated && !controller.IsBusy;
+        signOut.IsVisible = authenticated;
         if (string.IsNullOrWhiteSpace(result.Text))
             result.Text = controller.LastResult.Message;
-        result.Foreground = Brush.Parse(authenticated ? "#7BD88F" : "#E9BC72");
+        result.Foreground = authenticated ? Brush.Parse("#7BD88F") : LegacyTheme.Gold;
     }
 
-    private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>
-        new() { Text = value, FontSize = size, Foreground = Brush.Parse(color), TextWrapping = TextWrapping.Wrap };
-}
+    private static void AddField(Grid grid, int row, string caption, Control field)
+    {
+        var label = LegacyTheme.TextBlock(caption, 16, LegacyTheme.Gold);
+        label.HorizontalAlignment = HorizontalAlignment.Right;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetRow(label, row);
+        grid.Children.Add(label);
 
+        Grid.SetColumn(field, 1);
+        Grid.SetRow(field, row);
+        grid.Children.Add(field);
+    }
+
+    private static TextBox Field(int maxLength) => new()
+    {
+        Height = 34,
+        MaxLength = maxLength,
+        HorizontalAlignment = HorizontalAlignment.Stretch
+    };
+
+    private static Button PrimaryButton(string content) => new()
+    {
+        Content = content,
+        Height = 46,
+        Background = LegacyTheme.Green,
+        Foreground = LegacyTheme.Ink,
+        BorderBrush = LegacyTheme.Blue,
+        BorderThickness = new Thickness(1),
+        FontSize = 18,
+        FontWeight = FontWeight.Bold
+    };
+
+    private static Button SecondaryButton(string content) => new()
+    {
+        Content = content,
+        MinWidth = 136,
+        Height = 43,
+        Background = Brushes.Transparent,
+        Foreground = LegacyTheme.Blue,
+        BorderBrush = LegacyTheme.Blue,
+        BorderThickness = new Thickness(1)
+    };
+}

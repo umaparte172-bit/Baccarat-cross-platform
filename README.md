@@ -30,6 +30,8 @@ The final cross-platform security, packaging and acceptance status is documented
 
 macOS 11–13 use a separately isolated legacy package, while macOS 14 and newer use the supported .NET 10 package. The compatibility and security boundaries are documented in [the macOS 11 compatibility guide](docs/macos-11-compatibility.md).
 
+The desktop now uses the recovered navy/gold WETALKBET visual language and an evidence-matched registration form. Exact Main-form parity remains dependent on sanitized screenshots from the isolated original environment; see [the UI recovery record](docs/legacy-ui-recovery.md).
+
 ## Intended stack
 
 .NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in Windows Credential Manager or macOS Keychain. Choose exact package versions when creating the application scaffold.

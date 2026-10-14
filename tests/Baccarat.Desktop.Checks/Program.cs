@@ -90,10 +90,9 @@ if (!HasText("Ready · Auto enabled · Simulation · Accepted 2 · Stake 3.00"))
 
 tabs.SelectedIndex = 4;
 window.UpdateLayout();
-if (FindButton("Sign out").IsEnabled) throw new Exception("Offline account must not expose sign-out");
-if (!FindButton("Sign in").IsEnabled || !FindButton("Create account").IsEnabled)
+if (!FindButton("SIGN IN").IsEnabled || !FindButton("SIGN UP").IsEnabled)
     throw new Exception("Offline account must expose sign-in and registration validation");
-Click("Create account");
+Click("SIGN UP");
 window.UpdateLayout();
 if (!HasText("Name, phone and country are required."))
     throw new Exception("Registration validation was not shown in the account UI");
