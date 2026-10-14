@@ -20,9 +20,12 @@ public sealed class MainWindow : Window
     private readonly Session session = new();
     private readonly ViewerCommunicationModule viewerCommunication;
     private readonly IDiagnosticSink diagnostics;
-    private readonly TextBlock stats = new() { FontSize = 22 };
+    private readonly TextBlock stats = new();
+    private readonly TextBlock playerCount = new();
+    private readonly TextBlock bankerCount = new();
+    private readonly TextBlock tieCount = new();
     private readonly TextBlock status = new() { Text = "Ready · Manual session", TextWrapping = TextWrapping.Wrap };
-    private readonly StackPanel history = new() { Spacing = 8 };
+    private readonly StackPanel history = new() { Spacing = 7 };
     private readonly Button undo;
     private readonly Button clear;
     private readonly Button export;
@@ -45,20 +48,35 @@ public sealed class MainWindow : Window
         clear = ActionButton("Clear session…", async () => await ConfirmClear());
         export = ActionButton("Export CSV", async () => await Export());
 
-        var overview = new StackPanel { Spacing = 20, Margin = new Thickness(24) };
-        overview.Children.Add(Label("SESSION", 13, "#91A1B9"));
-        overview.Children.Add(Label("Track your table", 30));
-        overview.Children.Add(Label("Record results manually. Records stay in memory until you export them.", 15, "#A8B5CA"));
-        overview.Children.Add(stats);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        var overview = WorkspaceUi.Page("TABLE WORKSPACE", "Session tracker", "Record outcomes and review the running table history.");
+        var summary = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*,*"), ColumnSpacing = 10 };
+        AddMetric(summary, 0, "ROUNDS", stats, LegacyTheme.Gold);
+        AddMetric(summary, 1, "PLAYER", playerCount, Brush.Parse("#76A8FF"));
+        AddMetric(summary, 2, "BANKER", bankerCount, Brush.Parse("#FF8D94"));
+        AddMetric(summary, 3, "TIE", tieCount, LegacyTheme.Green);
+        overview.Children.Add(summary);
+        var actions = WorkspaceUi.Row();
         foreach (var outcome in Enum.GetValues<Outcome>())
-            actions.Children.Add(ActionButton($"+ {outcome}", () => { session.Record(outcome); Refresh(); PublishSession(); }));
-        overview.Children.Add(actions);
-        var utilities = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        {
+            var fill = outcome switch
+            {
+                Outcome.Player => Brush.Parse("#325C9C"),
+                Outcome.Banker => Brush.Parse("#8D3E50"),
+                _ => Brush.Parse("#2F7054")
+            };
+            var button = WorkspaceUi.Action($"+ {outcome}", fill);
+            button.MinWidth = 130;
+            button.Click += (_, _) => { session.Record(outcome); Refresh(); PublishSession(); };
+            actions.Children.Add(button);
+        }
+        overview.Children.Add(WorkspaceUi.Card("RECORD TABLE RESULT", actions));
+        var utilities = WorkspaceUi.Row();
         utilities.Children.Add(undo); utilities.Children.Add(clear); utilities.Children.Add(export);
-        overview.Children.Add(utilities);
-        overview.Children.Add(Label("ROUND HISTORY", 13, "#91A1B9"));
-        overview.Children.Add(history);
+        var recordTools = new StackPanel { Spacing = 18 };
+        recordTools.Children.Add(utilities);
+        recordTools.Children.Add(history);
+        overview.Children.Add(WorkspaceUi.Card("ROUND HISTORY", recordTools));
+        overview.Children.Add(WorkspaceUi.Text("MANUAL MODE · Data remains on this device until exported.", 12, LegacyTheme.Muted));
 
         var account = new AccountView(
             authenticationService ?? defaults.Authentication,
@@ -84,6 +102,7 @@ public sealed class MainWindow : Window
             new TabItem { Header = "ACCOUNT", Content = new ScrollViewer { Content = account } }
         }
         };
+        account.Authenticated += () => tabs.SelectedIndex = 0;
         var layout = new DockPanel { Margin = new Thickness(28, 16, 28, 18) };
         var header = new StackPanel
         {
@@ -119,19 +138,35 @@ public sealed class MainWindow : Window
 
     private static Button ActionButton(string text, Action action)
     {
-        var button = new Button { Content = text, Padding = new Thickness(18, 12) };
+        var button = WorkspaceUi.Action(text);
         button.Click += (_, _) => action();
         return button;
     }
 
+    private static void AddMetric(Grid grid, int column, string label, TextBlock value, IBrush accent)
+    {
+        var metric = WorkspaceUi.Metric(label, value, accent);
+        Grid.SetColumn(metric, column);
+        grid.Children.Add(metric);
+    }
+
     private void Refresh()
     {
-        stats.Text = $"{session.Rounds.Count} rounds    •    Player {session.Count(Outcome.Player)}    /    Banker {session.Count(Outcome.Banker)}    /    Tie {session.Count(Outcome.Tie)}";
+        stats.Text = $"{session.Rounds.Count} rounds";
+        playerCount.Text = session.Count(Outcome.Player).ToString();
+        bankerCount.Text = session.Count(Outcome.Banker).ToString();
+        tieCount.Text = session.Count(Outcome.Tie).ToString();
         undo.IsEnabled = clear.IsEnabled = export.IsEnabled = session.Rounds.Count > 0;
         history.Children.Clear();
-        if (session.Rounds.Count == 0) history.Children.Add(Label("No rounds yet. Choose a result above to begin.", 16, "#91A1B9"));
+        if (session.Rounds.Count == 0) history.Children.Add(WorkspaceUi.Text("No rounds yet. Choose a result above to begin.", 15, LegacyTheme.Muted));
         foreach (var round in session.Rounds.Reverse())
-            history.Children.Add(Label($"{round.Number:000}     {round.Outcome}     {round.RecordedAt.ToLocalTime():HH:mm:ss}", 17));
+            history.Children.Add(WorkspaceUi.HistoryRow($"#{round.Number:000}     {round.Outcome}     {round.RecordedAt.ToLocalTime():HH:mm:ss}",
+                round.Outcome switch
+                {
+                    Outcome.Player => Brush.Parse("#76A8FF"),
+                    Outcome.Banker => Brush.Parse("#FF8D94"),
+                    _ => LegacyTheme.Green
+                }));
         status.Text = "Offline · Manual records only · Not connected to Evolution";
     }
 

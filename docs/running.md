@@ -15,7 +15,7 @@ The Viewer tab receives live versioned snapshots whenever the manual session or 
 
 The Automation tab exercises the complete controlled workflow against a local simulation. Connect the simulation, prepare and approve the initial recommendation, then enable auto-bet if the next strategy recommendation should be prepared automatically after each observed round. Every simulated placement still requires approval. Stake, cumulative-session and chip-click limits are enforced; connection recovery returns paused; an uncertain placement is never retried.
 
-The Account tab exercises validation and explicit offline state through a replaceable authentication boundary; it does not send credentials. There is no live authentication, real-money betting, outcome prediction or connection to the original service.
+The Account tab has a local demo sign-up and sign-in for UI testing. Use name `Demo User`, email `demo@baccarat.local`, password `Baccarat-Demo-2026!`, phone `0000000000`, and country `Test`. These credentials are public test data, not a real account. No network request or persistent account is created; the demo session lasts only while this application instance is open. Successful sign-up or sign-in selects the Session tab, and all five tabs remain available in the navigation bar. Sign out in Account. There is no live authentication, real-money betting, outcome prediction or connection to the original service.
 
 ## Self-contained publish
 
@@ -61,7 +61,7 @@ bash tools/sign-notarize-macos.sh \
 
 The signing script stops if either configuration value is missing, signs nested Mach-O files before the bundle, enables hardened runtime and a secure timestamp, submits with `notarytool`, staples the ticket, then runs signature, stapler and Gatekeeper validation. It does not accept or store an Apple password. Repeat with `osx-x64` for an Intel package.
 
-macOS stores authenticated sessions as generic-password items in the user's Keychain under service `com.baccarat.crossplatform`. Windows stores them in the current user's Credential Manager. Unsupported platforms use the in-memory development store.
+The protected session-store adapters are available for future verified server authentication: macOS Keychain under service `com.baccarat.crossplatform`, Windows Credential Manager, and an in-memory fallback elsewhere. The current local demo deliberately does not use these stores or persist a session.
 
 The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests and creates both unsigned macOS architecture artifacts.
 

@@ -28,8 +28,8 @@ public sealed record ApplicationServices(
 
         var secrets = SecretStoreFactory.CreateDefault();
         return new(
-            new OfflineAuthenticationService(),
-            new SecretAuthenticationSessionStore(secrets),
+            new DemoAuthenticationService(),
+            NullAuthenticationSessionStore.Instance,
             new AutomationController(new SimulatedAutomationTableAdapter()),
             new ViewerCommunicationModule(new LoopbackViewerMessageTransport()),
             secrets,

@@ -19,23 +19,20 @@ public sealed class ViewerView : StackPanel
     public ViewerView(ViewerCommunicationModule communication)
     {
         this.communication = communication ?? throw new ArgumentNullException(nameof(communication));
-        Margin = new Thickness(24);
-        Spacing = 16;
-
-        Children.Add(Text("Session viewer", 30));
-        Children.Add(Text(
+        Margin = new Thickness(0);
+        Spacing = 0;
+        var page = WorkspaceUi.Page("VIEWER WORKSPACE", "Session viewer",
+            "Live local snapshots from the session, strategy, and automation workspaces.");
+        Children.Add(page);
+        page.Children.Add(Text(
             $"Protocol {ViewerDocumentContract.EnvelopeVersion} · Session document {ViewerDocumentContract.SessionSnapshotVersion} · Strategy document {ViewerDocumentContract.StrategySnapshotVersion} · Automation document {ViewerDocumentContract.AutomationSnapshotVersion}",
             14,
             "#91A1B9"));
-        Children.Add(connection);
-        Children.Add(Text("SESSION", 13, "#91A1B9"));
-        Children.Add(session);
-        Children.Add(Text("STRATEGY", 13, "#91A1B9"));
-        Children.Add(strategy);
-        Children.Add(Text("AUTOMATION", 13, "#91A1B9"));
-        Children.Add(automation);
-        Children.Add(Text("DOCUMENT HISTORY", 13, "#91A1B9"));
-        Children.Add(history);
+        page.Children.Add(WorkspaceUi.Card("COMMUNICATION", connection));
+        page.Children.Add(WorkspaceUi.Card("SESSION", session));
+        page.Children.Add(WorkspaceUi.Card("STRATEGY", strategy));
+        page.Children.Add(WorkspaceUi.Card("AUTOMATION", automation));
+        page.Children.Add(WorkspaceUi.Card("DOCUMENT HISTORY", history));
 
         communication.DocumentReceived += OnDocumentReceived;
         RefreshHistory();
@@ -81,9 +78,8 @@ public sealed class ViewerView : StackPanel
         }
 
         foreach (var document in documents.Reverse().Take(30))
-            history.Children.Add(Text(
-                $"#{document.Sequence:000} · {document.DocumentType} v{document.DocumentVersion} · {document.CreatedAt:HH:mm:ss} UTC",
-                15));
+            history.Children.Add(WorkspaceUi.HistoryRow(
+                $"#{document.Sequence:000} · {document.DocumentType} v{document.DocumentVersion} · {document.CreatedAt:HH:mm:ss} UTC"));
     }
 
     private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>

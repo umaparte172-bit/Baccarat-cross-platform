@@ -37,42 +37,46 @@ public sealed class StrategyView : StackPanel
     {
         this.loader = loader ?? throw new ArgumentNullException(nameof(loader));
         this.changed = changed;
-        Margin = new Thickness(24);
-        Spacing = 16;
-
-        Children.Add(Text("Strategy session", 30));
-        Children.Add(Text(
-            "Import a recovered strategy, review each recommendation, then enter observed table outcomes. No bets are placed automatically.",
-            15,
-            "#A8B5CA"));
-        Children.Add(strategyName);
-        Children.Add(recommendation);
-        Children.Add(totals);
+        Margin = new Thickness(0);
+        Spacing = 0;
+        var page = WorkspaceUi.Page("STRATEGY WORKSPACE", "Strategy session",
+            "Import a recovered strategy, review its recommendation, and record observed table outcomes.");
+        Children.Add(page);
 
         var fileActions = Row();
         var load = Button("Load strategy");
+        load.Background = LegacyTheme.Green;
+        load.Foreground = LegacyTheme.Ink;
         fileActions.Children.Add(load);
         fileActions.Children.Add(reset);
         fileActions.Children.Add(undo);
         fileActions.Children.Add(export);
-        Children.Add(fileActions);
+        page.Children.Add(WorkspaceUi.Card("STRATEGY FILE", fileActions));
 
-        Children.Add(Text("MANUAL RESOLUTION", 13, "#91A1B9"));
+        var current = new StackPanel { Spacing = 10 };
+        strategyName.Foreground = LegacyTheme.Text;
+        strategyName.FontWeight = FontWeight.Bold;
+        current.Children.Add(strategyName);
+        current.Children.Add(recommendation);
+        current.Children.Add(totals);
+        page.Children.Add(WorkspaceUi.Card("CURRENT RECOMMENDATION", current));
+
         var resolution = Row();
         resolution.Children.Add(choosePlayer);
         resolution.Children.Add(chooseBanker);
         resolution.Children.Add(manualStake);
         resolution.Children.Add(applyStake);
-        Children.Add(resolution);
+        page.Children.Add(WorkspaceUi.Card("MANUAL RESOLUTION", resolution));
 
-        Children.Add(Text("OBSERVED TABLE RESULT", 13, "#91A1B9"));
         var outcomes = Row();
+        playerResult.Background = Brush.Parse("#325C9C");
+        bankerResult.Background = Brush.Parse("#8D3E50");
+        tieResult.Background = Brush.Parse("#2F7054");
         outcomes.Children.Add(playerResult);
         outcomes.Children.Add(bankerResult);
         outcomes.Children.Add(tieResult);
-        Children.Add(outcomes);
-        Children.Add(Text("STRATEGY HISTORY", 13, "#91A1B9"));
-        Children.Add(history);
+        page.Children.Add(WorkspaceUi.Card("OBSERVED TABLE RESULT", outcomes));
+        page.Children.Add(WorkspaceUi.Card("STRATEGY HISTORY", history));
 
         load.Click += async (_, _) => await LoadAsync();
         reset.Click += (_, _) => { engine?.Reset(); Refresh(); NotifyChanged(); };
@@ -233,7 +237,7 @@ public sealed class StrategyView : StackPanel
             var action = round.WasBet
                 ? $"{round.Side} {round.Stake:0.##}  ·  {(round.Won is null ? "Push" : round.Won.Value ? "Win" : "Loss")}  ·  {round.ProfitChange:+0.00;-0.00;0.00}"
                 : "Observed while paused";
-            history.Children.Add(Text($"{round.Number:000}  {round.Outcome}  ·  {action}", 15));
+            history.Children.Add(WorkspaceUi.HistoryRow($"#{round.Number:000}  {round.Outcome}  ·  {action}"));
         }
     }
 
@@ -248,9 +252,9 @@ public sealed class StrategyView : StackPanel
         if (engine is not null) changed?.Invoke(engine);
     }
 
-    private static StackPanel Row() => new() { Orientation = Orientation.Horizontal, Spacing = 12 };
+    private static StackPanel Row() => WorkspaceUi.Row();
 
-    private static Button Button(string content) => new() { Content = content, Padding = new Thickness(18, 12) };
+    private static Button Button(string content) => WorkspaceUi.Action(content);
 
     private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>
         new() { Text = value, FontSize = size, Foreground = Brush.Parse(color), TextWrapping = TextWrapping.Wrap };

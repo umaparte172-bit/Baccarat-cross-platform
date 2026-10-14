@@ -29,32 +29,38 @@ public sealed class AutomationView : StackPanel
     public AutomationView(AutomationController controller)
     {
         this.controller = controller ?? throw new ArgumentNullException(nameof(controller));
-        Margin = new Thickness(24);
-        Spacing = 16;
+        Margin = new Thickness(0);
+        Spacing = 0;
+        var page = WorkspaceUi.Page("AUTOMATION WORKSPACE", "Controlled automation",
+            "Review each recommendation and approve every simulated placement.");
+        Children.Add(page);
 
-        Children.Add(Text("Controlled automation", 30));
-        Children.Add(Text(
-            "Local simulation is the only enabled adapter. Every bet requires approval, limits are enforced, and uncertain placements are never retried.",
-            15,
-            "#A8B5CA"));
-        Children.Add(status);
-        Children.Add(recommendation);
-        Children.Add(totals);
+        var state = new StackPanel { Spacing = 12 };
+        state.Children.Add(status);
+        state.Children.Add(totals);
+        page.Children.Add(WorkspaceUi.Card("SIMULATION STATUS", state));
+        page.Children.Add(WorkspaceUi.Card("NEXT RECOMMENDATION", recommendation));
 
         var connectionActions = Row();
         connectionActions.Children.Add(connect);
         connectionActions.Children.Add(recover);
         connectionActions.Children.Add(pause);
-        Children.Add(connectionActions);
+        page.Children.Add(WorkspaceUi.Card("CONNECTION", connectionActions));
 
         var bettingActions = Row();
         bettingActions.Children.Add(initialBet);
         bettingActions.Children.Add(approve);
         bettingActions.Children.Add(enableAuto);
         bettingActions.Children.Add(disableAuto);
-        Children.Add(bettingActions);
+        approve.Background = LegacyTheme.Green;
+        approve.Foreground = LegacyTheme.Ink;
+        page.Children.Add(WorkspaceUi.Card("BET CONTROLS", bettingActions));
 
-        Children.Add(Text(
+        page.Children.Add(Text(
+            "Local simulation is the only enabled adapter. Every placement requires approval.",
+            14,
+            "#91A1B9"));
+        page.Children.Add(Text(
             "Live table automation remains unavailable until verified selectors, chip values, table-state checks and placement acknowledgements are supplied.",
             14,
             "#91A1B9"));
@@ -151,8 +157,8 @@ public sealed class AutomationView : StackPanel
         pause.IsEnabled = connected && snapshot.State is not AutomationRunState.Stopped;
     }
 
-    private static StackPanel Row() => new() { Orientation = Orientation.Horizontal, Spacing = 12 };
-    private static Button Button(string content) => new() { Content = content, Padding = new Thickness(18, 12) };
+    private static StackPanel Row() => WorkspaceUi.Row();
+    private static Button Button(string content) => WorkspaceUi.Action(content);
     private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>
         new() { Text = value, FontSize = size, Foreground = Brush.Parse(color), TextWrapping = TextWrapping.Wrap };
 }

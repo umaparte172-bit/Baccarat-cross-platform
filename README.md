@@ -2,6 +2,8 @@
 
 Local project for investigating the supplied Windows executable and rebuilding verified behavior for Windows and macOS. No original source code is available. The first desktop foundation is implemented; original-service integration is pending. See [running instructions](docs/running.md).
 
+For offline UI testing, use the public local demo credentials in [the running instructions](docs/running.md). Demo sign-up is not registration with the original service.
+
 Start with [TODO.md](TODO.md) and [analysis findings](docs/findings.md).
 
 The completed evidence baseline is documented in [the Phase 1 evidence index](docs/phase-1-evidence-index.md). Regenerate its ignored file manifest with `tools/inventory-original.ps1`; the tool hashes and inspects files without launching supplied programs.

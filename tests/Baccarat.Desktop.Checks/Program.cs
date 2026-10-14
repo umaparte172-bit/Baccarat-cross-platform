@@ -4,8 +4,10 @@ using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Baccarat.Desktop;
+using Baccarat.Desktop.Views;
 using Baccarat.Core.Authentication;
 using Baccarat.Core.Strategies;
+using Baccarat.Infrastructure.Authentication;
 
 AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
 var strategyDefinition = new StrategyDefinition(
@@ -36,8 +38,12 @@ window.UpdateLayout();
 if (!HasText("1 rounds")) throw new Exception("Undo did not update UI");
 if (!FindButton("Export CSV").IsEnabled) throw new Exception("Export should be enabled");
 var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
+if (!HasText("TABLE WORKSPACE") || !HasText("RECORD TABLE RESULT") || !HasText("ROUND HISTORY"))
+    throw new Exception("The session workspace layout was not shown");
 tabs.SelectedIndex = 1;
 window.UpdateLayout();
+if (!HasText("STRATEGY WORKSPACE") || !HasText("CURRENT RECOMMENDATION") || !HasText("STRATEGY HISTORY"))
+    throw new Exception("The strategy workspace layout was not shown");
 if (!HasText("Bet 1 on Player.")) throw new Exception("Initial strategy recommendation was not shown");
 Click("Banker result");
 window.UpdateLayout();
@@ -52,7 +58,8 @@ if (!HasText("Profit 0.00") || !HasText("Bet 1 on Player."))
 
 tabs.SelectedIndex = 2;
 window.UpdateLayout();
-if (!HasText("Controlled automation") || !HasText("Local simulation is the only enabled adapter"))
+if (!HasText("Controlled automation") || !HasText("SIMULATION STATUS") ||
+    !HasText("BET CONTROLS") || !HasText("Local simulation is the only enabled adapter"))
     throw new Exception("Controlled automation workspace was not shown");
 Click("Connect simulation");
 window.UpdateLayout();
@@ -80,6 +87,8 @@ if (!HasText("Simulation accepted 2 on Banker.") || !HasText("Accepted bets 2"))
 
 tabs.SelectedIndex = 3;
 window.UpdateLayout();
+if (!HasText("VIEWER WORKSPACE") || !HasText("COMMUNICATION") || !HasText("DOCUMENT HISTORY"))
+    throw new Exception("The viewer workspace layout was not shown");
 if (!HasText("Protocol 1.0") || !HasText("Rounds 1 · Player 1 · Banker 0 · Tie 0"))
     throw new Exception("Viewer did not receive the versioned manual-session document: " +
         string.Join(" | ", window.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text)));
@@ -105,5 +114,40 @@ Click("SIGN IN");
 window.UpdateLayout();
 if (!window.GetVisualDescendants().OfType<CheckBox>().Any(box => Equals(box.Content, "REMEMBER ME")))
     throw new Exception("SignIn navigation did not restore its screen");
+Click("SIGN UP");
+window.UpdateLayout();
+var account = window.GetVisualDescendants().OfType<AccountView>().Single();
+var fields = account.GetVisualDescendants().OfType<TextBox>().ToArray();
+if (fields.Length != 5) throw new Exception("The registration form fields were not shown");
+fields[0].Text = "Demo User";
+fields[1].Text = DemoAuthenticationService.Email;
+fields[2].Text = DemoAuthenticationService.Password;
+fields[3].Text = "0000000000";
+fields[4].Text = "Test";
+Click("SIGN UP");
+window.UpdateLayout();
+if (tabs.SelectedIndex != 0 || !HasText("Session tracker"))
+    throw new Exception("Local demo registration did not open the workspace");
+if (tabs.ItemCount != 5) throw new Exception("All five workspace tabs must remain available");
+tabs.SelectedIndex = 4;
+window.UpdateLayout();
+if (!HasText("Local demo access enabled") || !FindButton("SIGN OUT").IsVisible)
+    throw new Exception("Local demo registration was not shown as an authenticated test session: " +
+        string.Join(" | ", account.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text)));
+Click("SIGN OUT");
+window.UpdateLayout();
+Click("SIGN IN");
+window.UpdateLayout();
+fields = account.GetVisualDescendants().OfType<TextBox>().ToArray();
+if (fields.Length != 2) throw new Exception("The sign-in fields were not shown");
+fields[0].Text = DemoAuthenticationService.Email;
+fields[1].Text = DemoAuthenticationService.Password;
+Click("SIGN IN");
+window.UpdateLayout();
+if (tabs.SelectedIndex != 0) throw new Exception("Local demo sign-in did not reopen the workspace");
+var demo = new DemoAuthenticationService();
+var rejected = await demo.SignInAsync(new SignInRequest(DemoAuthenticationService.Email, "incorrect"));
+if (rejected.Outcome != AuthenticationOutcome.Rejected || rejected.Session is not null)
+    throw new Exception("Incorrect demo credentials must not create a session");
 window.Close();
 Console.WriteLine("PASS: headless desktop startup, session tools and account validation UI");

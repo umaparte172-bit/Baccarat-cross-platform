@@ -4,6 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Baccarat.Core.Authentication;
 using Baccarat.Core.Diagnostics;
+using Baccarat.Infrastructure.Authentication;
 
 namespace Baccarat.Desktop.Views;
 
@@ -24,6 +25,9 @@ public sealed class AccountView : Grid
     private readonly Button signOut = SecondaryButton("SIGN OUT");
     private Canvas? activeForm;
     private bool showingSignUp;
+    private readonly bool demoMode;
+
+    public event Action? Authenticated;
 
     public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
         : this(service, diagnostics, null)
@@ -36,6 +40,7 @@ public sealed class AccountView : Grid
         IAuthenticationSessionStore? sessionStore)
     {
         controller = new AuthenticationController(service, diagnostics, sessionStore);
+        demoMode = service is DemoAuthenticationService;
         Background = LegacyTheme.Window;
         MinHeight = 590;
         password.PasswordChar = '•';
@@ -80,6 +85,10 @@ public sealed class AccountView : Grid
         activeForm = showingSignUp ? BuildSignUpForm() : BuildSignInForm();
         panel.Children.Add(activeForm);
         shell.Children.Add(new Border { Background = LegacyTheme.Panel, Child = panel });
+        if (demoMode)
+            shell.Children.Add(LegacyTheme.TextBlock(
+                $"LOCAL DEMO ONLY · {DemoAuthenticationService.Email} · No server account is created.",
+                12, LegacyTheme.Muted));
         Children.Add(shell);
         Refresh();
     }
@@ -135,9 +144,11 @@ public sealed class AccountView : Grid
 
     private async Task RestoreSessionAsync()
     {
+        if (controller.Session is not null) return;
         var authentication = await controller.RestoreSessionAsync();
         result.Text = authentication.Message;
         Refresh();
+        if (authentication.IsAuthenticated) Authenticated?.Invoke();
     }
 
     private async Task SignInAsync()
@@ -148,6 +159,7 @@ public sealed class AccountView : Grid
         password.Text = string.Empty;
         result.Text = authentication.Message;
         Refresh();
+        if (authentication.IsAuthenticated) Authenticated?.Invoke();
     }
 
     private async Task SignUpAsync()
@@ -158,6 +170,7 @@ public sealed class AccountView : Grid
         password.Text = string.Empty;
         result.Text = authentication.Message;
         Refresh();
+        if (authentication.IsAuthenticated) Authenticated?.Invoke();
     }
 
     private async Task SignOutAsync()
@@ -174,7 +187,7 @@ public sealed class AccountView : Grid
         signIn.IsEnabled = signUp.IsEnabled = !authenticated && !controller.IsBusy;
         signOut.IsEnabled = authenticated && !controller.IsBusy;
         signOut.IsVisible = authenticated;
-        rememberMe.IsEnabled = !authenticated;
+        rememberMe.IsEnabled = !authenticated && !demoMode;
         if (string.IsNullOrWhiteSpace(result.Text)) result.Text = controller.LastResult.Message;
         result.Foreground = authenticated ? Brush.Parse("#7BD88F") : LegacyTheme.Gold;
     }
