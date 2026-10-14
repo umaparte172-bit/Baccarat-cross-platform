@@ -30,7 +30,7 @@ The final cross-platform security, packaging and acceptance status is documented
 
 ## Intended stack
 
-.NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in macOS Keychain. Choose exact package versions when creating the application scaffold.
+.NET 10 LTS and Avalonia for the desktop UI; Playwright for browser interactions; HttpClient, ClientWebSocket and System.Text.Json for verified service contracts. Secrets belong in Windows Credential Manager or macOS Keychain. Choose exact package versions when creating the application scaffold.
 
 .NET 10 replaces the earlier .NET 8 recommendation because .NET 8 support ends in November 2026. See https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core.
 

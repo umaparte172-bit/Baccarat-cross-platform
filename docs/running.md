@@ -7,7 +7,7 @@ dotnet run --project src/Baccarat.Desktop
 dotnet run --project tests/Baccarat.Core.Checks
 ```
 
-On this Windows workspace, a downloaded SDK may be used via `.tools/sdk/dotnet.exe` instead of `dotnet`.
+On this Windows workspace, the isolated SDK is available via `.tools/dotnet/dotnet.exe` instead of `dotnet`.
 
 The application supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. The Strategies tab imports the supplied JSON-shaped `.txt` definitions, calculates verified progression rules, accepts observed table outcomes, tracks profit and limits, and exports its own CSV history. Opaque protected rules require a manual side or stake rather than being guessed. Records remain in memory, so export before closing.
 
@@ -36,7 +36,7 @@ bash tools/package-macos.sh osx-arm64 Release artifacts/macos/osx-arm64
 bash tools/package-macos.sh osx-x64 Release artifacts/macos/osx-x64
 ```
 
-Each command creates and validates `Baccarat Workspace.app`. The output directory must not already contain that bundle, which prevents stale files from leaking into a package. CI runs both commands and publishes separate unsigned ZIP artifacts from the `Desktop build` workflow. Those artifacts are appropriate for development verification only; they are not signed public releases.
+Each command creates and validates `Baccarat Workspace.app` for macOS 14 or newer. The output directory must not already contain that bundle, which prevents stale files from leaking into a package. CI runs both commands and publishes separate unsigned ZIP artifacts from the `Desktop build` workflow. Those artifacts are appropriate for development verification only; they are not signed public releases.
 
 For distribution, first install a Developer ID Application certificate in the login Keychain and create a `notarytool` profile interactively:
 
@@ -52,7 +52,7 @@ bash tools/sign-notarize-macos.sh \
 
 The signing script stops if either configuration value is missing, signs nested Mach-O files before the bundle, enables hardened runtime and a secure timestamp, submits with `notarytool`, staples the ticket, then runs signature, stapler and Gatekeeper validation. It does not accept or store an Apple password. Repeat with `osx-x64` for an Intel package.
 
-macOS stores authenticated sessions as generic-password items in the user's Keychain under service `com.baccarat.crossplatform`. Other platforms currently use the in-memory development store.
+macOS stores authenticated sessions as generic-password items in the user's Keychain under service `com.baccarat.crossplatform`. Windows stores them in the current user's Credential Manager. Unsupported platforms use the in-memory development store.
 
 The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests and creates both unsigned macOS architecture artifacts.
 
@@ -99,4 +99,4 @@ A checksum detects accidental or unauthenticated modification after CI produced 
 
 ## Validation record
 
-The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-13. The same build and checks passed on a GitHub-hosted macOS runner, including default Keychain selection and a missing-item lookup. CI also created and validated native `osx-arm64` and `osx-x64` app bundles. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. Interactive installation, Developer ID signing/notarization and live browser integration have not been tested.
+The .NET 10.0.401 SDK is installed locally. The Release desktop build, core checks and headless Avalonia checks passed on Windows on 2026-10-14. The same build and checks passed on a GitHub-hosted macOS runner, including a Keychain save/read/delete round trip. CI also created and validated native `osx-arm64` and `osx-x64` app bundles. Avalonia is pinned to 11.3.22, and the dependency vulnerability check reported no known vulnerable packages. Interactive installation, Developer ID signing/notarization and live browser integration have not been tested.

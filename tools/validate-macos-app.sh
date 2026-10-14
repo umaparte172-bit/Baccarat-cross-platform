@@ -17,10 +17,12 @@ fi
 
 executable_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
 bundle_identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
+minimum_system_version="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$app/Contents/Info.plist")"
 executable="$app/Contents/MacOS/$executable_name"
 
 plutil -lint "$app/Contents/Info.plist"
 [[ "$bundle_identifier" == "com.baccarat.crossplatform" ]]
+[[ "$minimum_system_version" == "14.0" ]]
 [[ -x "$executable" ]]
 file "$executable" | grep -q "$expected_architecture"
 

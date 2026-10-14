@@ -36,7 +36,7 @@ Replaceable technical adapters:
 - `LoopbackViewerMessageTransport` is the safe offline transport used today. A future WebSocket transport can implement the same boundary after its legacy contract is evidenced.
 - `SimulatedAutomationTableAdapter` is the only enabled automation target. It verifies selected chips, Player/Banker requests and idempotent operation IDs without touching a browser or external account.
 
-Future WebSocket and Windows Credential Manager/macOS Keychain adapters belong here. The recovered HTTP protocol codec will implement the existing protocol boundary without changing session logic or UI state handling.
+Future WebSocket adapters belong here. Windows Credential Manager and macOS Keychain already implement the secret-storage boundary. The recovered HTTP protocol codec will implement the existing protocol boundary without changing session logic or UI state handling.
 
 ### `Baccarat.Desktop`
 
