@@ -4,7 +4,7 @@
 
 The supplied version 2 executable was not executed. Static metadata confirms three Windows Forms (`Main`, `SignIn`, and `SignUp`) and their control-type counts, but the protected constructors contain runtime-restored stubs. Captions, coordinates, fonts, colors, event wiring, and the Main form's exact grouping are therefore not recoverable from ordinary IL.
 
-The supplied SignUp screenshot is the authoritative visual reference currently available. It establishes an approximately 834 × 683 form, the navy window and inset panel, centered WETALKBET header, square blue inputs, gold uppercase labels, five registration fields, password visibility control, bright-green primary action, and blue outlined secondary action. The replacement Account workspace now follows that evidence while preserving native Avalonia controls and the existing validation/session boundary.
+The supplied SignIn and SignUp screenshots are the visual references currently available. SignIn establishes two fields, Remember Me and Show Password checkboxes, a green SIGN IN button, and an outlined SIGN UP button. SignUp establishes five fields, a password visibility checkbox, a green SIGN UP button, and an outlined SIGN IN button. Both share the navy window and inset panel, centered WETALKBET header, square blue inputs, and gold uppercase labels. The Account workspace now provides distinct layouts with working navigation between them while retaining the existing validation/session boundary.
 
 The public introduction-video channel could not be reached from the analysis environment. No video was downloaded, and no unseen Main layout was guessed.
 
@@ -12,8 +12,9 @@ The public introduction-video channel could not be reached from the analysis env
 
 - Shared legacy palette and square control styling.
 - Cross-platform WETALKBET header asset derived from the user-supplied screenshot.
-- Evidence-matched registration layout: Name, Email, Password, Phone No, and Country.
-- Show Password, SIGN UP, SIGN IN, authentication feedback, and authenticated SIGN OUT behavior.
+- Evidence-matched SignIn and SignUp layouts, including their different field counts and panel heights.
+- SignIn ↔ SignUp navigation, password visibility, authentication feedback, and authenticated SIGN OUT behavior.
+- The Remember Me checkbox is shown as in the original screenshot; persistent sign-in behavior remains dependent on a verified authentication service.
 - Original product title and branded application header.
 - Uppercase workspace navigation with the recovered navy/gold visual language.
 - Updated headless checks for the recovered account actions.
@@ -26,6 +27,8 @@ The public introduction-video channel could not be reached from the analysis env
 - `dotnet format --verify-no-changes`: passed.
 - Core behavioral checks: passed.
 - Headless Avalonia startup, navigation, strategy, automation, Viewer, and Account checks: passed.
+
+The WETALKBET header asset is a visual reconstruction from the supplied screenshot, not the original embedded bitmap. The authentication layouts appear inside the replacement's Account workspace; reproducing the original top-level window chrome and exact appearance still requires visual comparison on the target machines.
 
 ## Evidence required for exact Main-form parity
 

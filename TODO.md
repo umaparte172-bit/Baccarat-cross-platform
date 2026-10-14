@@ -21,6 +21,7 @@ Work proceeds in dependency order. Completion means the acceptance criteria have
 - [x] Recover and document the standalone updater workflow.
 - [x] Inventory all form fields, controls and methods; record that event wiring is absent from protected disk stubs.
 - [x] Reproduce the evidence-backed SignUp palette, field layout, brand header and actions with native Avalonia controls.
+- [x] Reproduce the screenshot-backed SignIn fields, checkboxes, buttons, and SignIn/SignUp navigation.
 - [ ] Reproduce the exact protected Main form after sanitized full-window screenshots are supplied from VMware.
 - [x] Document recovered behavior with method/token evidence and confidence levels.
 

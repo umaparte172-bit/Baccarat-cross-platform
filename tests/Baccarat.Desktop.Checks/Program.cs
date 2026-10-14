@@ -90,11 +90,20 @@ if (!HasText("Ready · Auto enabled · Simulation · Accepted 2 · Stake 3.00"))
 
 tabs.SelectedIndex = 4;
 window.UpdateLayout();
-if (!FindButton("SIGN IN").IsEnabled || !FindButton("SIGN UP").IsEnabled)
-    throw new Exception("Offline account must expose sign-in and registration validation");
+if (!FindButton("SIGN IN").IsEnabled || !FindButton("SIGN UP").IsEnabled ||
+    !window.GetVisualDescendants().OfType<CheckBox>().Any(box => Equals(box.Content, "REMEMBER ME")))
+    throw new Exception("The SignIn screen was not shown");
+Click("SIGN UP");
+window.UpdateLayout();
+if (!HasText("NAME :") || !HasText("PHONE NO :") || !HasText("COUNTRY :"))
+    throw new Exception("The SignUp screen was not shown");
 Click("SIGN UP");
 window.UpdateLayout();
 if (!HasText("Name, phone and country are required."))
     throw new Exception("Registration validation was not shown in the account UI");
+Click("SIGN IN");
+window.UpdateLayout();
+if (!window.GetVisualDescendants().OfType<CheckBox>().Any(box => Equals(box.Content, "REMEMBER ME")))
+    throw new Exception("SignIn navigation did not restore its screen");
 window.Close();
 Console.WriteLine("PASS: headless desktop startup, session tools and account validation UI");
