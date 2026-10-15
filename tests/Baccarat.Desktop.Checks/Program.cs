@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -10,6 +11,7 @@ using Baccarat.Core.Strategies;
 using Baccarat.Desktop;
 using Baccarat.Desktop.Views;
 using Baccarat.Infrastructure.Automation;
+using Baccarat.Infrastructure.Authentication;
 using Baccarat.Infrastructure.Strategies;
 
 AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
@@ -23,6 +25,7 @@ var controller = new AutomationController(new SimulatedAutomationTableAdapter())
 var window = new MainWindow(initialStrategy: strategyDefinition, automationController: controller);
 window.Show();
 window.UpdateLayout();
+CheckButtonAlignment(window);
 Button FindButton(string name) => window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, name));
 void Click(string name)
 {
@@ -30,11 +33,28 @@ void Click(string name)
     if (!button.IsEnabled) throw new Exception($"Cannot click disabled action: {name}");
     button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     window.UpdateLayout();
+    CheckButtonAlignment(window);
 }
 bool HasText(string value) => window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains(value) == true);
 void Check(bool condition, string message)
 {
     if (!condition) throw new Exception(message);
+}
+void CheckButtonAlignment(Window host)
+{
+    foreach (var button in host.GetVisualDescendants().OfType<Button>().Where(b => b.GetType() == typeof(Button) && b.IsVisible))
+    {
+        Check(button.HorizontalContentAlignment == HorizontalAlignment.Center &&
+            button.VerticalContentAlignment == VerticalAlignment.Center,
+            $"Button '{button.Content}' must center content on both axes");
+        var presenter = button.GetVisualDescendants().OfType<ContentPresenter>()
+            .Single(p => p.Name == "PART_ContentPresenter");
+        Check(presenter.HorizontalContentAlignment == HorizontalAlignment.Center &&
+            presenter.VerticalContentAlignment == VerticalAlignment.Center,
+            $"Button '{button.Content}' template must preserve centered alignment");
+        Check(button.Padding.Left == button.Padding.Right && button.Padding.Top == button.Padding.Bottom,
+            $"Button '{button.Content}' must have symmetric padding");
+    }
 }
 void CheckNoAccountGate()
 {
@@ -173,3 +193,18 @@ Click("OPEN STRATEGIES");
 Check(HasText("No strategy loaded") && !FindButton("Player result").IsEnabled, "Fresh launch must be empty and safe");
 window.Close();
 Console.WriteLine("PASS: no-login startup/relaunch, session, strategies, PATTERN manual flow, simulation, viewer, reset, export data and close cleanup");
+
+// Account screens remain outside the default offline workflow, but share the button theme.
+var accountView = new AccountView(new OfflineAuthenticationService());
+var accountWindow = new Window { Width = 900, Height = 760, Content = accountView };
+accountWindow.Show();
+accountWindow.UpdateLayout();
+CheckButtonAlignment(accountWindow);
+accountView.ShowSignUp();
+accountWindow.UpdateLayout();
+CheckButtonAlignment(accountWindow);
+foreach (var button in accountWindow.GetVisualDescendants().OfType<Button>().Where(b => b.GetType() == typeof(Button)))
+    Check(button.Padding.Top == 0 && button.Padding.Bottom == 0,
+        "Fixed-height account buttons must reserve enough vertical space for their labels");
+accountWindow.Close();
+Console.WriteLine("PASS: horizontal and vertical button alignment across workspaces and account forms");

@@ -224,6 +224,7 @@ public sealed class AccountView : Grid
     {
         Content = text,
         Height = 46,
+        Padding = new Thickness(18, 0),
         Background = LegacyTheme.Green,
         Foreground = LegacyTheme.Ink,
         BorderBrush = LegacyTheme.Blue,
@@ -237,6 +238,7 @@ public sealed class AccountView : Grid
     {
         Content = text,
         Height = 43,
+        Padding = new Thickness(18, 0),
         Background = Brushes.Transparent,
         Foreground = LegacyTheme.Blue,
         BorderBrush = LegacyTheme.Blue,

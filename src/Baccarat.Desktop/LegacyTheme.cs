@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -33,6 +34,8 @@ internal static class LegacyTheme
                 new Setter(TemplatedControl.BorderBrushProperty, Blue),
                 new Setter(TemplatedControl.BorderThicknessProperty, new Thickness(1)),
                 new Setter(TemplatedControl.FontWeightProperty, FontWeight.SemiBold),
+                new Setter(ContentControl.HorizontalContentAlignmentProperty, HorizontalAlignment.Center),
+                new Setter(ContentControl.VerticalContentAlignmentProperty, VerticalAlignment.Center),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(18, 11))
             }
         });
