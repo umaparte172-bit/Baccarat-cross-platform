@@ -28,9 +28,12 @@ public sealed class AccountView : Grid
     private Canvas? activeForm;
     private bool showingSignUp;
     private readonly bool demoMode;
+    private readonly bool offlineMode;
+    private readonly bool persistenceAvailable;
 
     public event Action? Authenticated;
     public event Action? SignedOut;
+    public event Action? OfflineRequested;
 
     public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
         : this(service, diagnostics, null)
@@ -45,6 +48,8 @@ public sealed class AccountView : Grid
         this.sessionStore = new OptInAuthenticationSessionStore(sessionStore ?? NullAuthenticationSessionStore.Instance);
         controller = new AuthenticationController(service, diagnostics, this.sessionStore);
         demoMode = service is DemoAuthenticationService;
+        offlineMode = service is OfflineAuthenticationService;
+        persistenceAvailable = sessionStore is not null && sessionStore is not NullAuthenticationSessionStore;
         Background = LegacyTheme.Window;
         MinHeight = 590;
         password.PasswordChar = '•';
@@ -73,6 +78,7 @@ public sealed class AccountView : Grid
 
     private void BuildForm()
     {
+        (result.Parent as Panel)?.Children.Remove(result);
         activeForm?.Children.Clear();
         Children.Clear();
         var shell = new StackPanel
@@ -89,6 +95,17 @@ public sealed class AccountView : Grid
         activeForm = showingSignUp ? BuildSignUpForm() : BuildSignInForm();
         panel.Children.Add(activeForm);
         shell.Children.Add(new Border { Background = LegacyTheme.Panel, Child = panel });
+        shell.Children.Add(result);
+        if (offlineMode)
+        {
+            shell.Children.Add(LegacyTheme.TextBlock(
+                "Wetalkbet server integration is not configured. Sign-in and registration cannot create a server session yet. " +
+                "You can open the offline workspace without creating or signing into an account.", 14, LegacyTheme.Muted));
+            var offline = SecondaryButton("OPEN OFFLINE WORKSPACE");
+            offline.HorizontalAlignment = HorizontalAlignment.Center;
+            offline.Click += (_, _) => OfflineRequested?.Invoke();
+            shell.Children.Add(offline);
+        }
         if (demoMode)
             shell.Children.Add(LegacyTheme.TextBlock(
                 $"LOCAL DEMO ONLY · {DemoAuthenticationService.Email} · No server account is created.",
@@ -111,7 +128,6 @@ public sealed class AccountView : Grid
         var goToSignUp = SecondaryButton("SIGN UP");
         goToSignUp.Click += (_, _) => ShowSignUp();
         Place(canvas, goToSignUp, 357, 251, 136);
-        Place(canvas, result, 226, 294, 440);
         Place(canvas, signOut, 575, 251, 136);
         return canvas;
     }
@@ -135,7 +151,6 @@ public sealed class AccountView : Grid
         var goToSignIn = SecondaryButton("SIGN IN");
         goToSignIn.Click += (_, _) => ShowSignIn();
         Place(canvas, goToSignIn, 369, 437, 136);
-        Place(canvas, result, 244, 420, 396);
         Place(canvas, signOut, 520, 437, 136);
         return canvas;
     }
@@ -196,7 +211,7 @@ public sealed class AccountView : Grid
         signIn.IsEnabled = signUp.IsEnabled = !authenticated && !controller.IsBusy;
         signOut.IsEnabled = authenticated && !controller.IsBusy;
         signOut.IsVisible = authenticated;
-        rememberMe.IsEnabled = !authenticated;
+        rememberMe.IsEnabled = !authenticated && persistenceAvailable;
         if (string.IsNullOrWhiteSpace(result.Text)) result.Text = controller.LastResult.Message;
         result.Foreground = authenticated ? Brush.Parse("#7BD88F") : LegacyTheme.Gold;
     }

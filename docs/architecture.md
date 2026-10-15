@@ -2,14 +2,17 @@
 
 The replacement is organized around verified behavior and replaceable external adapters. Core logic does not depend on Avalonia, Windows APIs, browser drivers or an assumed server schema.
 
-## Version 1 composition (2026-10-15)
+## Current composition (2026-10-15)
 
-The latest client scope supersedes the historical authentication design below.
-`ApplicationServices` now composes only simulation, loopback communication,
-redacted diagnostics and disconnected network options. Startup opens Home directly;
-it does not construct an authentication service, account view or secret store.
-Authentication components remain isolated historical/reference code, not a V1 gate.
-Closing the workspace cancels pending simulation approvals and disables auto-bet.
+The latest clarification restores account screens and supersedes the prior
+no-login change. `ApplicationServices` composes an unavailable/offline authentication
+service, simulation, loopback communication, redacted diagnostics and disconnected
+network options. Startup shows AccountView; successful authentication opens Home
+with Sign Out. Explicit offline entry preserves local tools without creating a
+session. No secret store is configured by default, and Remember Me is disabled.
+Sign-out, returning from offline mode and closing cancel pending approvals and
+disable auto-bet. Real server success remains unimplemented, not simulated by the
+default composition.
 
 ## Projects
 

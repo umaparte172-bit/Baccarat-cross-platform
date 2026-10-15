@@ -1,13 +1,16 @@
 using Baccarat.Core.Automation;
+using Baccarat.Core.Authentication;
 using Baccarat.Core.Configuration;
 using Baccarat.Core.Diagnostics;
 using Baccarat.Infrastructure.Automation;
+using Baccarat.Infrastructure.Authentication;
 using Baccarat.Infrastructure.Communication;
 using Baccarat.Infrastructure.Diagnostics;
 
 namespace Baccarat.Desktop;
 
 public sealed record ApplicationServices(
+    IAuthenticationService Authentication,
     AutomationController Automation,
     ViewerCommunicationModule ViewerCommunication,
     IDiagnosticSink Diagnostics,
@@ -20,6 +23,7 @@ public sealed record ApplicationServices(
             throw new InvalidOperationException("Default network configuration is invalid.");
 
         return new(
+            new OfflineAuthenticationService(),
             new AutomationController(new SimulatedAutomationTableAdapter()),
             new ViewerCommunicationModule(new LoopbackViewerMessageTransport()),
             new RedactingDiagnosticSink(_ => { }),

@@ -1,6 +1,12 @@
 # Network evidence required to finish Stage 5
 
-The repository currently contains no `.pcap`, `.pcapng`, `.har`, `.saz`, proxy-flow export or application network log. Static analysis recovered the network components and protected configuration call sites, but the protector hides the plaintext hosts, routes and message bodies.
+The supplied `F:/Signup.pcapng` has now been inspected: 259 packets, DNS/TLS SNI
+for `buyer-api.otbx.com` and three TLS connections to `103.224.182.247:443`.
+The local parser detected no plaintext HTTP, and there is no pcapng Decryption
+Secrets Block. The capture does not reveal the signup route, fields or error
+response, nor does it identify the originating process. See the
+[current integration checkpoint](original-server-auth-checkpoint.md).
+Protected on-disk code still does not reveal the real request construction.
 
 ## Minimum useful evidence
 
@@ -56,6 +62,18 @@ Fiddler Classic is suitable because the original application uses the Windows/.N
 5. Stop capture immediately after the result dialog.
 6. Save all sessions as `baccarat-auth-attempt.saz`.
 7. Revert the VMware snapshot afterward to remove the temporary interception certificate.
+
+Follow the official [Fiddler HTTPS-decryption instructions](https://www.telerik.com/fiddler/fiddler-classic/documentation/configure-fiddler/decrypthttps).
+Leave server-certificate error checking enabled. Do not import the interception
+certificate on the host or capture unrelated accounts.
+
+For signup diagnosis, a failed attempt is useful if it includes the full decrypted
+request and response, or the proxy's TLS error. Full compatibility also needs an
+authorized successful sign-in, startup token check and sign-out when the service
+works, plus a successful signup reference to validate registration. Do not
+repeatedly create accounts. Before sharing, redact passwords, authorization values,
+cookies, API keys and personal details while preserving field names, types,
+request paths and HTTP status codes.
 
 If no application sessions appear, report that outcome and provide the `.pcapng`. Do not disable certificate validation or patch TLS checks. The absence may indicate that the client ignores the system proxy, uses certificate pinning, fails before HTTP, or uses only its WebSocket path.
 

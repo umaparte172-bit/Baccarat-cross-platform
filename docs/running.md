@@ -15,7 +15,9 @@ The Viewer tab receives live versioned snapshots whenever the manual session or 
 
 The Automation tab exercises the complete controlled workflow against a local simulation. Connect the simulation, prepare and approve the initial recommendation, then enable auto-bet if the next strategy recommendation should be prepared automatically after each observed round. Every simulated placement still requires approval. Stake, cumulative-session and chip-click limits are enforced; connection recovery returns paused; an uncertain placement is never retried.
 
-Version 1 starts directly at Home. No account, password, registration, license, activation or online authentication is required. Choose Session, Strategies, Automation or Viewer; **Back to home** is at the upper-left of each workspace. There is no account tab or Sign Out button. Existing demo credentials and remembered sessions are not read. Closing cancels pending simulation approval and disables auto-bet. There is no real-money betting, outcome prediction or connection to the original service.
+The application starts at **Sign In**, with navigation to **Sign Up**. Successful authentication opens Home and shows **Sign Out** at the upper-right. The original Wetalkbet protocol is not recovered, so the default service reports unavailable rather than accepting credentials or creating fake accounts. Public demo credentials are not enabled in the shipped default. Remember Me is disabled until a session store is configured.
+
+Use **OPEN OFFLINE WORKSPACE** to access the existing Session, Strategies, Automation and Viewer tools without authenticating. This is explicitly offline, not a server session. **BACK TO SIGN IN** returns to the account screen; **Back to home** navigates within the workspace. Sign-out, returning to Sign In and closing cancel pending simulation approvals and disable auto-bet. There is no real-money betting, outcome prediction or connection to the original service.
 
 PATTERN is the priority strategy, separate from IHG. Loading its supplied definition asks you to choose the initial side with stake 100. After a win or loss, choose a side and enter the next stake manually. Its automatic selection and amount algorithms remain unverified. The current replacement applies standard Player/Banker settlement and tie pushes, not a verified original PATTERN tie rule. See [the workflow acceptance record](v1-workflow-acceptance.md).
 
@@ -63,7 +65,7 @@ bash tools/sign-notarize-macos.sh \
 
 The signing script stops if either configuration value is missing, signs nested Mach-O files before the bundle, enables hardened runtime and a secure timestamp, submits with `notarytool`, staples the ticket, then runs signature, stapler and Gatekeeper validation. It does not accept or store an Apple password. Repeat with `osx-x64` for an Intel package.
 
-Historical authentication and protected-store adapters remain in source for reference and isolated tests, but V1 does not construct or use them. Existing entries under `com.baccarat.crossplatform` or `com.baccarat.crossplatform.demo` are not read or modified by V1 startup.
+The account UI uses the authentication controller and an unavailable/offline service by default. Protected-store adapters remain available for verified integration, but no store is configured in the default composition. Existing entries under `com.baccarat.crossplatform` or `com.baccarat.crossplatform.demo` are not read or modified by startup.
 
 The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests and creates both unsigned macOS architecture artifacts.
 

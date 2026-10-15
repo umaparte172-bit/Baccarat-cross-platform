@@ -1,5 +1,11 @@
 # Version 1 workflow ownership and acceptance
 
+Superseded entry-flow note: the subsequent user clarification restores Sign In,
+Sign Up and Sign Out. The latest build starts at AccountView and offers explicit
+offline access while real server integration is unavailable. The no-login changes
+below describe the previous pass, not the current entry flow. Current UI checks
+cover account success/rejection fixtures, signout and the same workspace workflows.
+
 Updated 2026-10-15. Latest scope: open and run with no registration, login,
 license, activation or commercial features. PATTERN is the highest priority;
 IHG is separate supporting material. Earlier authentication stage reports are

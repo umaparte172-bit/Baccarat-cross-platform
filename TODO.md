@@ -4,7 +4,19 @@ Work proceeds in dependency order. Completion means the acceptance criteria have
 
 ## Current client scope and strategy evidence (2026-10-15)
 
-The latest V1 scope supersedes earlier authentication requirements. PATTERN is
+Latest clarification: original Wetalkbet server accounts are required, not local
+accounts. This supersedes the no-login scope recorded below. Actual server
+authentication is blocked on the decrypted contract and a working service; see
+[the integration checkpoint](docs/original-server-auth-checkpoint.md). The current
+build starts at the restored account screens, with explicit offline workspace
+access. Do not mark real signup/login or all original features complete.
+
+- [ ] Recover actual signup/sign-in requests and response fixtures.
+- [x] Restore Sign In/Sign Up entry, top-right Sign Out after authentication and explicit offline access; verify UI with injected success/failure fixtures.
+- [ ] Implement and bind the verified original-service protocol; restore the authentication gate with integration tests.
+- [ ] Validate real startup token checks, expiry, sign-out and WebSocket authentication.
+
+The earlier no-login V1 scope superseded the original authentication requirements. PATTERN is
 the highest-priority strategy; IHG is supporting description and is separate.
 See the [PATTERN evidence review](docs/pattern-strategy-evidence.md) for its exact
 missing rules and the [IHG reference review](docs/strategy-9-ihg-evidence.md) for

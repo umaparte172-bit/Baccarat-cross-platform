@@ -22,7 +22,9 @@ var strategyDefinition = new StrategyDefinition(
     new StrategyRule("WINNER", AmountRuleKind.MultiplyAmount, [2m]),
     null, null, null, null, 0);
 var controller = new AutomationController(new SimulatedAutomationTableAdapter());
-var window = new MainWindow(initialStrategy: strategyDefinition, automationController: controller);
+// Successful authentication is injected test data, never a production server substitute.
+var window = new MainWindow(initialStrategy: strategyDefinition, automationController: controller,
+    authenticationService: new DemoAuthenticationService());
 window.Show();
 window.UpdateLayout();
 CheckButtonAlignment(window);
@@ -56,15 +58,28 @@ void CheckButtonAlignment(Window host)
             $"Button '{button.Content}' must have symmetric padding");
     }
 }
-void CheckNoAccountGate()
+void CheckAuthenticatedWorkspace()
 {
     Check(!window.GetVisualDescendants().OfType<TabControl>().Any(), "No tab navigation should be shown");
-    Check(!window.GetVisualDescendants().OfType<AccountView>().Any(), "V1 must not show an account screen");
-    Check(!window.GetVisualDescendants().OfType<Button>().Any(b =>
-        b.Content is "SIGN IN" or "SIGN UP" or "SIGN OUT"), "V1 must not expose authentication actions");
+    Check(!window.GetVisualDescendants().OfType<AccountView>().Any(), "Account screen must be hidden after authentication");
+    Check(Grid.GetColumn(FindButton("SIGN OUT")) == 1, "Sign Out must be in the upper-right header");
 }
-CheckNoAccountGate();
-Check(HasText("WORKSPACE HOME") && HasText("No account or activation required"), "Launch must open Home directly");
+Check(window.GetVisualDescendants().OfType<AccountView>().Any() && !HasText("WORKSPACE HOME"), "Launch must show Sign In");
+Click("SIGN IN");
+Check(HasText("Email and password are required."), "Empty sign-in must be validated");
+Click("SIGN UP");
+Click("SIGN UP");
+Check(HasText("Name, phone and country are required."), "Empty signup must be validated");
+var registration = window.GetVisualDescendants().OfType<TextBox>().ToArray();
+Check(registration.Length == 5, "Signup must expose all original form fields");
+registration[0].Text = "UI Test";
+registration[1].Text = DemoAuthenticationService.Email;
+registration[2].Text = DemoAuthenticationService.Password;
+registration[3].Text = "0000000000";
+registration[4].Text = "Test";
+Click("SIGN UP");
+CheckAuthenticatedWorkspace();
+Check(HasText("WORKSPACE HOME"), "Successful signup must open Home");
 Check(!window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "Back to home")), "Home must not have a Back button");
 Click("OPEN SESSION");
 var back = FindButton("Back to home");
@@ -116,7 +131,7 @@ Check(HasText("VIEWER WORKSPACE") && HasText("DOCUMENT HISTORY"), "Viewer sectio
 Check(HasText("Protocol 1.0") && HasText("Rounds 1 · Player 1 · Banker 0 · Tie 0"), "Session snapshot incorrect");
 Check(HasText("UI Fixture · Profit -1.00"), "Strategy snapshot incorrect");
 Check(HasText("Ready · Auto enabled · Simulation · Accepted 2 · Stake 3.00"), "Automation snapshot incorrect");
-CheckNoAccountGate();
+CheckAuthenticatedWorkspace();
 
 // This fixture reproduces the supplied configuration, not its unknown protected algorithm.
 using var patternStream = new MemoryStream(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "pattern-strategy.json")));
@@ -171,7 +186,7 @@ Check(patternEngine.Profit == 87.5m && patternEngine.Recommendation.State == Str
 Check(patternEngine.ToCsv().Contains("1,Banker,PATTERN,Banker,100,95,95,True,True", StringComparison.Ordinal) &&
     patternEngine.ToCsv().Contains("2,Banker,PATTERN,Player,7.5,-7.5,87.5,True,False", StringComparison.Ordinal), "PATTERN CSV incorrect");
 
-// Close replaces sign-out cleanup in V1.
+// Both sign-out and close must cancel pending simulation approval.
 Click("Back to home");
 Click("OPEN STRATEGIES");
 Click("Use Player");
@@ -179,6 +194,23 @@ Click("Back to home");
 Click("OPEN AUTOMATION");
 Click("Prepare initial bet");
 Check(controller.Snapshot.State == AutomationRunState.AwaitingApproval, "Close fixture missing approval");
+Click("SIGN OUT");
+Check(window.GetVisualDescendants().OfType<AccountView>().Any() && !HasText("WORKSPACE HOME"), "Sign-out must restore Sign In");
+Check(controller.Snapshot.State == AutomationRunState.Paused && !controller.Snapshot.AutoBetEnabled,
+    "Sign-out must pause simulation and disable auto-bet");
+Check(controller.ApprovePendingAsync().GetAwaiter().GetResult().Outcome != AutomationActionOutcome.Accepted,
+    "Sign-out must cancel approval");
+var credentials = window.GetVisualDescendants().OfType<TextBox>().ToArray();
+Check(string.IsNullOrEmpty(credentials[1].Text), "Password must be cleared after authentication");
+credentials[0].Text = DemoAuthenticationService.Email;
+credentials[1].Text = "wrong-password";
+Click("SIGN IN");
+Check(!HasText("WORKSPACE HOME") && HasText("did not match"), "Rejected sign-in must not expose workspace");
+credentials[1].Text = DemoAuthenticationService.Password;
+Click("SIGN IN");
+CheckAuthenticatedWorkspace();
+Click("OPEN AUTOMATION");
+Click("Prepare initial bet");
 window.Close();
 Check(controller.Snapshot.State == AutomationRunState.Paused && !controller.Snapshot.AutoBetEnabled,
     "Close must cancel pending simulation and disable auto-bet");
@@ -187,14 +219,23 @@ Check(controller.ApprovePendingAsync().GetAwaiter().GetResult().Outcome != Autom
 window = new MainWindow();
 window.Show();
 window.UpdateLayout();
-CheckNoAccountGate();
-Check(HasText("WORKSPACE HOME"), "Relaunch must not require stored credentials");
+Check(!HasText("WORKSPACE HOME") && HasText("Wetalkbet server integration is not configured"),
+    "Default launch must show honest server status and Sign In");
+credentials = window.GetVisualDescendants().OfType<TextBox>().ToArray();
+credentials[0].Text = "test@example.com";
+credentials[1].Text = "test-password";
+Click("SIGN IN");
+Check(HasText("contract has not yet been recovered") && !HasText("WORKSPACE HOME"), "Offline service must never fake successful authentication");
+Click("OPEN OFFLINE WORKSPACE");
+Check(HasText("WORKSPACE HOME"), "Offline tools must remain accessible without pretending to authenticate");
 Click("OPEN STRATEGIES");
 Check(HasText("No strategy loaded") && !FindButton("Player result").IsEnabled, "Fresh launch must be empty and safe");
+Click("BACK TO SIGN IN");
+Check(window.GetVisualDescendants().OfType<AccountView>().Any(), "Offline mode must return to Sign In");
 window.Close();
-Console.WriteLine("PASS: no-login startup/relaunch, session, strategies, PATTERN manual flow, simulation, viewer, reset, export data and close cleanup");
+Console.WriteLine("PASS: account entry, signup/signin fixtures, rejection, signout, offline access and all existing workspace checks");
 
-// Account screens remain outside the default offline workflow, but share the button theme.
+// Both account forms share the button theme.
 var accountView = new AccountView(new OfflineAuthenticationService());
 var accountWindow = new Window { Width = 900, Height = 760, Content = accountView };
 accountWindow.Show();

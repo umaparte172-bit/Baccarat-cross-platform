@@ -4,6 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Baccarat.Core;
+using Baccarat.Core.Authentication;
 using Baccarat.Core.Automation;
 using Baccarat.Core.Communication;
 using Baccarat.Core.Diagnostics;
@@ -33,7 +34,9 @@ public sealed class MainWindow : Window
         IDiagnosticSink? diagnostics = null,
         StrategyDefinition? initialStrategy = null,
         ViewerCommunicationModule? viewerCommunication = null,
-        AutomationController? automationController = null)
+        AutomationController? automationController = null,
+        IAuthenticationService? authenticationService = null,
+        IAuthenticationSessionStore? authenticationSessions = null)
     {
         var defaults = ApplicationServices.CreateDefault();
         this.diagnostics = diagnostics ?? defaults.Diagnostics;
@@ -74,6 +77,9 @@ public sealed class MainWindow : Window
         recordTools.Children.Add(history);
         overview.Children.Add(WorkspaceUi.Card("ROUND HISTORY", recordTools));
         overview.Children.Add(WorkspaceUi.Text("MANUAL MODE · Data remains on this device until exported.", 12, LegacyTheme.Muted));
+
+        var account = new AccountView(authenticationService ?? defaults.Authentication, this.diagnostics, authenticationSessions);
+        var accountScreen = new ScrollViewer { Content = account };
 
         var viewer = new ViewerView(this.viewerCommunication);
         var controlledAutomation = automationController ?? defaults.Automation;
@@ -122,6 +128,11 @@ public sealed class MainWindow : Window
         heading.Children.Add(Label("WETALKBET CONTROL PANEL", 12, "#A7B3C7"));
         identity.Children.Add(heading);
         header.Children.Add(identity);
+        var signOut = WorkspaceUi.Action("SIGN OUT");
+        signOut.VerticalAlignment = VerticalAlignment.Center;
+        signOut.Click += async (_, _) => await account.SignOutAsync();
+        Grid.SetColumn(signOut, 1);
+        header.Children.Add(signOut);
         DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header);
         status.Margin = new Thickness(0, 12, 0, 0);
         status.Foreground = LegacyTheme.Muted;
@@ -142,8 +153,28 @@ public sealed class MainWindow : Window
             }
             controlledAutomation.SnapshotChanged -= PublishAutomation;
         };
-        Content = layout;
-        ShowHome();
+        account.Authenticated += () =>
+        {
+            signOut.Content = "SIGN OUT";
+            Content = layout;
+            ShowHome();
+        };
+        account.OfflineRequested += () =>
+        {
+            signOut.Content = "BACK TO SIGN IN";
+            Content = layout;
+            ShowHome();
+        };
+        account.SignedOut += () =>
+        {
+            controlledAutomation.CancelPending("Pending simulation cancelled on sign-out.");
+            if (controlledAutomation.Snapshot.State != AutomationRunState.Disconnected)
+                controlledAutomation.Pause("Signed out.");
+            Content = accountScreen;
+            Title = "Baccarat (Evolution) — Sign In";
+        };
+        Content = accountScreen;
+        Title = "Baccarat (Evolution) — Sign In";
         Refresh();
         Publish(new CommunicationStatusPayload("offline", "Local versioned communication is ready."));
         PublishSession();
@@ -160,7 +191,7 @@ public sealed class MainWindow : Window
         Action openViewer)
     {
         var page = WorkspaceUi.Page("WORKSPACE HOME", "Baccarat workspace",
-            "Choose a workspace to begin. No account or activation required. All work stays local until exported.");
+            "Choose a workspace to begin. Current workspace tools are local; live table integration is not connected.");
         var choices = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("*,*"),
