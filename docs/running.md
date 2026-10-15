@@ -9,13 +9,15 @@ dotnet run --project tests/Baccarat.Core.Checks
 
 On this Windows workspace, the isolated SDK is available via `.tools/dotnet/dotnet.exe` instead of `dotnet`.
 
-The application supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. The Strategies tab imports the supplied JSON-shaped `.txt` definitions, calculates verified progression rules, accepts observed table outcomes, tracks profit and limits, and exports its own CSV history. Opaque protected rules require a manual side or stake rather than being guessed. Records remain in memory, so export before closing.
+The application supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. The Strategies workspace imports the supplied JSON-shaped `.txt` definitions, calculates supported progression rules, accepts observed table outcomes, tracks profit and limits, and exports its own CSV history. Opaque protected rules require a manual side or stake rather than being guessed. Records remain in memory, so export before closing.
 
 The Viewer tab receives live versioned snapshots whenever the manual session or strategy state changes. It shows the active protocol and document versions, communication status and ordered history. The current communication transport is in-process and offline: it neither connects to the original server nor sends credentials or game data over a network.
 
 The Automation tab exercises the complete controlled workflow against a local simulation. Connect the simulation, prepare and approve the initial recommendation, then enable auto-bet if the next strategy recommendation should be prepared automatically after each observed round. Every simulated placement still requires approval. Stake, cumulative-session and chip-click limits are enforced; connection recovery returns paused; an uncertain placement is never retried.
 
-The application starts on Sign In/Sign Up; the workspaces are hidden until authentication. For local UI testing, use name `Demo User`, email `demo@baccarat.local`, password `Baccarat-Demo-2026!`, phone `0000000000`, and country `Test`. These credentials are public test data, not a real account. No network request or persistent account is created. **Remember Me** is optional: when checked at Sign In, the local demo session is kept in a separate protected-store namespace and restored on the next launch until its eight-hour expiry or Sign Out. When unchecked, the session ends when the app closes. Successful sign-up or sign-in opens the workspace home screen. Choose Session, Strategies, Automation, or Viewer there. **Back to home** is at the upper-left of each workspace, while **Sign out** is at the upper-right on Home and every workspace; signing out hides the workspaces again. There is no live authentication, real-money betting, outcome prediction or connection to the original service.
+Version 1 starts directly at Home. No account, password, registration, license, activation or online authentication is required. Choose Session, Strategies, Automation or Viewer; **Back to home** is at the upper-left of each workspace. There is no account tab or Sign Out button. Existing demo credentials and remembered sessions are not read. Closing cancels pending simulation approval and disables auto-bet. There is no real-money betting, outcome prediction or connection to the original service.
+
+PATTERN is the priority strategy, separate from IHG. Loading its supplied definition asks you to choose the initial side with stake 100. After a win or loss, choose a side and enter the next stake manually. Its automatic selection and amount algorithms remain unverified. The current replacement applies standard Player/Banker settlement and tie pushes, not a verified original PATTERN tie rule. See [the workflow acceptance record](v1-workflow-acceptance.md).
 
 ## Self-contained publish
 
@@ -61,7 +63,7 @@ bash tools/sign-notarize-macos.sh \
 
 The signing script stops if either configuration value is missing, signs nested Mach-O files before the bundle, enables hardened runtime and a secure timestamp, submits with `notarytool`, staples the ticket, then runs signature, stapler and Gatekeeper validation. It does not accept or store an Apple password. Repeat with `osx-x64` for an Intel package.
 
-The protected session-store adapters are available for future verified server authentication: macOS Keychain under service `com.baccarat.crossplatform`, Windows Credential Manager, and an in-memory fallback elsewhere. Opted-in local demo sessions use the separate service `com.baccarat.crossplatform.demo`; demo passwords are never stored.
+Historical authentication and protected-store adapters remain in source for reference and isolated tests, but V1 does not construct or use them. Existing entries under `com.baccarat.crossplatform` or `com.baccarat.crossplatform.demo` are not read or modified by V1 startup.
 
 The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests and creates both unsigned macOS architecture artifacts.
 

@@ -2,6 +2,32 @@
 
 Work proceeds in dependency order. Completion means the acceptance criteria have been checked, not merely that a file exists.
 
+## Current client scope and strategy evidence (2026-10-15)
+
+The latest V1 scope supersedes earlier authentication requirements. PATTERN is
+the highest-priority strategy; IHG is supporting description and is separate.
+See the [PATTERN evidence review](docs/pattern-strategy-evidence.md) for its exact
+missing rules and the [IHG reference review](docs/strategy-9-ihg-evidence.md) for
+the separately audited document. IHG questions do not block PATTERN recovery.
+
+- [x] Compare the eight resupplied TXT files with prior client files (all identical).
+- [x] Confirm with the user that Strategy 9 is IHG.
+- [x] Extract and audit 315 IHG worked hands; preserve the source's pause conflict.
+- [x] Record the subsequent clarification: prioritize PATTERN separately from IHG.
+- [ ] Recover PATTERN side selection and the meaning of its Pattern amount value 2.
+- [ ] Implement and verify PATTERN first, using original-app reference results.
+- [ ] Confirm numbered Strategies 1-6 against the named strategy files.
+- [ ] Obtain IHG tie and simultaneous-limit rules from the client.
+- [ ] Resolve exactly-45 and nonpositive-profit consecutive-win boundaries.
+- [ ] Integrate IHG only if separately included in the product scope, after its rules are resolved.
+- [ ] Recover remaining named selector and amount algorithms; handle installed Ladder.
+- [x] Remove the demo authentication gate so V1 opens directly into the workspace, without accessing stored credentials.
+- [x] Exercise PATTERN manual resolution through simulation, viewer, undo/reset and exact CSV values; fix premature auto-bet round consumption.
+- [ ] Compare priority strategies with original-app demonstrations and client results.
+
+The historical stage checklist below records earlier work; checked manual
+fallback support does not mean all original strategy algorithms are recovered.
+
 ## 1. Repository and evidence baseline
 
 - [x] Create local Git repository and exclude the original executable, caches and generated binary resources.

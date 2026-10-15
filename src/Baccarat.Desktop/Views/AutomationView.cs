@@ -88,7 +88,10 @@ public sealed class AutomationView : StackPanel
         currentRecommendation = next;
         currentRoundCount = engine.Rounds.Count;
         recommendation.Text = currentRecommendation.Message;
-        if (controller.Snapshot.AutoBetEnabled && currentRoundCount > 0 && currentRoundCount != lastAutomatedRound)
+        // Manual selectors can publish several incomplete states for the same round.
+        // Do not consume that round until both the side and stake are resolved.
+        if (controller.Snapshot.AutoBetEnabled && next.State == StrategyEngineState.Ready &&
+            currentRoundCount > 0 && currentRoundCount != lastAutomatedRound)
         {
             lastAutomatedRound = currentRoundCount;
             _ = RunAutoBetAsync(currentRecommendation);

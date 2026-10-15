@@ -3,217 +3,173 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Baccarat.Core;
+using Baccarat.Core.Automation;
+using Baccarat.Core.Strategies;
 using Baccarat.Desktop;
 using Baccarat.Desktop.Views;
-using Baccarat.Core.Authentication;
-using Baccarat.Core.Strategies;
-using Baccarat.Infrastructure.Authentication;
-using Baccarat.Infrastructure.Security;
+using Baccarat.Infrastructure.Automation;
+using Baccarat.Infrastructure.Strategies;
 
 AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
 var strategyDefinition = new StrategyDefinition(
-    "UI Fixture",
-    null,
+    "UI Fixture", null,
     new StrategyRule("PLAYER", AmountRuleKind.Set, [1m]),
     new StrategyRule("WINNER", AmountRuleKind.ResetAmount, [2m]),
     new StrategyRule("WINNER", AmountRuleKind.MultiplyAmount, [2m]),
-    null,
-    null,
-    null,
-    null,
-    0);
-var window = new MainWindow(initialStrategy: strategyDefinition);
+    null, null, null, null, 0);
+var controller = new AutomationController(new SimulatedAutomationTableAdapter());
+var window = new MainWindow(initialStrategy: strategyDefinition, automationController: controller);
 window.Show();
 window.UpdateLayout();
-Button FindButton(string name) => window.GetVisualDescendants().OfType<Button>()
-    .Single(b => Equals(b.Content, name));
-void Click(string name) => FindButton(name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+Button FindButton(string name) => window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, name));
+void Click(string name)
+{
+    var button = FindButton(name);
+    if (!button.IsEnabled) throw new Exception($"Cannot click disabled action: {name}");
+    button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    window.UpdateLayout();
+}
 bool HasText(string value) => window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains(value) == true);
-if (window.GetVisualDescendants().OfType<TabControl>().Any())
-    throw new Exception("The tab navigation must not be displayed");
-if (HasText("Session tracker") || window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "OPEN SESSION")))
-    throw new Exception("The workspace must be hidden before authentication");
-if (!FindButton("SIGN IN").IsEnabled || !FindButton("SIGN UP").IsEnabled ||
-    !window.GetVisualDescendants().OfType<CheckBox>().Any(box => Equals(box.Content, "REMEMBER ME")))
-    throw new Exception("The SignIn screen was not shown");
-if (!window.GetVisualDescendants().OfType<CheckBox>().Single(box => Equals(box.Content, "REMEMBER ME")).IsEnabled)
-    throw new Exception("Remember Me must be available in local demo mode");
-Click("SIGN UP");
-window.UpdateLayout();
-if (!HasText("NAME :") || !HasText("PHONE NO :") || !HasText("COUNTRY :"))
-    throw new Exception("The SignUp screen was not shown");
-Click("SIGN UP");
-window.UpdateLayout();
-if (!HasText("Name, phone and country are required."))
-    throw new Exception("Registration validation was not shown in the account UI");
-Click("SIGN IN");
-window.UpdateLayout();
-if (!window.GetVisualDescendants().OfType<CheckBox>().Any(box => Equals(box.Content, "REMEMBER ME")))
-    throw new Exception("SignIn navigation did not restore its screen");
-Click("SIGN UP");
-window.UpdateLayout();
-var account = window.GetVisualDescendants().OfType<AccountView>().Single();
-var fields = account.GetVisualDescendants().OfType<TextBox>().ToArray();
-if (fields.Length != 5) throw new Exception("The registration form fields were not shown");
-fields[0].Text = "Demo User";
-fields[1].Text = DemoAuthenticationService.Email;
-fields[2].Text = DemoAuthenticationService.Password;
-fields[3].Text = "0000000000";
-fields[4].Text = "Test";
-Click("SIGN UP");
-window.UpdateLayout();
-if (!HasText("Baccarat workspace") || !HasText("WORKSPACE HOME") ||
-    !window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "OPEN SESSION")))
-    throw new Exception("Local demo registration did not open the workspace home");
-if (window.GetVisualDescendants().OfType<AccountView>().Any() || window.GetVisualDescendants().OfType<TabControl>().Any())
-    throw new Exception("The sign-in form and tab bar must be hidden after authentication");
-if (Grid.GetColumn(FindButton("SIGN OUT")) != 1 ||
-    window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "Back to home")))
-    throw new Exception("Sign Out must be in the upper-right header, with no Back button on Home");
-
+void Check(bool condition, string message)
+{
+    if (!condition) throw new Exception(message);
+}
+void CheckNoAccountGate()
+{
+    Check(!window.GetVisualDescendants().OfType<TabControl>().Any(), "No tab navigation should be shown");
+    Check(!window.GetVisualDescendants().OfType<AccountView>().Any(), "V1 must not show an account screen");
+    Check(!window.GetVisualDescendants().OfType<Button>().Any(b =>
+        b.Content is "SIGN IN" or "SIGN UP" or "SIGN OUT"), "V1 must not expose authentication actions");
+}
+CheckNoAccountGate();
+Check(HasText("WORKSPACE HOME") && HasText("No account or activation required"), "Launch must open Home directly");
+Check(!window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "Back to home")), "Home must not have a Back button");
 Click("OPEN SESSION");
-window.UpdateLayout();
 var back = FindButton("Back to home");
-if (DockPanel.GetDock(back) != Dock.Top || back.BorderThickness.Left != 1 || back.Margin.Left != 24 ||
-    !window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "SIGN OUT")))
-    throw new Exception("Back to home must match workspace actions and Sign Out must remain available");
-if (window.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == "Session tracker").HorizontalAlignment != HorizontalAlignment.Center)
-    throw new Exception("Workspace headings must be centered");
-if (!HasText("TABLE WORKSPACE") || !HasText("RECORD TABLE RESULT") || !HasText("ROUND HISTORY"))
-    throw new Exception("The session workspace layout was not shown");
-if (FindButton("Undo last").IsEnabled) throw new Exception("Empty undo must be disabled");
+Check(DockPanel.GetDock(back) == Dock.Top && back.BorderThickness.Left == 1 && back.Margin.Left == 24, "Back button layout incorrect");
+Check(window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == "Session tracker").HorizontalAlignment == HorizontalAlignment.Center,
+    "Workspace headings must be centered");
+Check(HasText("TABLE WORKSPACE") && HasText("RECORD TABLE RESULT") && HasText("ROUND HISTORY"), "Session sections missing");
+Check(!FindButton("Undo last").IsEnabled && !FindButton("Export CSV").IsEnabled, "Empty session actions must be disabled");
 Click("+ Player");
 Click("+ Banker");
-window.UpdateLayout();
-if (!HasText("2 rounds")) throw new Exception("Recording did not update UI");
+Click("+ Tie");
+Check(HasText("3 rounds"), "Recording did not update UI");
 Click("Undo last");
-window.UpdateLayout();
-if (!HasText("1 rounds")) throw new Exception("Undo did not update UI");
-if (!FindButton("Export CSV").IsEnabled) throw new Exception("Export should be enabled");
+Click("Undo last");
+Check(HasText("1 rounds") && FindButton("Export CSV").IsEnabled, "Undo/export state did not update");
 
 Click("Back to home");
 Click("OPEN STRATEGIES");
-window.UpdateLayout();
-if (!HasText("STRATEGY WORKSPACE") || !HasText("CURRENT RECOMMENDATION") || !HasText("STRATEGY HISTORY"))
-    throw new Exception("The strategy workspace layout was not shown");
-if (!HasText("Bet 1 on Player.")) throw new Exception("Initial strategy recommendation was not shown");
+Check(HasText("STRATEGY WORKSPACE") && HasText("CURRENT RECOMMENDATION") && HasText("STRATEGY HISTORY"), "Strategy sections missing");
+Check(HasText("Bet 1 on Player."), "Initial strategy recommendation missing");
 Click("Banker result");
-window.UpdateLayout();
-if (!HasText("Bet 2 on Banker.") || !HasText("Profit -1.00"))
-    throw new Exception("Strategy loss progression was not shown");
-if (!FindButton("Undo strategy round").IsEnabled || !FindButton("Export strategy CSV").IsEnabled)
-    throw new Exception("Strategy session undo and export must be enabled after settlement");
+Check(HasText("Bet 2 on Banker.") && HasText("Profit -1.00"), "Loss progression incorrect");
+Check(FindButton("Undo strategy round").IsEnabled && FindButton("Export strategy CSV").IsEnabled, "Strategy tools disabled");
 Click("Undo strategy round");
-window.UpdateLayout();
-if (!HasText("Profit 0.00") || !HasText("Bet 1 on Player."))
-    throw new Exception("Strategy undo did not restore its initial state");
+Check(HasText("Profit 0.00") && HasText("Bet 1 on Player."), "Undo did not restore strategy");
 
 Click("Back to home");
 Click("OPEN AUTOMATION");
-window.UpdateLayout();
-if (!HasText("Controlled automation") || !HasText("SIMULATION STATUS") ||
-    !HasText("BET CONTROLS") || !HasText("Local simulation is the only enabled adapter"))
-    throw new Exception("Controlled automation workspace was not shown");
+Check(HasText("Controlled automation") && HasText("Local simulation is the only enabled adapter"), "Simulation boundary missing");
 Click("Connect simulation");
-window.UpdateLayout();
-if (!HasText("Simulation table connected.")) throw new Exception("Automation simulation did not connect");
+Check(HasText("Simulation table connected."), "Simulation did not connect");
 Click("Prepare initial bet");
-window.UpdateLayout();
-if (!HasText("Approve 1 on Player.")) throw new Exception("Initial bet did not enter approval state");
+Check(HasText("Approve 1 on Player."), "Initial bet must require approval");
 Click("Approve pending bet");
-window.UpdateLayout();
-if (!HasText("Simulation accepted 1 on Player.") || !HasText("Accepted bets 1"))
-    throw new Exception("Approved initial Player bet was not simulated");
+Check(HasText("Simulation accepted 1 on Player.") && HasText("Accepted bets 1"), "Initial simulation failed");
 Click("Enable auto-bet");
-
 Click("Back to home");
 Click("OPEN STRATEGIES");
-window.UpdateLayout();
 Click("Banker result");
-window.UpdateLayout();
 Click("Back to home");
 Click("OPEN AUTOMATION");
-window.UpdateLayout();
-if (!HasText("Approve 2 on Banker.")) throw new Exception("Auto-bet did not prepare the next Banker action");
+Check(HasText("Approve 2 on Banker."), "Next recommendation did not reach approval");
 Click("Approve pending bet");
-window.UpdateLayout();
-if (!HasText("Simulation accepted 2 on Banker.") || !HasText("Accepted bets 2"))
-    throw new Exception("Approved automatic Banker bet was not simulated");
+Check(HasText("Simulation accepted 2 on Banker.") && HasText("Accepted bets 2"), "Banker simulation failed");
 
 Click("Back to home");
 Click("OPEN VIEWER");
-window.UpdateLayout();
-if (!HasText("VIEWER WORKSPACE") || !HasText("COMMUNICATION") || !HasText("DOCUMENT HISTORY"))
-    throw new Exception("The viewer workspace layout was not shown");
-if (!HasText("Protocol 1.0") || !HasText("Rounds 1 · Player 1 · Banker 0 · Tie 0"))
-    throw new Exception("Viewer did not receive the versioned manual-session document");
-if (!HasText("UI Fixture · Profit -1.00"))
-    throw new Exception("Viewer did not receive the latest versioned strategy document");
-if (!HasText("Ready · Auto enabled · Simulation · Accepted 2 · Stake 3.00"))
-    throw new Exception("Viewer did not receive the latest versioned automation document");
+Check(HasText("VIEWER WORKSPACE") && HasText("DOCUMENT HISTORY"), "Viewer sections missing");
+Check(HasText("Protocol 1.0") && HasText("Rounds 1 · Player 1 · Banker 0 · Tie 0"), "Session snapshot incorrect");
+Check(HasText("UI Fixture · Profit -1.00"), "Strategy snapshot incorrect");
+Check(HasText("Ready · Auto enabled · Simulation · Accepted 2 · Stake 3.00"), "Automation snapshot incorrect");
+CheckNoAccountGate();
 
+// This fixture reproduces the supplied configuration, not its unknown protected algorithm.
+using var patternStream = new MemoryStream(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "pattern-strategy.json")));
+var pattern = new StrategyFileLoader().LoadAsync(patternStream).GetAwaiter().GetResult();
 Click("Back to home");
-Click("SIGN OUT");
+Click("OPEN STRATEGIES");
+window.GetVisualDescendants().OfType<StrategyView>().Single().Load(pattern);
 window.UpdateLayout();
-if (HasText("WORKSPACE HOME") || !HasText("EMAIL :") ||
-    window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "OPEN SESSION")))
-    throw new Exception("Sign-out must hide every workspace and restore sign-in");
-fields = account.GetVisualDescendants().OfType<TextBox>().ToArray();
-if (fields.Length != 2) throw new Exception("The sign-in fields were not shown");
-fields[0].Text = DemoAuthenticationService.Email;
-fields[1].Text = DemoAuthenticationService.Password;
-Click("SIGN IN");
-window.UpdateLayout();
-if (!HasText("WORKSPACE HOME")) throw new Exception("Local demo sign-in did not reopen the workspace");
-var demo = new DemoAuthenticationService();
-var rejected = await demo.SignInAsync(new SignInRequest(DemoAuthenticationService.Email, "incorrect"));
-if (rejected.Outcome != AuthenticationOutcome.Rejected || rejected.Session is not null)
-    throw new Exception("Incorrect demo credentials must not create a session");
-window.Close();
-var rememberedStore = new SecretAuthenticationSessionStore(new VolatileSecretStore());
-var rememberedWindow = new MainWindow(authenticationSessions: rememberedStore);
-rememberedWindow.Show();
-rememberedWindow.UpdateLayout();
-var remember = rememberedWindow.GetVisualDescendants().OfType<CheckBox>()
-    .Single(box => Equals(box.Content, "REMEMBER ME"));
-remember.IsChecked = true;
-var rememberedFields = rememberedWindow.GetVisualDescendants().OfType<TextBox>().ToArray();
-rememberedFields[0].Text = DemoAuthenticationService.Email;
-rememberedFields[1].Text = DemoAuthenticationService.Password;
-rememberedWindow.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "SIGN IN"))
-    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-rememberedWindow.UpdateLayout();
-if (!rememberedWindow.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "WORKSPACE HOME") ||
-    await rememberedStore.ReadAsync() is null)
-    throw new Exception("Remember Me did not save the local demo session");
-rememberedWindow.Close();
+Check(FindButton("Use Player").IsEnabled && !FindButton("Player result").IsEnabled, "PATTERN must await a manual side");
+Click("Use Player");
+Check(HasText("Bet 100 on Player."), "PATTERN configured initial amount must be 100");
+Click("Player result");
+Check(HasText("Profit 100.00") && !FindButton("Player result").IsEnabled, "PATTERN win must await manual resolution");
+Check(controller.Snapshot.State != AutomationRunState.AwaitingApproval, "Unresolved PATTERN must not prepare a bet");
+Click("Use Banker");
+Check(HasText("Enter a stake for amount rule 'Pattern'."), "Pattern amount must remain manual");
+var stake = window.GetVisualDescendants().OfType<TextBox>().Single(t => Equals(t.Watermark, "Manual stake"));
+stake.Text = "-2";
+Click("Apply stake");
+Check(HasText("Enter a positive stake") && !FindButton("Banker result").IsEnabled, "Invalid stake accepted");
+stake.Text = "7.5";
+Click("Apply stake");
+Check(HasText("Bet 7.5 on Banker."), "Manual decimal stake not applied");
+Check(controller.Snapshot.State == AutomationRunState.AwaitingApproval,
+    "Auto-bet must wait for manual resolution, then prepare the now-ready recommendation");
+Click("Back to home");
+Click("OPEN AUTOMATION");
+Check(HasText("Approve 7.5 on Banker."), "Resolved PATTERN recommendation not propagated");
+Click("Back to home");
+Click("OPEN STRATEGIES");
+Click("Tie result");
+Check(HasText("Profit 100.00") && HasText("Bet 7.5 on Banker."), "Replacement tie-push default changed");
+Click("Banker result");
+Check(HasText("Profit 107.13"), "Banker commission did not appear in UI");
+Click("Undo strategy round");
+Check(HasText("Profit 100.00") && HasText("Bet 7.5 on Banker."), "Undo must restore manual decisions");
+Click("Reset strategy");
+Check(HasText("Profit 0.00") && FindButton("Use Player").IsEnabled && !FindButton("Export strategy CSV").IsEnabled, "Reset state incorrect");
+Check(controller.Snapshot.State != AutomationRunState.AwaitingApproval, "Reset must invalidate approval");
+Click("Back to home");
+Click("OPEN VIEWER");
+Check(HasText("PATTERN · Profit 0.00 · AwaitingSide"), "Reset snapshot not propagated");
 
-var restoredWindow = new MainWindow(authenticationSessions: rememberedStore);
-restoredWindow.Show();
-Dispatcher.UIThread.RunJobs();
-restoredWindow.UpdateLayout();
-if (!restoredWindow.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "WORKSPACE HOME"))
-    throw new Exception("Remember Me did not restore the local demo session");
-restoredWindow.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "SIGN OUT"))
-    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-restoredWindow.UpdateLayout();
-if (await rememberedStore.ReadAsync() is not null ||
-    restoredWindow.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "WORKSPACE HOME"))
-    throw new Exception("Sign-out did not clear the remembered session");
-restoredWindow.Close();
-var transientStore = new SecretAuthenticationSessionStore(new VolatileSecretStore());
-var transientWindow = new MainWindow(authenticationSessions: transientStore);
-transientWindow.Show();
-transientWindow.UpdateLayout();
-var transientFields = transientWindow.GetVisualDescendants().OfType<TextBox>().ToArray();
-transientFields[0].Text = DemoAuthenticationService.Email;
-transientFields[1].Text = DemoAuthenticationService.Password;
-transientWindow.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "SIGN IN"))
-    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-transientWindow.UpdateLayout();
-if (await transientStore.ReadAsync() is not null)
-    throw new Exception("An unchecked Remember Me must not save a session");
-transientWindow.Close();
-Console.WriteLine("PASS: headless desktop startup, session tools and account validation UI");
+// Exact settlement/export are checked separately from rounded display labels.
+var patternEngine = new StrategySessionEngine(pattern);
+patternEngine.ChooseSide(BetSide.Banker);
+patternEngine.Record(Outcome.Banker);
+patternEngine.ChooseSide(BetSide.Player);
+patternEngine.SetManualStake(7.5m);
+patternEngine.Record(Outcome.Banker);
+Check(patternEngine.Profit == 87.5m && patternEngine.Recommendation.State == StrategyEngineState.AwaitingSide, "Manual loss settlement incorrect");
+Check(patternEngine.ToCsv().Contains("1,Banker,PATTERN,Banker,100,95,95,True,True", StringComparison.Ordinal) &&
+    patternEngine.ToCsv().Contains("2,Banker,PATTERN,Player,7.5,-7.5,87.5,True,False", StringComparison.Ordinal), "PATTERN CSV incorrect");
+
+// Close replaces sign-out cleanup in V1.
+Click("Back to home");
+Click("OPEN STRATEGIES");
+Click("Use Player");
+Click("Back to home");
+Click("OPEN AUTOMATION");
+Click("Prepare initial bet");
+Check(controller.Snapshot.State == AutomationRunState.AwaitingApproval, "Close fixture missing approval");
+window.Close();
+Check(controller.Snapshot.State == AutomationRunState.Paused && !controller.Snapshot.AutoBetEnabled,
+    "Close must cancel pending simulation and disable auto-bet");
+Check(controller.ApprovePendingAsync().GetAwaiter().GetResult().Outcome != AutomationActionOutcome.Accepted,
+    "Closed workspace must not retain an approvable bet");
+window = new MainWindow();
+window.Show();
+window.UpdateLayout();
+CheckNoAccountGate();
+Check(HasText("WORKSPACE HOME"), "Relaunch must not require stored credentials");
+Click("OPEN STRATEGIES");
+Check(HasText("No strategy loaded") && !FindButton("Player result").IsEnabled, "Fresh launch must be empty and safe");
+window.Close();
+Console.WriteLine("PASS: no-login startup/relaunch, session, strategies, PATTERN manual flow, simulation, viewer, reset, export data and close cleanup");

@@ -2,6 +2,15 @@
 
 The replacement is organized around verified behavior and replaceable external adapters. Core logic does not depend on Avalonia, Windows APIs, browser drivers or an assumed server schema.
 
+## Version 1 composition (2026-10-15)
+
+The latest client scope supersedes the historical authentication design below.
+`ApplicationServices` now composes only simulation, loopback communication,
+redacted diagnostics and disconnected network options. Startup opens Home directly;
+it does not construct an authentication service, account view or secret store.
+Authentication components remain isolated historical/reference code, not a V1 gate.
+Closing the workspace cancels pending simulation approvals and disables auto-bet.
+
 ## Projects
 
 ### `Baccarat.Core`

@@ -67,6 +67,10 @@ public sealed class StrategyView : StackPanel
         resolution.Children.Add(manualStake);
         resolution.Children.Add(applyStake);
         page.Children.Add(WorkspaceUi.Card("MANUAL RESOLUTION", resolution));
+        page.Children.Add(Text(
+            "Protected rules such as PATTERN require your side and stake decisions. Their automatic algorithms are not yet verified. " +
+            "Settlement currently uses Player 1:1, Banker 0.95:1 and tie pushes; confirm these against the original before relying on comparisons.",
+            14, "#91A1B9"));
 
         var outcomes = Row();
         playerResult.Background = Brush.Parse("#325C9C");

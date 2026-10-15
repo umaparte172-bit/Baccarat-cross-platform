@@ -2,7 +2,8 @@
 
 Local project for investigating the supplied Windows executable and rebuilding verified behavior for Windows and macOS. No original source code is available. The first desktop foundation is implemented; original-service integration is pending. See [running instructions](docs/running.md).
 
-For offline UI testing, use the public local demo credentials in [the running instructions](docs/running.md). Demo sign-up is not registration with the original service.
+Version 1 opens directly into the workspace: no sign-up, login, license or activation.
+See [the workflow acceptance record](docs/v1-workflow-acceptance.md) for current coverage and evidence gaps.
 
 Start with [TODO.md](TODO.md) and [analysis findings](docs/findings.md).
 
@@ -19,6 +20,13 @@ The cumulative implementation status through Stage 4 is recorded in [the archite
 Stage 5 authentication progress and the exact remaining evidence boundary are recorded in [the authentication implementation report](docs/stage-5-authentication-report.md).
 
 The completed offline strategy/session engine and its protected-algorithm boundary are documented in [the Stage 6 strategy report](docs/stage-6-strategy-session-report.md).
+
+The latest client scope removes login from V1 and prioritizes
+[PATTERN](docs/pattern-strategy-evidence.md). IHG is supporting description and is
+separate from PATTERN. The [IHG reference review](docs/strategy-9-ihg-evidence.md)
+records its 315 worked hands and unresolved document questions. The current build
+has no authentication gate and retains manual fallbacks for PATTERN; automatic PATTERN parity
+has not yet been established.
 
 The live versioned viewer, communication boundary and compatibility rules are documented in [the Stage 7 integration report](docs/stage-7-viewer-communication-report.md).
 
