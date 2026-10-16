@@ -31,6 +31,8 @@ public sealed partial class DashboardWindow : Window
     {
         this.services = services ?? ApplicationServices.CreateDefault();
         Title = "Baccarat Workspace";
+        using (var icon = Avalonia.Platform.AssetLoader.Open(new Uri("avares://Baccarat.Desktop/Assets/wetalkbet-logo.png")))
+            Icon = new WindowIcon(icon);
         Width = 1280; Height = 860; MinWidth = 800; MinHeight = 600;
         RequestedThemeVariant = ThemeVariant.Light;
         Background = DashboardUi.Surface;
@@ -144,11 +146,12 @@ public sealed partial class DashboardWindow : Window
         confirm.Click += (_, _) =>
         {
             selected.Clear();
+            if (tools.Remove(selected.Id, out var clearedTools)) clearedTools.Dispose();
             Dashboard.RefreshSharedState();
-            ShowTools();
+            ShowDashboard();
         };
         var cancel = WorkspaceUi.Action("Cancel");
-        cancel.Click += (_, _) => ShowTools();
+        cancel.Click += (_, _) => { ShowDashboard(); ShowTools(); };
         page.Children.Add(confirm);
         page.Children.Add(cancel);
         ShowTool("Clear session", page);

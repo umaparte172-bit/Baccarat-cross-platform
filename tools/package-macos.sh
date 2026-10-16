@@ -29,6 +29,7 @@ fi
 
 mkdir -p "$contents/MacOS" "$contents/Resources"
 cp "$root/packaging/macos/Info.plist" "$contents/Info.plist"
+bash "$root/tools/create-macos-icon.sh" "$root/src/Baccarat.Desktop/Assets/wetalkbet-logo.png" "$contents/Resources"
 
 dotnet publish "$root/src/Baccarat.Desktop/Baccarat.Desktop.csproj" \
   --configuration "$configuration" \

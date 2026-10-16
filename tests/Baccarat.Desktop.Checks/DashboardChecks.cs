@@ -19,6 +19,7 @@ internal static class DashboardChecks
     {
         var window = new DashboardWindow(persistenceEnabled: false);
         window.Show();
+        Assert(window.Icon is not null, "Dashboard window must carry the product icon");
         Layout();
         var view = window.Dashboard;
         var workspace = view.Workspace;
@@ -202,7 +203,7 @@ internal static class DashboardChecks
         Click("Clear session…");
         Click("Clear selected session");
         Assert(second.Hands.Count == 0 && first.Hands.Count == 2, "Confirmed clear must affect only the selected session");
-        Click("Back to dashboard");
+        Assert(window.Title == "Baccarat Workspace" && Text("Session 0 hands"), "Clear must return to the dashboard with visibly empty results");
         Named<ListBox>("SessionList").SelectedItem = first;
         Layout();
         Click("Tools");

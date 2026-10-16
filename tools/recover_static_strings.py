@@ -16,6 +16,14 @@ from dncil.cil.body.reader import read_method_body_from_bytes
 from phase2_metadata import Inspector
 
 
+class LocalAddress:
+    """Symbolic address of an already initialized interpreter local, never host memory."""
+    def __init__(self, values, index):
+        if index not in values:
+            raise ValueError("Uninitialized symbolic local")
+        self.values, self.index = values, index
+
+
 def signed(value):
     if isinstance(value, float):
         return value
@@ -51,6 +59,7 @@ class Decoder:
             elif op == "ldc.r8": stack.append(operand)
             elif op in ("ldloc", "ldloc.s"): stack.append(locals_[operand.index])
             elif op in ("stloc", "stloc.s"): locals_[operand.index] = stack.pop()
+            elif op in ("ldloca", "ldloca.s"): stack.append(LocalAddress(locals_, operand.index))
             elif op == "ldarg.0": stack.append(argument)
             elif op == "ldsfld": stack.append(self.fields[self.inspector.resolve_token(operand)])
             elif op == "stsfld": self.fields[self.inspector.resolve_token(operand)] = stack.pop()
@@ -84,6 +93,7 @@ class Decoder:
             elif op.startswith("conv."):
                 value = stack.pop()
                 if op == "conv.u1": value = int(value) & 255
+                elif op == "conv.u" and isinstance(value, LocalAddress): pass
                 elif op in ("conv.u", "conv.u4"): value = int(value) & 0xffffffff
                 elif op == "conv.i4": value = signed(int(value))
                 elif op == "conv.i8": value = int(value)

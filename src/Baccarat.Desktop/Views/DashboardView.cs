@@ -199,7 +199,11 @@ public sealed class DashboardView : UserControl
         draftControls.AddRange(new Control[] { strategy, unit, bankroll, fields, apply });
         unitRow = Field("Base unit", unit);
         var editor = DashboardUi.Stack(Field("Strategy", strategy), unitRow, Field("Starting bankroll", bankroll), fields,
-            apply, beginDraft, settingsStatus);
+            new WrapPanel { Children = { apply, beginDraft } }, settingsStatus);
+        editor.Spacing = 6;
+        editor.MaxWidth = 390;
+        editor.HorizontalAlignment = HorizontalAlignment.Left;
+        beginDraft.Margin = new Thickness(6, 0, 0, 0);
         editor.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter && e.Source is TextBox) { ApplySettings(); e.Handled = true; }
@@ -214,14 +218,14 @@ public sealed class DashboardView : UserControl
         var summary = DashboardUi.Stack(DashboardUi.Text("NEXT HAND", 11, DashboardUi.Muted, true), next, nextDescription,
             new Separator(), DashboardUi.Text("Balance", 12, DashboardUi.Muted), balance,
             profit, DashboardUi.Text("Calculated from recorded strategy results, not a casino account. Use Tools for import and manual decisions.", 11, DashboardUi.Muted));
-        var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("*,170"), ColumnSpacing = 16 };
+        var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 16 };
         columns.Children.Add(editor);
         Add(columns, summary, 1);
         // Keep the summary alongside settings on desktop; stack it at narrower widths.
         columns.SizeChanged += (_, _) =>
         {
             var compact = columns.Bounds.Width < 450;
-            columns.ColumnDefinitions = new ColumnDefinitions(compact ? "*" : "*,170");
+            columns.ColumnDefinitions = new ColumnDefinitions(compact ? "*" : "Auto,*");
             columns.RowDefinitions = new RowDefinitions(compact ? "Auto,Auto" : "Auto");
             Grid.SetColumn(summary, compact ? 0 : 1);
             Grid.SetRow(summary, compact ? 1 : 0);
@@ -232,7 +236,7 @@ public sealed class DashboardView : UserControl
 
     private static Grid Field(string label, Control input)
     {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 10 };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("150,170"), ColumnSpacing = 8 };
         var text = DashboardUi.Text(label, 12);
         text.VerticalAlignment = VerticalAlignment.Center;
         grid.Children.Add(text);
@@ -273,7 +277,9 @@ public sealed class DashboardView : UserControl
 
     private void SettingsEdited()
     {
-        settingsStatus.Text = "Unapplied draft · Press Enter or Apply settings. No recommendations are calculated.";
+        settingsStatus.Text = Workspace.Selected?.Engine is null
+            ? "Unapplied draft · Press Enter or Apply settings to start."
+            : "Unapplied draft · Current run still uses the previously applied settings.";
         WorkspaceChanged?.Invoke();
     }
 
@@ -281,6 +287,7 @@ public sealed class DashboardView : UserControl
     {
         if (Workspace.Selected is not { } s) return;
         var valid = s.ApplySettings(out var message);
+        if (valid) Refresh(true);
         settingsStatus.Text = message;
         settingsStatus.Foreground = valid ? DashboardUi.Muted : DashboardUi.OutcomeColor(Outcome.Banker);
         UpdateSummary(s);

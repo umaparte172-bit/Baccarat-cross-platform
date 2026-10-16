@@ -10,6 +10,8 @@
   <string>Baccarat.Desktop</string>
   <key>CFBundleIdentifier</key>
   <string>com.baccarat.crossplatform</string>
+  <key>CFBundleIconFile</key>
+  <string>Baccarat.icns</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
