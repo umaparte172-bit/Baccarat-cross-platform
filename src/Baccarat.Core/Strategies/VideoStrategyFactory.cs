@@ -12,11 +12,11 @@ public static class VideoStrategyFactory
         definition?.RuleCondition is MartingaleTag or PatternManualTag ||
         definition?.RuleCondition?.StartsWith(SequenceTag, StringComparison.Ordinal) == true;
 
-    public static StrategyDefinition Martingale(BetSide first, decimal unit) => new(
+    public static StrategyDefinition Martingale(BetSide first, decimal unit, decimal multiplier = 2m) => new(
         "Martingale", MartingaleTag,
         new(first.ToString().ToUpperInvariant(), AmountRuleKind.Set, [unit]),
         new("WINNER", AmountRuleKind.ResetAmount, [unit]),
-        new("WINNER", AmountRuleKind.MultiplyAmount, [2m]),
+        new("WINNER", AmountRuleKind.MultiplyAmount, [multiplier]),
         null, null, null, null, 0);
 
     public static StrategyDefinition PatternManual(BetSide? first, decimal unit) => new(

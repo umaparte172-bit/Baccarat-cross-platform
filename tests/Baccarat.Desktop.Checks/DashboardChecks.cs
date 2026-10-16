@@ -142,6 +142,12 @@ internal static class DashboardChecks
         window.Height = 860;
         Click("Tools");
         Assert(!window.OwnedWindows.Any() && Text("Same session, same records"), "Tools must navigate inside the same window");
+        Assert(Named<Border>("ToolsSidebar").IsVisible && Named<Border>("ToolsSidebar").HorizontalAlignment == HorizontalAlignment.Right,
+            "Tools must open as a right-hand sidebar over the retained workspace");
+        Capture("dashboard-tools-sidebar");
+        Click("Close Tools");
+        Assert(!Named<Border>("ToolsSidebar").IsVisible, "Tools sidebar must close without replacing the dashboard");
+        Click("Tools");
         Capture("tools-menu");
         Click("Strategies");
         Capture("tools-strategies");
@@ -244,7 +250,7 @@ internal static class DashboardChecks
         Assert(first.Hands.Count == 2 && first.Profit == 0 && first.Engine!.Rounds.Count == 0,
             "Undo across a strategy-run boundary must not undo the new engine");
         Click("Tools");
-        Click("Account");
+        Click("Sing In / Up");
         Capture("tools-account-signin");
         Assert(window.GetVisualDescendants().OfType<AccountView>().Any(), "Original account feature must remain reachable in the same window");
         Click("SIGN UP");
@@ -323,6 +329,18 @@ internal static class DashboardChecks
         video.BeginDraftRun();
         Assert(video.Engine is null && video.Hands.Count == 4,
             "Returning to drafts must preserve the previous settled hand history");
+        video.SelectStrategy("Martingale");
+        video.SetField("start", "3");
+        video.SetField("multiplier", "2.5");
+        Assert(video.ApplySettings(out _) && video.Engine?.Recommendation.Stake == 3,
+            "Configured starting stake must reach the shared engine");
+        video.Record(Outcome.Banker);
+        Assert(video.Engine?.Recommendation.Stake == 7.5m, "Configured multiplier must apply after a loss");
+        video.Record(Outcome.Banker);
+        Assert(video.Engine?.Recommendation.Stake == 3, "A win must reset to configured starting stake");
+        video.SetField("multiplier", "0");
+        Assert(!video.ApplySettings(out _) && video.Engine?.Recommendation.Stake == 3,
+            "Invalid multiplier must not replace the active engine");
         Console.WriteLine("PASS: single-window Tools, shared records/engine/undo, viewer isolation, approval cancellation, guarded PATTERN, clear, account access and dashboard checks");
     }
 

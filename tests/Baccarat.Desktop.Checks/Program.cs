@@ -146,6 +146,8 @@ Click("Back to home");
 Click("OPEN STRATEGIES");
 window.GetVisualDescendants().OfType<StrategyView>().Single().Load(pattern);
 window.UpdateLayout();
+Check(!controller.Snapshot.AutoBetEnabled, "A reset/replaced strategy history must disarm automation");
+controller.SetAutoBet(true); // Explicit consent for this new strategy run.
 Check(FindButton("Use Player").IsEnabled && !FindButton("Player result").IsEnabled, "PATTERN must await a manual side");
 Click("Use Player");
 Check(HasText("Bet 100 on Player."), "PATTERN configured initial amount must be 100");

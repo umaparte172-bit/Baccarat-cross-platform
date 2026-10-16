@@ -19,7 +19,10 @@ public sealed partial class DashboardSession
             new("first", "First bet on", "P or B", "side"),
             new("limit", "Run ends at bet (units)", "Not verified"),
             new("wins", "Single wins before pause", "Not verified", "integer") }),
-        new DashboardStrategy("Martingale", new DashboardField[] { new("first", "First bet on", "P or B", "side") }),
+        new DashboardStrategy("Martingale", new DashboardField[] {
+            new("first", "First bet on", "P or B", "side"),
+            new("start", "Starting stake (units)", "1"),
+            new("multiplier", "Multiply after a loss", "2") }),
         new DashboardStrategy("Grinding", new DashboardField[] {
             new("first", "First bet on", "P or B", "side"), new("grind", "Grind unit (units)", "e.g. 2") }),
         new DashboardStrategy("Sequence", new DashboardField[] {
@@ -70,6 +73,8 @@ public sealed partial class DashboardSession
         Hands = hands.AsReadOnly();
         foreach (var strategy in Strategies)
             drafts[strategy.Name] = strategy.Fields.ToDictionary(field => field.Key, _ => "");
+        drafts["Martingale"]["start"] = "1";
+        drafts["Martingale"]["multiplier"] = "2";
         appliedFingerprint = Fingerprint();
     }
 
@@ -151,7 +156,15 @@ public sealed partial class DashboardSession
         var first = Strategy.Fields.Any(f => f.Key == "first") ? GetField("first") : "";
         BetSide? firstSide = first == "P" ? BetSide.Player : first == "B" ? BetSide.Banker : null;
         if (Strategy.Name == "Martingale")
-            video = VideoStrategyFactory.Martingale(firstSide ?? BetSide.Player, unit);
+        {
+            if (!PositiveAmount(GetField("start"), out var start) || !PositiveAmount(GetField("multiplier"), out var multiplier) ||
+                start * unit > StrategyDefinitionValidator.MaximumSupportedAmount)
+            {
+                message = "Enter a positive starting stake and loss multiplier; starting stake times base unit must be within the supported amount.";
+                return false;
+            }
+            video = VideoStrategyFactory.Martingale(firstSide ?? BetSide.Player, start * unit, multiplier);
+        }
         else if (Strategy.Name == "PATTERN" && firstSide is not null)
             video = VideoStrategyFactory.PatternManual(firstSide, unit);
         else if (Strategy.Name == "Sequence")

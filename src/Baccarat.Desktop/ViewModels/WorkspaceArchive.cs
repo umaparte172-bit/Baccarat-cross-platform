@@ -42,7 +42,11 @@ public sealed partial class DashboardSession
         session.SelectStrategy(archive.Strategy);
         foreach (var strategy in Strategies)
         {
-            Require(archive.Drafts!.TryGetValue(strategy.Name, out var values) && values is not null && values.Count == strategy.Fields.Count);
+            Require(archive.Drafts!.TryGetValue(strategy.Name, out var values) && values is not null);
+            // Older workspaces predate configurable Martingale stakes.
+            if (strategy.Name == "Martingale" && values!.Count == 1 && values.ContainsKey("first"))
+                values = new Dictionary<string, string>(values) { ["start"] = "1", ["multiplier"] = "2" };
+            Require(values!.Count == strategy.Fields.Count);
             foreach (var field in strategy.Fields)
             {
                 Require(values!.TryGetValue(field.Key, out var value) && value is { Length: <= 512 });

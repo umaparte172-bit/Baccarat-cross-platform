@@ -14,6 +14,18 @@ public sealed partial class DashboardWindow : Window
     private Guid? activeSession;
     private AccountView? account;
     private bool closed;
+    private readonly Grid layout = new();
+    private readonly ContentControl workspaceContent = new();
+    private readonly Border toolsSidebar = new()
+    {
+        Name = "ToolsSidebar",
+        Width = 320,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        Background = DashboardUi.Surface,
+        BorderBrush = DashboardUi.Line,
+        BorderThickness = new Thickness(1),
+        IsVisible = false
+    };
     public DashboardView Dashboard { get; }
     public DashboardWindow(ApplicationServices? services = null, bool persistenceEnabled = true, string? workspacePath = null)
     {
@@ -29,7 +41,10 @@ public sealed partial class DashboardWindow : Window
         Dashboard.WorkspaceChanged += QueueSave;
         saveTimer.Tick += async (_, _) => await SaveWorkspaceAsync();
         Closing += OnClosing;
-        Content = Dashboard;
+        workspaceContent.Content = Dashboard;
+        layout.Children.Add(workspaceContent);
+        layout.Children.Add(toolsSidebar);
+        Content = layout;
         Closed += (_, _) =>
         {
             closed = true;
@@ -50,6 +65,11 @@ public sealed partial class DashboardWindow : Window
             if (activeSession is { } old && tools.TryGetValue(old, out var previous))
                 previous.Pause("Session changed. Review this session before resuming simulation.");
             activeSession = selected?.Id;
+            if (toolsSidebar.IsVisible)
+            {
+                toolsSidebar.IsVisible = false;
+                ShowTools();
+            }
         }
         if (selected is not null && tools.TryGetValue(selected.Id, out var current)) current.Refresh();
     }
@@ -58,7 +78,8 @@ public sealed partial class DashboardWindow : Window
     {
         RequestedThemeVariant = ThemeVariant.Light;
         Background = DashboardUi.Surface;
-        Content = Dashboard;
+        toolsSidebar.IsVisible = false;
+        workspaceContent.Content = Dashboard;
         Dashboard.RefreshSharedState();
         Title = "Baccarat Workspace";
     }
@@ -76,16 +97,22 @@ public sealed partial class DashboardWindow : Window
 
     private void ShowTools()
     {
+        if (toolsSidebar.IsVisible) { toolsSidebar.IsVisible = false; return; }
         var current = CurrentTools();
         var page = WorkspaceUi.Page("TOOLS", "Session tools",
             Dashboard.Workspace.Selected is { } selected ? $"{selected.Title} · Same session, same records and strategy state." :
             "Create a session on the dashboard to use strategies, automation and the viewer.");
         page.Children.Add(WorkspaceUi.Text(storageStatus, 12));
+        var close = WorkspaceUi.Action("Close Tools");
+        close.Click += (_, _) => toolsSidebar.IsVisible = false;
+        page.Children.Insert(0, close);
+        page.Children.Add(WorkspaceUi.Text("Strategies update this session's recommendations. Automation uses those recommendations. Viewer shows its records and status.", 12));
+        page.Children.Add(WorkspaceUi.Text("Live connection unavailable: the recovered account API serves a domain-parking page; casino protocol recovery is incomplete. No live bets are sent.", 12));
         if (store is not null)
         {
             var save = WorkspaceUi.Action(needsRecovery ? "Save recovered workspace" : "Save workspace now");
             save.IsEnabled = !writesBlocked;
-            save.Click += async (_, _) => { await SaveWorkspaceAsync(needsRecovery); ShowTools(); };
+            save.Click += async (_, _) => { await SaveWorkspaceAsync(needsRecovery); toolsSidebar.IsVisible = false; ShowTools(); };
             page.Children.Add(save);
         }
         foreach (var (label, action) in new (string, Action)[]
@@ -95,16 +122,17 @@ public sealed partial class DashboardWindow : Window
             ("Automation", () => ShowTool("Automation", current!.Automation)),
             ("Viewer", () => ShowTool("Viewer", current!.Viewer)),
             ("Clear session…", ConfirmClear),
-            ("Account", ShowAccount)
+            ("Sing In / Up", ShowAccount)
         })
         {
             var button = WorkspaceUi.Action(label);
             button.HorizontalAlignment = HorizontalAlignment.Stretch;
-            button.IsEnabled = current is not null || label is "Account" or "Session dashboard";
+            button.IsEnabled = current is not null || label is "Sing In / Up" or "Session dashboard";
             button.Click += (_, _) => action();
             page.Children.Add(button);
         }
-        ShowTool("Tools", page, false);
+        toolsSidebar.Child = new ScrollViewer { Content = page };
+        toolsSidebar.IsVisible = true;
     }
 
     private void ConfirmClear()
@@ -128,6 +156,7 @@ public sealed partial class DashboardWindow : Window
 
     private void ShowTool(string name, Control view, bool showBack = true)
     {
+        toolsSidebar.IsVisible = false;
         RequestedThemeVariant = ThemeVariant.Light;
         Background = DashboardUi.Surface;
         var shell = new DockPanel { Margin = new Thickness(16) };
@@ -145,7 +174,7 @@ public sealed partial class DashboardWindow : Window
         shell.Children.Add(actions);
         if (view.Parent is ContentControl parent) parent.Content = null;
         shell.Children.Add(new ScrollViewer { Content = view });
-        Content = shell;
+        workspaceContent.Content = shell;
         Title = $"Baccarat Workspace — {name}";
     }
 
@@ -162,6 +191,6 @@ public sealed partial class DashboardWindow : Window
                 ShowAccount();
             };
         }
-        ShowTool("Account", account);
+        ShowTool("Sing In / Up", account);
     }
 }

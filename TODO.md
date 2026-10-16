@@ -27,6 +27,9 @@ production connectivity remains disabled. PATTERN remains the strategy priority.
   fixtures, maximum-size histories, Undo/shoe/restart checks and rendered review.
 - [ ] Phase 6: verify remaining video-led modules and complete workflows; existing
   features already share the dashboard session, not a separate application.
+  Right-side toggle Tools, session integration explanation, configurable Martingale
+  starting stake/loss multiplier and rollback disarming are implemented. Live account
+  and casino connectivity are still incomplete, not an offline-only delivery decision.
 - [ ] Phase 7: package and validate on client macOS/Apple Silicon.
 
 See [Phase 1](docs/video-reference-phase-1.md),

@@ -90,7 +90,12 @@ public sealed class AutomationView : StackPanel, IDisposable
         var nextKey = $"{engine.StrategyName}|{engine.Rounds.Count}|{next.State}|{next.Side}|{next.Stake}|{next.Selector}";
         if (recommendationKey is not null && !string.Equals(recommendationKey, nextKey, StringComparison.Ordinal))
             controller.CancelPending();
-        if (engine.Rounds.Count < currentRoundCount) lastAutomatedRound = -1;
+        if (engine.Rounds.Count < currentRoundCount)
+        {
+            if (controller.Snapshot.State != AutomationRunState.Disconnected)
+                controller.Pause("History was undone. Review the recommendation before re-enabling automation.");
+            lastAutomatedRound = -1;
+        }
         recommendationKey = nextKey;
         currentRecommendation = next;
         currentRoundCount = engine.Rounds.Count;
@@ -133,17 +138,19 @@ public sealed class AutomationView : StackPanel, IDisposable
         try
         {
             var result = await operation();
+            if (disposed) return;
             status.Text = result.Message;
         }
         catch (OperationCanceledException)
         {
+            if (disposed) return;
             status.Text = "Automation operation cancelled.";
         }
         catch
         {
             controller.Pause("Automation paused after an unexpected adapter error.");
         }
-        Refresh(controller.Snapshot);
+        if (!disposed) Refresh(controller.Snapshot);
     }
 
     private void OnSnapshotChanged(AutomationSnapshot snapshot)
