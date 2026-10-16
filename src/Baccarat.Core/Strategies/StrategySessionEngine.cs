@@ -51,7 +51,7 @@ public sealed record StrategyDecision(Outcome Outcome, BetSide? ManualSide, deci
 public sealed record StrategyEngineArchive(StrategyDefinition Definition, BaccaratPayoutRules Payouts,
     StrategyDecision[] Decisions, BetSide? ManualSide, decimal? Stake);
 
-public sealed class StrategySessionEngine
+public sealed partial class StrategySessionEngine
 {
     private readonly StrategyDefinition definition;
     private readonly BaccaratPayoutRules payoutRules;
@@ -89,6 +89,7 @@ public sealed class StrategySessionEngine
         }
         currentRule = definition.Initial;
         currentStake = definition.Initial.Values[0];
+        InitializeClientRules();
     }
 
     public IReadOnlyList<StrategyRound> Rounds => rounds;
@@ -105,6 +106,7 @@ public sealed class StrategySessionEngine
                 return new(currentRule.Selector, currentStake, null, StrategyEngineState.Stopped, StopReason);
             if (pauseRemaining > 0)
                 return new(currentRule.Selector, null, null, StrategyEngineState.Paused, $"Observe {pauseRemaining} more round(s) before betting.");
+            if (clientMode is not null) return ClientRecommendation();
 
             var side = manualSide ?? ResolveSide(currentRule.Selector);
             if (side is null)
@@ -140,6 +142,7 @@ public sealed class StrategySessionEngine
         if (!Enum.IsDefined(typeof(Outcome), outcome)) throw new ArgumentOutOfRangeException(nameof(outcome));
         EnsureRunning();
 
+        if (clientMode is not null && pauseRemaining == 0) return RecordClient(outcome);
         if (pauseRemaining > 0)
         {
             snapshots.Push(Capture());
@@ -233,6 +236,7 @@ public sealed class StrategySessionEngine
         currentStake = definition.Initial.Values[0];
         manualSide = null;
         lastWinner = null;
+        InitializeClientRules();
     }
 
     private void ApplyAmountRule(StrategyRule rule)
@@ -369,7 +373,8 @@ public sealed class StrategySessionEngine
         currentStake,
         manualSide,
         lastWinner,
-        pauseRemaining);
+        pauseRemaining,
+        clientState);
 
     private void Restore(EngineSnapshot snapshot)
     {
@@ -383,6 +388,7 @@ public sealed class StrategySessionEngine
         manualSide = snapshot.ManualSide;
         lastWinner = snapshot.LastWinner;
         pauseRemaining = snapshot.PauseRemaining;
+        clientState = snapshot.ClientState;
     }
 
     private static string Format(decimal? value) =>
@@ -404,5 +410,6 @@ public sealed class StrategySessionEngine
         decimal? CurrentStake,
         BetSide? ManualSide,
         BetSide? LastWinner,
-        int PauseRemaining);
+        int PauseRemaining,
+        ClientState? ClientState);
 }

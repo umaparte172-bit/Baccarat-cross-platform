@@ -353,8 +353,8 @@ public sealed class DashboardView : UserControl
                     stopDescription.Text = $"Imported limits · Profit: {definition.StopProfit?.ToString() ?? "none"}; loss: {definition.StopLoss?.ToString() ?? "none"}; consecutive losses: {definition.StopAfterConsecutiveLosses?.ToString() ?? "none"}; pause after losses: {definition.PauseAfterConsecutiveLosses?.ToString() ?? "none"}; pause rounds: {definition.PauseRounds}.";
                 }
                 else stopDescription.Text = s.Strategy.Name == "PATTERN" ?
-                    "PATTERN opening can be prepared; later choices require manual resolution. Run-limit and pause fields are not enforced." :
-                    "Only video-supported transitions are calculated. Import a separate file in Tools for its defined rules.";
+                    "IHG defaults: close a run after a settled bet of 45+ units; pause after 7 isolated wins. Simultaneous limits require review because the PDF conflicts." :
+                    "Client test-case rules are active after Apply. Empty settings use the documented defaults.";
                 settingsStatus.Foreground = DashboardUi.Muted;
                 settingsStatus.Text = imported ? "Imported rules are active. Return to drafts to configure a new run." :
                     s.HasUnappliedSettings ? "Unapplied settings draft" :

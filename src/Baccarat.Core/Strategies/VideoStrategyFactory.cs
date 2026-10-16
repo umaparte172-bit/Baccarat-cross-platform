@@ -7,10 +7,20 @@ public static class VideoStrategyFactory
     public const string MartingaleTag = "video:martingale:v1";
     public const string PatternManualTag = "video:pattern-manual:v1";
     public const string SequenceTag = "video:sequence:v1:";
+    public const string ClientTag = "client-cases:v1:";
 
     public static bool IsVideoMode(StrategyDefinition? definition) =>
         definition?.RuleCondition is MartingaleTag or PatternManualTag ||
-        definition?.RuleCondition?.StartsWith(SequenceTag, StringComparison.Ordinal) == true;
+        definition?.RuleCondition?.StartsWith(SequenceTag, StringComparison.Ordinal) == true ||
+        definition?.RuleCondition?.StartsWith(ClientTag, StringComparison.Ordinal) == true;
+
+    public static StrategyDefinition Client(string mode, BetSide first, IReadOnlyList<decimal> stakes,
+        decimal runLimit = 45, int singleWins = 7) => new(
+        mode, ClientTag + mode,
+        new(first.ToString().ToUpperInvariant(), AmountRuleKind.Set, stakes),
+        new("CLIENT", AmountRuleKind.ResetSequence, [runLimit]),
+        new("CLIENT", AmountRuleKind.NextSequence, [singleWins]),
+        null, null, null, null, 0);
 
     public static StrategyDefinition Martingale(BetSide first, decimal unit, decimal multiplier = 2m) => new(
         "Martingale", MartingaleTag,

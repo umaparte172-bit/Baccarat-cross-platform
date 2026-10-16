@@ -14,6 +14,8 @@ using Baccarat.Infrastructure.Diagnostics;
 using Baccarat.Infrastructure.Security;
 using Baccarat.Infrastructure.Strategies;
 
+ClientStrategyChecks.Run();
+
 static void Check(bool value, string message) { if (!value) throw new Exception(message); }
 RoadmapChecks.Run();
 var session = new Session();

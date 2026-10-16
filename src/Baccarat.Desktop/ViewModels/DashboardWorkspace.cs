@@ -73,8 +73,6 @@ public sealed partial class DashboardSession
         Hands = hands.AsReadOnly();
         foreach (var strategy in Strategies)
             drafts[strategy.Name] = strategy.Fields.ToDictionary(field => field.Key, _ => "");
-        drafts["Martingale"]["start"] = "1";
-        drafts["Martingale"]["multiplier"] = "2";
         appliedFingerprint = Fingerprint();
     }
 
@@ -137,27 +135,19 @@ public sealed partial class DashboardSession
                 return false;
             }
         }
-        if (Strategy.Name == "PATTERN" && (GetField("limit").Length != 0 || GetField("wins").Length != 0))
-        {
-            message = "PATTERN run-limit and pause rules are not established by the video. Leave those fields empty for manual continuation.";
-            return false;
-        }
-        if (Strategy.Name == "Sequence" && (GetField("sides").Length == 0 || GetField("stakes").Length == 0))
-        {
-            message = "Enter both a sides list and a stake list to start a Sequence run.";
-            return false;
-        }
         if (IsVideoMode && !HasUnappliedSettings)
         {
             message = "These settings are already active; the current strategy run was not reset.";
             return true;
         }
         StrategyDefinition? video = null;
+        string DefaultField(string key, string fallback) => string.IsNullOrWhiteSpace(GetField(key)) ? fallback : GetField(key).Trim();
+        decimal Amount(string key, string fallback) => decimal.Parse(DefaultField(key, fallback), CultureInfo.InvariantCulture);
         var first = Strategy.Fields.Any(f => f.Key == "first") ? GetField("first") : "";
         BetSide? firstSide = first == "P" ? BetSide.Player : first == "B" ? BetSide.Banker : null;
         if (Strategy.Name == "Martingale")
         {
-            if (!PositiveAmount(GetField("start"), out var start) || !PositiveAmount(GetField("multiplier"), out var multiplier) ||
+            if (!PositiveAmount(DefaultField("start", "1"), out var start) || !PositiveAmount(DefaultField("multiplier", "2"), out var multiplier) ||
                 start * unit > StrategyDefinitionValidator.MaximumSupportedAmount)
             {
                 message = "Enter a positive starting stake and loss multiplier; starting stake times base unit must be within the supported amount.";
@@ -165,12 +155,15 @@ public sealed partial class DashboardSession
             }
             video = VideoStrategyFactory.Martingale(firstSide ?? BetSide.Player, start * unit, multiplier);
         }
-        else if (Strategy.Name == "PATTERN" && firstSide is not null)
-            video = VideoStrategyFactory.PatternManual(firstSide, unit);
+        else if (Strategy.Name == "PATTERN")
+            video = VideoStrategyFactory.Client("PATTERN", firstSide ?? BetSide.Player, [unit],
+                Amount("limit", "45"), (int)Amount("wins", "7"));
+        else if (Strategy.Name == "Grinding")
+            video = VideoStrategyFactory.Client("Grinding", firstSide ?? BetSide.Player, [Amount("grind", "1") * unit]);
         else if (Strategy.Name == "Sequence")
         {
-            var sides = GetField("sides").Split(',').Select(p => p.Trim() == "P" ? BetSide.Player : BetSide.Banker).ToArray();
-            var stakes = GetField("stakes").Split(',').Select(p => decimal.Parse(p.Trim(), CultureInfo.InvariantCulture) * unit).ToArray();
+            var sides = DefaultField("sides", "B,P,P").Split(',').Select(p => p.Trim() == "P" ? BetSide.Player : BetSide.Banker).ToArray();
+            var stakes = DefaultField("stakes", "1,2,3").Split(',').Select(p => decimal.Parse(p.Trim(), CultureInfo.InvariantCulture) * unit).ToArray();
             if (stakes.Any(value => value > StrategyDefinitionValidator.MaximumSupportedAmount))
             {
                 message = "A sequence stake exceeds the supported amount after multiplying by the base unit.";
@@ -178,15 +171,22 @@ public sealed partial class DashboardSession
             }
             video = VideoStrategyFactory.Sequence(sides, stakes);
         }
+        else
+        {
+            var stakes = DefaultField("stakes", "1,2,3").Split(',').Select(p => decimal.Parse(p.Trim(), CultureInfo.InvariantCulture) * unit).ToArray();
+            var oddSide = Strategy.Name == "Odd Even" && DefaultField("odd", "B") == "P" ? BetSide.Player : BetSide.Banker;
+            video = VideoStrategyFactory.Client(Strategy.Name, oddSide, stakes);
+        }
+        if (video is not null && StrategyDefinitionValidator.Validate(video).Count != 0)
+        {
+            message = "The scaled stake or setting exceeds the supported strategy limits.";
+            return false;
+        }
         BaseUnit = unit;
         StartingBankroll = bankroll;
         appliedFingerprint = Fingerprint();
         if (video is not null) LoadStrategy(video);
-        message = video is null && Strategy.Name == "PATTERN" ?
-            "Choose P or B for the first PATTERN side, then apply. Later transitions require manual resolution." :
-            video is null ? "Settings saved as a draft. This strategy still needs verified calculation rules." :
-            Strategy.Name == "PATTERN" ? "PATTERN opening prepared. Later side and stake decisions require manual resolution in Tools." :
-            $"{Strategy.Name} video-reference run is active. Changing applied settings starts a new run.";
+        message = $"{Strategy.Name} client-reference run is active. Empty settings use defaults. Changing applied settings starts a new run.";
         return true;
     }
 

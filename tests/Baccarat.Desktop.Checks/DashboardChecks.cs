@@ -307,8 +307,8 @@ internal static class DashboardChecks
         video.Record(Outcome.Tie);
         Assert(video.Engine?.Recommendation.Side == BetSide.Player, "A tie must not advance the opening bet");
         video.Record(Outcome.Player);
-        Assert(video.Engine?.Recommendation.State == StrategyEngineState.AwaitingSide,
-            "PATTERN must not invent an unseen post-win transition");
+        Assert(video.Engine?.Recommendation.State == StrategyEngineState.Ready && video.Engine.Recommendation.Side == BetSide.Player,
+            "Client PATTERN follows the first decisive result using the supplied IHG rules");
         video.SelectStrategy("Martingale");
         video.SetField("first", "P");
         Assert(video.ApplySettings(out _) && video.Engine?.Recommendation.Side == BetSide.Player,
@@ -342,6 +342,16 @@ internal static class DashboardChecks
         video.SetField("multiplier", "0");
         Assert(!video.ApplySettings(out _) && video.Engine?.Recommendation.Stake == 3,
             "Invalid multiplier must not replace the active engine");
+        foreach (var strategyName in DashboardSession.Strategies.Select(s => s.Name))
+        {
+            var defaults = new DashboardWorkspace();
+            defaults.CreateSession();
+            var configured = defaults.Selected!;
+            configured.SelectStrategy(strategyName);
+            Assert(configured.Strategy.Fields.All(f => configured.GetField(f.Key) == ""), "Fresh settings must be empty");
+            Assert(configured.ApplySettings(out _) && configured.Engine is not null, strategyName + " must start with empty defaults");
+            Assert(configured.CanRecord, strategyName + " must allow result entry, including initial no-bet observations");
+        }
         Console.WriteLine("PASS: single-window Tools, shared records/engine/undo, viewer isolation, approval cancellation, guarded PATTERN, clear, account access and dashboard checks");
     }
 
