@@ -2,9 +2,44 @@
 
 Work proceeds in dependency order. Completion means the acceptance criteria have been checked, not merely that a file exists.
 
-## Current client scope and strategy evidence (2026-10-15)
+## Current video-led plan (2026-10-16)
 
-Latest clarification: original Wetalkbet server accounts are required, not local
+The application follows the friend's demonstration. The latest follow-up reopens
+both account and live-table connectivity. Static string recovery now establishes
+addresses and candidate routes, but the old API base serves a parking page;
+production connectivity remains disabled. PATTERN remains the strategy priority.
+
+- [x] Phase 1: recover video UI/strategy evidence, cases and contradictions.
+- [x] Phase 2: default offline dashboard, session sidebar, manual results/pairs,
+  undo/export, isolated settings drafts, explicit deferred controls and headless checks.
+- [x] Correct Phase 2 integration: Tools stays in the same window and shares the
+  selected session's existing engine, records, Undo, simulation and viewer.
+- [x] Phase 3: reversible shoes, shared financial ledger/statistics, validated local
+  autosave/recovery, restart-safe manual decisions and Undo. New Shoe/statistic scopes
+  are explicit local policies where the video is inconclusive; native Mac validation remains Phase 7.
+- [ ] Phase 4: dedicated strategy engines and reference comparisons, PATTERN first.
+  The supported video vectors for Martingale and Sequence now run in the shared
+  session engine; PATTERN has a guarded manual continuation, not a recovered
+  algorithm. Remaining strategies and unobserved PATTERN branches are open.
+- [x] Phase 4 presentation pass: align dashboard, Tools, Strategies, Automation,
+  Viewer and Account with one light palette, spacing and button treatment.
+- [x] Phase 5: all five current-shoe roadmaps and Ask previews with boundary
+  fixtures, maximum-size histories, Undo/shoe/restart checks and rendered review.
+- [ ] Phase 6: verify remaining video-led modules and complete workflows; existing
+  features already share the dashboard session, not a separate application.
+- [ ] Phase 7: package and validate on client macOS/Apple Silicon.
+
+See [Phase 1](docs/video-reference-phase-1.md),
+[Phase 2](docs/video-dashboard-phase-2.md), [Phase 3](docs/video-phase-3-persistence.md)
+and [Phase 4 progress](docs/video-phase-4-strategies-and-style.md),
+[Phase 5](docs/video-phase-5-roadmaps.md), and
+[new network evidence](docs/static-network-recovery-2026-10-16.md).
+Completed storage does not imply recovered strategy algorithms. Historical entries below are
+retained for context and do not override this scope.
+
+## Historical client scope and strategy evidence (2026-10-15)
+
+At that checkpoint: original Wetalkbet server accounts were required, not local
 accounts. This supersedes the no-login scope recorded below. Actual server
 authentication is blocked on the decrypted contract and a working service; see
 [the integration checkpoint](docs/original-server-auth-checkpoint.md). The current
@@ -13,6 +48,7 @@ access. Do not mark real signup/login or all original features complete.
 
 - [ ] Recover actual signup/sign-in requests and response fixtures.
 - [x] Restore Sign In/Sign Up entry, top-right Sign Out after authentication and explicit offline access; verify UI with injected success/failure fixtures.
+- [x] Connect Remember Me to protected session storage; verify opt-in, relaunch restoration, expiry, sign-out, password exclusion and offline safety with test sessions.
 - [ ] Implement and bind the verified original-service protocol; restore the authentication gate with integration tests.
 - [ ] Validate real startup token checks, expiry, sign-out and WebSocket authentication.
 

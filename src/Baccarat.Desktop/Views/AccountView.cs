@@ -30,6 +30,7 @@ public sealed class AccountView : Grid
     private readonly bool demoMode;
     private readonly bool offlineMode;
     private readonly bool persistenceAvailable;
+    private bool restoreAttempted;
 
     public event Action? Authenticated;
     public event Action? SignedOut;
@@ -50,6 +51,9 @@ public sealed class AccountView : Grid
         demoMode = service is DemoAuthenticationService;
         offlineMode = service is OfflineAuthenticationService;
         persistenceAvailable = sessionStore is not null && sessionStore is not NullAuthenticationSessionStore;
+        ToolTip.SetTip(rememberMe, persistenceAvailable
+            ? "Remember a successful session on this device until it expires or you sign out. Your password is never saved."
+            : "Remember Me requires protected session storage.");
         Background = LegacyTheme.Window;
         MinHeight = 590;
         password.PasswordChar = '•';
@@ -85,11 +89,13 @@ public sealed class AccountView : Grid
         {
             Width = 724,
             Spacing = 15,
-            Margin = new Thickness(24, 8, 24, 24),
+            Margin = new Thickness(0, 8, 0, 24),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top
         };
-        shell.Children.Add(LegacyTheme.Brand(170, 102));
+        var brand = LegacyTheme.Brand(170, 102);
+        brand.HorizontalAlignment = HorizontalAlignment.Center;
+        shell.Children.Add(brand);
 
         var panel = new Canvas { Width = 724, Height = showingSignUp ? 490 : 318 };
         activeForm = showingSignUp ? BuildSignUpForm() : BuildSignInForm();
@@ -163,12 +169,19 @@ public sealed class AccountView : Grid
 
     private async Task RestoreSessionAsync()
     {
-        if (controller.Session is not null) return;
-        var authentication = await controller.RestoreSessionAsync();
+        // Unconfigured server mode must not turn an old/demo token into a valid login.
+        if (restoreAttempted || offlineMode || controller.Session is not null) return;
+        restoreAttempted = true;
+        var restore = controller.RestoreSessionAsync();
+        Refresh();
+        var authentication = await restore;
         rememberMe.IsChecked = sessionStore.Remember;
         result.Text = authentication.Message;
         Refresh();
-        if (authentication.IsAuthenticated) Dispatcher.UIThread.Post(() => Authenticated?.Invoke());
+        if (authentication.IsAuthenticated) Dispatcher.UIThread.Post(() =>
+        {
+            if (controller.Session == authentication.Session) Authenticated?.Invoke();
+        });
     }
 
     private async Task SignInAsync()
@@ -207,13 +220,13 @@ public sealed class AccountView : Grid
     private void Refresh()
     {
         var authenticated = controller.Session is not null;
-        name.IsEnabled = email.IsEnabled = password.IsEnabled = phone.IsEnabled = country.IsEnabled = !authenticated;
+        name.IsEnabled = email.IsEnabled = password.IsEnabled = phone.IsEnabled = country.IsEnabled = !authenticated && !controller.IsBusy;
         signIn.IsEnabled = signUp.IsEnabled = !authenticated && !controller.IsBusy;
         signOut.IsEnabled = authenticated && !controller.IsBusy;
         signOut.IsVisible = authenticated;
-        rememberMe.IsEnabled = !authenticated && persistenceAvailable;
+        rememberMe.IsEnabled = !authenticated && !controller.IsBusy && persistenceAvailable;
         if (string.IsNullOrWhiteSpace(result.Text)) result.Text = controller.LastResult.Message;
-        result.Foreground = authenticated ? Brush.Parse("#7BD88F") : LegacyTheme.Gold;
+        result.Foreground = authenticated ? Brush.Parse("#138047") : LegacyTheme.Gold;
     }
 
     private static void Place(Canvas canvas, Control control, double left, double top, double width)
@@ -231,7 +244,7 @@ public sealed class AccountView : Grid
     private static CheckBox Check(string text) => new()
     {
         Content = text,
-        Foreground = Brush.Parse("#6A98F6"),
+        Foreground = LegacyTheme.Blue,
         FontSize = 12
     };
 
@@ -241,12 +254,14 @@ public sealed class AccountView : Grid
         Height = 46,
         Padding = new Thickness(18, 0),
         Background = LegacyTheme.Green,
-        Foreground = LegacyTheme.Ink,
+        Foreground = Brushes.White,
         BorderBrush = LegacyTheme.Blue,
         BorderThickness = new Thickness(1),
         FontSize = 20,
         FontWeight = FontWeight.Bold,
-        HorizontalContentAlignment = HorizontalAlignment.Center
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+        CornerRadius = new CornerRadius(5)
     };
 
     private static Button SecondaryButton(string text) => new()
@@ -258,6 +273,8 @@ public sealed class AccountView : Grid
         Foreground = LegacyTheme.Blue,
         BorderBrush = LegacyTheme.Blue,
         BorderThickness = new Thickness(1),
-        HorizontalContentAlignment = HorizontalAlignment.Center
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+        CornerRadius = new CornerRadius(5)
     };
 }

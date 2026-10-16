@@ -42,7 +42,12 @@ not evidence of automatic PATTERN parity or its original tie handling.
 A recording of PATTERN from a reset, showing settings and the next side and stake
 around each result, can establish these rules without a new technical document.
 Use its observed cases as reference tests; follow up only on uncovered branches.
-No PATTERN demonstration video is currently available locally.
+A new reference video of the client's friend's app is now available locally.
+The [2026-10-16 video recovery](video-reference-phase-1.md) records PATTERN's
+P/T/P/B tie example and a longer run, but also a run-limit setting mismatch and
+missing P2 history. This is not a recording of the original Windows algorithm.
+Its on-screen heading “PATTERN (IHG)” does not override the user's distinction
+between PATTERN and the supporting IHG description. Automatic parity remains open.
 
 ## Work order
 

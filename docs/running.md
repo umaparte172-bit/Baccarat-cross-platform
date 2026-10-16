@@ -9,15 +9,68 @@ dotnet run --project tests/Baccarat.Core.Checks
 
 On this Windows workspace, the isolated SDK is available via `.tools/dotnet/dotnet.exe` instead of `dotnet`.
 
-The application supports manual Player/Banker/Tie records, counts, undo, confirmed clearing and CSV export. The Strategies workspace imports the supplied JSON-shaped `.txt` definitions, calculates supported progression rules, accepts observed table outcomes, tracks profit and limits, and exports its own CSV history. Opaque protected rules require a manual side or stake rather than being guessed. Records remain in memory, so export before closing.
+## Default dashboard (video-led Phases 2–3)
+
+The app restores the local workspace, or opens **No Session** on first use, without login or server access. Choose
+**New Session**, record Banker/Player/Tie, optionally select pair flags, then use
+**Undo** or **Export CSV**. The sidebar switches independent sessions; its toggle
+hides it on smaller screens. Up to 100 sessions and 10,000 hands per session are
+retained locally, with a 32 MiB workspace-file limit. Export includes all recorded
+results, pairs, settlements and shoe numbers, but not settings. Autosave runs after
+750 ms without edits and flushes on normal close. **Tools → Save workspace now**
+saves immediately. The footer shows the save status and full file location.
+
+The file is `BaccaratWorkspace/workspace-v1.json` under the runtime's local application
+data folder (`%LOCALAPPDATA%` on Windows). Its `.bak` file is the previous successful
+save. If the primary is invalid, a validated backup is opened without automatically
+overwriting anything: use **Tools → Save recovered workspace** to confirm recovery.
+The rejected original is retained beside it with a unique `.rejected-...` suffix.
+If both copies are invalid, inaccessible, or another instance holds the file,
+the app warns that the workspace is unsaved. Do not discard that warning.
+A failed save prevents silent closing; return to fix/retry or explicitly close without saving.
+
+Select one of eight strategies and edit its fields. **Apply settings** or Enter
+validates and applies the draft; changes remain separate between sessions and
+strategy choices. Use a dot decimal separator, not commas, for single amounts.
+These draft fields do **not** override imported rules. Open **Tools → Strategies**
+and load an existing strategy to use its supported calculations/manual resolution.
+The dashboard then shows its next recommendation and calculated balance/P&L;
+result entry and Undo on either screen affect the same session. **New Shoe** resets
+shoe counts/streaks, retaining session balance and strategy progression. Undo on an
+empty new shoe removes that boundary; subsequent Undo removes the previous hand.
+New shoes cancel pending simulation and require review before resuming.
+All five roadmaps update from the current shoe. Scroll a road horizontally to
+review earlier entries. Ask shows the derived marks that Banker or Player would
+produce next, without recording a hand. Undo and New Shoe update the roads too.
+See [Phase 5](video-phase-5-roadmaps.md).
+
+## Retained tools and account screens
+
+**Tools** opens the previous features inside the current application window,
+without sign-in. Choose Strategies, Automation, Viewer or Account; Back to
+dashboard returns without losing state. All tools belong to the selected
+dashboard session. Switching sessions cancels approvals and disables auto-bet.
+Tools also offers confirmed session clearing. Strategies imports the supplied
+JSON-shaped `.txt` definitions and reuses the prior rules and manual fallbacks.
+Records, strategy definitions, manual decisions, drafts and Undo state persist locally;
+simulation always restarts disconnected, without approvals. See [shared-state semantics](integrated-tools.md).
 
 The Viewer tab receives live versioned snapshots whenever the manual session or strategy state changes. It shows the active protocol and document versions, communication status and ordered history. The current communication transport is in-process and offline: it neither connects to the original server nor sends credentials or game data over a network.
 
 The Automation tab exercises the complete controlled workflow against a local simulation. Connect the simulation, prepare and approve the initial recommendation, then enable auto-bet if the next strategy recommendation should be prepared automatically after each observed round. Every simulated placement still requires approval. Stake, cumulative-session and chip-click limits are enforced; connection recovery returns paused; an uncertain placement is never retried.
 
-The application starts at **Sign In**, with navigation to **Sign Up**. Successful authentication opens Home and shows **Sign Out** at the upper-right. The original Wetalkbet protocol is not recovered, so the default service reports unavailable rather than accepting credentials or creating fake accounts. Public demo credentials are not enabled in the shipped default. Remember Me is disabled until a session store is configured.
+Inside **Tools → Account**, the retained Sign In and Sign Up screens are available.
+Successful authentication with an injected test service returns to Tools;
+Account retains Sign Out. The shipped original-service adapter remains
+unavailable; it does not accept demo credentials or create fake accounts.
+Old Wetalkbet integration is no longer part of the new client plan.
 
-Use **OPEN OFFLINE WORKSPACE** to access the existing Session, Strategies, Automation and Viewer tools without authenticating. This is explicitly offline, not a server session. **BACK TO SIGN IN** returns to the account screen; **Back to home** navigates within the workspace. Sign-out, returning to Sign In and closing cancel pending simulation approvals and disable auto-bet. There is no real-money betting, outcome prediction or connection to the original service.
+**Remember Me** is enabled and saves a successful session, not your password, in Windows Credential Manager or macOS Keychain. An unchecked session is not persisted; Sign Out removes the saved session, and expired sessions are rejected. The current unavailable/offline service cannot create or restore a real server login. Its checkbox does not bypass that limitation. Saving/restoring is covered with injected test sessions; live Wetalkbet verification remains pending.
+
+**OPEN OFFLINE WORKSPACE** on Account returns to the dashboard without authenticating.
+Back to dashboard and Back to Tools provide in-window navigation. Sign-out and
+closing cancel pending simulation approvals and disable auto-bet. There is no
+real-money betting or connection to the original service.
 
 PATTERN is the priority strategy, separate from IHG. Loading its supplied definition asks you to choose the initial side with stake 100. After a win or loss, choose a side and enter the next stake manually. Its automatic selection and amount algorithms remain unverified. The current replacement applies standard Player/Banker settlement and tie pushes, not a verified original PATTERN tie rule. See [the workflow acceptance record](v1-workflow-acceptance.md).
 
@@ -65,7 +118,7 @@ bash tools/sign-notarize-macos.sh \
 
 The signing script stops if either configuration value is missing, signs nested Mach-O files before the bundle, enables hardened runtime and a secure timestamp, submits with `notarytool`, staples the ticket, then runs signature, stapler and Gatekeeper validation. It does not accept or store an Apple password. Repeat with `osx-x64` for an Intel package.
 
-The account UI uses the authentication controller and an unavailable/offline service by default. Protected-store adapters remain available for verified integration, but no store is configured in the default composition. Existing entries under `com.baccarat.crossplatform` or `com.baccarat.crossplatform.demo` are not read or modified by startup.
+The account UI uses the authentication controller and an unavailable/offline service by default. Session storage uses the isolated service `com.baccarat.crossplatform.wetalkbet`; old entries under `com.baccarat.crossplatform` or `com.baccarat.crossplatform.demo` are not reused. Injected demo/test services do not receive this production store unless explicitly configured. Offline mode skips session restoration instead of treating an old token as a verified login.
 
 The GitHub Actions workflow builds on Windows and macOS for pushes and pull requests and creates both unsigned macOS architecture artifacts.
 

@@ -7,7 +7,7 @@ using Baccarat.Infrastructure.Communication;
 
 namespace Baccarat.Desktop.Views;
 
-public sealed class ViewerView : StackPanel
+public sealed class ViewerView : StackPanel, IDisposable
 {
     private readonly ViewerCommunicationModule communication;
     private readonly TextBlock connection = Text("Local communication ready", 17, "#7BD88F");
@@ -15,6 +15,13 @@ public sealed class ViewerView : StackPanel
     private readonly TextBlock strategy = Text("No strategy document received.", 17, "#A8B5CA");
     private readonly TextBlock automation = Text("No automation document received.", 17, "#A8B5CA");
     private readonly StackPanel history = new() { Spacing = 6 };
+    private bool disposed;
+
+    public void Dispose()
+    {
+        disposed = true;
+        communication.DocumentReceived -= OnDocumentReceived;
+    }
 
     public ViewerView(ViewerCommunicationModule communication)
     {
@@ -40,6 +47,7 @@ public sealed class ViewerView : StackPanel
 
     private void OnDocumentReceived(ViewerDocument document)
     {
+        if (disposed) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(() => OnDocumentReceived(document));
@@ -83,5 +91,5 @@ public sealed class ViewerView : StackPanel
     }
 
     private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>
-        new() { Text = value, FontSize = size, Foreground = Brush.Parse(color), TextWrapping = TextWrapping.Wrap };
+        new() { Text = value, FontSize = size, Foreground = WorkspaceUi.Tone(color), TextWrapping = TextWrapping.Wrap };
 }

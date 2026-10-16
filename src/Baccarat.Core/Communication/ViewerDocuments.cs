@@ -96,7 +96,7 @@ public static class ViewerDocumentValidator
                     errors.Add("Strategy name is required and must not exceed 100 characters.");
                 if (strategy.ObservedRounds < 0 || strategy.Bets < 0 || strategy.Bets > strategy.ObservedRounds)
                     errors.Add("Strategy round counters are invalid.");
-                if (!Enum.IsDefined(strategy.State)) errors.Add("Strategy state is invalid.");
+                if (!Enum.IsDefined(typeof(StrategyEngineState), strategy.State)) errors.Add("Strategy state is invalid.");
                 if (string.IsNullOrWhiteSpace(strategy.Recommendation) || strategy.Recommendation.Length > 500)
                     errors.Add("Strategy recommendation is required and must not exceed 500 characters.");
                 break;
@@ -111,7 +111,7 @@ public static class ViewerDocumentValidator
             case AutomationSnapshotPayload automation:
                 ValidateContract(document, ViewerDocumentContract.AutomationSnapshotType,
                     ViewerDocumentContract.AutomationSnapshotVersion, errors);
-                if (!Enum.IsDefined(automation.State)) errors.Add("Automation state is invalid.");
+                if (!Enum.IsDefined(typeof(AutomationRunState), automation.State)) errors.Add("Automation state is invalid.");
                 if (automation.SessionStake < 0 || automation.AcceptedBets < 0)
                     errors.Add("Automation counters cannot be negative.");
                 if (string.IsNullOrWhiteSpace(automation.Message) || automation.Message.Length > 500)

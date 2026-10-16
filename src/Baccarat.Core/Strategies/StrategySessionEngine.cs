@@ -47,14 +47,20 @@ public sealed record BaccaratPayoutRules(decimal PlayerWinProfit, decimal Banker
     }
 }
 
+public sealed record StrategyDecision(Outcome Outcome, BetSide? ManualSide, decimal? Stake);
+public sealed record StrategyEngineArchive(StrategyDefinition Definition, BaccaratPayoutRules Payouts,
+    StrategyDecision[] Decisions, BetSide? ManualSide, decimal? Stake);
+
 public sealed class StrategySessionEngine
 {
     private readonly StrategyDefinition definition;
     private readonly BaccaratPayoutRules payoutRules;
+    private readonly BetSide[]? videoSequenceSides;
     private readonly List<StrategyRound> rounds = [];
     private readonly Stack<EngineSnapshot> snapshots = [];
     private StrategyRule currentRule;
     private int sequenceIndex;
+    private int videoSequencePosition;
     private decimal? currentStake;
     private BetSide? manualSide;
     private BetSide? lastWinner;
@@ -68,6 +74,19 @@ public sealed class StrategySessionEngine
         this.definition = definition;
         this.payoutRules = payoutRules ?? BaccaratPayoutRules.Standard;
         this.payoutRules.Validate();
+        if (definition.RuleCondition?.StartsWith(VideoStrategyFactory.SequenceTag, StringComparison.Ordinal) == true)
+        {
+            if (definition.Initial.Selector != "VIDEO_SEQUENCE" ||
+                definition.AfterWin.Selector != "VIDEO_SEQUENCE" || definition.AfterLoss.Selector != "VIDEO_SEQUENCE" ||
+                definition.AfterWin.AmountRule != AmountRuleKind.ResetSequence ||
+                definition.AfterLoss.AmountRule != AmountRuleKind.NextSequence)
+                throw new ArgumentException("Invalid video sequence definition.", nameof(definition));
+            var encoded = definition.RuleCondition[VideoStrategyFactory.SequenceTag.Length..];
+            var sides = encoded.Split(',');
+            if (sides.Length is < 1 or > 64 || sides.Any(s => s is not ("P" or "B")))
+                throw new ArgumentException("Invalid video sequence sides.", nameof(definition));
+            videoSequenceSides = sides.Select(s => s == "P" ? BetSide.Player : BetSide.Banker).ToArray();
+        }
         currentRule = definition.Initial;
         currentStake = definition.Initial.Values[0];
     }
@@ -102,6 +121,7 @@ public sealed class StrategySessionEngine
 
     public void ChooseSide(BetSide side)
     {
+        if (!Enum.IsDefined(typeof(BetSide), side)) throw new ArgumentOutOfRangeException(nameof(side));
         EnsureRunning();
         if (pauseRemaining > 0) throw new InvalidOperationException("The strategy is paused.");
         manualSide = side;
@@ -117,7 +137,7 @@ public sealed class StrategySessionEngine
 
     public StrategyRound Record(Outcome outcome)
     {
-        if (!Enum.IsDefined(outcome)) throw new ArgumentOutOfRangeException(nameof(outcome));
+        if (!Enum.IsDefined(typeof(Outcome), outcome)) throw new ArgumentOutOfRangeException(nameof(outcome));
         EnsureRunning();
 
         if (pauseRemaining > 0)
@@ -159,6 +179,8 @@ public sealed class StrategySessionEngine
 
         if (won is not null)
         {
+            if (videoSequenceSides is not null)
+                videoSequencePosition = won.Value ? 0 : (videoSequencePosition + 1) % videoSequenceSides.Length;
             currentRule = won.Value ? definition.AfterWin : definition.AfterLoss;
             manualSide = null;
             ApplyAmountRule(currentRule);
@@ -206,6 +228,7 @@ public sealed class StrategySessionEngine
         StopReason = null;
         pauseRemaining = 0;
         sequenceIndex = 0;
+        videoSequencePosition = 0;
         currentRule = definition.Initial;
         currentStake = definition.Initial.Values[0];
         manualSide = null;
@@ -245,7 +268,8 @@ public sealed class StrategySessionEngine
                 currentStake = definition.Initial.Values[0];
                 break;
             case AmountRuleKind.NextSequence:
-                sequenceIndex++;
+                sequenceIndex = videoSequenceSides is null ? sequenceIndex + 1 :
+                    (sequenceIndex + 1) % definition.Initial.Values.Count;
                 if (sequenceIndex >= definition.Initial.Values.Count)
                     StopReason = "The configured amount sequence is complete.";
                 else
@@ -278,6 +302,7 @@ public sealed class StrategySessionEngine
 
     private BetSide? ResolveSide(string selector) => selector.Trim().ToUpperInvariant() switch
     {
+        "VIDEO_SEQUENCE" when videoSequenceSides is not null => videoSequenceSides[videoSequencePosition],
         "PLAYER" => BetSide.Player,
         "BANKER" => BetSide.Banker,
         "WINNER" => lastWinner,
@@ -295,12 +320,52 @@ public sealed class StrategySessionEngine
         if (StopReason is not null) throw new InvalidOperationException(StopReason);
     }
 
+    // Persist decisions, not trusted calculated totals. Replay uses this same engine
+    // and rebuilds the exact pre-round snapshots needed by Undo.
+    public StrategyEngineArchive ExportArchive()
+    {
+        var before = snapshots.Reverse().ToArray();
+        return new(definition, payoutRules, rounds.Select((r, i) =>
+            new StrategyDecision(r.Outcome, before[i].ManualSide, before[i].CurrentStake)).ToArray(), manualSide, currentStake);
+    }
+
+    public static StrategySessionEngine RestoreArchive(StrategyEngineArchive archive)
+    {
+        ArgumentNullException.ThrowIfNull(archive);
+        if (archive.Decisions is null || archive.Decisions.Length > 10000 || archive.Payouts != BaccaratPayoutRules.Standard)
+            throw new ArgumentException("Unsupported strategy archive.", nameof(archive));
+        var engine = new StrategySessionEngine(archive.Definition, archive.Payouts);
+        foreach (var decision in archive.Decisions)
+        {
+            if (decision is null) throw new ArgumentException("Missing strategy decision.", nameof(archive));
+            engine.RestoreDecision(decision.ManualSide, decision.Stake);
+            engine.Record(decision.Outcome);
+        }
+        engine.RestoreDecision(archive.ManualSide, archive.Stake);
+        return engine;
+    }
+
+    private void RestoreDecision(BetSide? side, decimal? stake)
+    {
+        if (side != manualSide)
+        {
+            if (side is null) throw new ArgumentException("Invalid manual-side transition.");
+            ChooseSide(side.Value);
+        }
+        if (stake != currentStake)
+        {
+            if (stake is null) throw new ArgumentException("Invalid stake transition.");
+            SetManualStake(stake.Value);
+        }
+    }
+
     private EngineSnapshot Capture() => new(
         Profit,
         ConsecutiveLosses,
         StopReason,
         currentRule,
         sequenceIndex,
+        videoSequencePosition,
         currentStake,
         manualSide,
         lastWinner,
@@ -313,6 +378,7 @@ public sealed class StrategySessionEngine
         StopReason = snapshot.StopReason;
         currentRule = snapshot.CurrentRule;
         sequenceIndex = snapshot.SequenceIndex;
+        videoSequencePosition = snapshot.VideoSequencePosition;
         currentStake = snapshot.CurrentStake;
         manualSide = snapshot.ManualSide;
         lastWinner = snapshot.LastWinner;
@@ -334,6 +400,7 @@ public sealed class StrategySessionEngine
         string? StopReason,
         StrategyRule CurrentRule,
         int SequenceIndex,
+        int VideoSequencePosition,
         decimal? CurrentStake,
         BetSide? ManualSide,
         BetSide? LastWinner,

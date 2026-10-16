@@ -8,7 +8,7 @@ using Baccarat.Core.Strategies;
 
 namespace Baccarat.Desktop.Views;
 
-public sealed class AutomationView : StackPanel
+public sealed class AutomationView : StackPanel, IDisposable
 {
     private readonly AutomationController controller;
     private readonly TextBlock status = Text("Automation is disconnected.", 17, "#E9BC72");
@@ -25,6 +25,13 @@ public sealed class AutomationView : StackPanel
     private int currentRoundCount;
     private int lastAutomatedRound = -1;
     private string? recommendationKey;
+    private bool disposed;
+
+    public void Dispose()
+    {
+        disposed = true;
+        controller.SnapshotChanged -= OnSnapshotChanged;
+    }
 
     public AutomationView(AutomationController controller)
     {
@@ -53,7 +60,7 @@ public sealed class AutomationView : StackPanel
         bettingActions.Children.Add(enableAuto);
         bettingActions.Children.Add(disableAuto);
         approve.Background = LegacyTheme.Green;
-        approve.Foreground = LegacyTheme.Ink;
+        approve.Foreground = Brushes.White;
         page.Children.Add(WorkspaceUi.Card("BET CONTROLS", bettingActions));
 
         page.Children.Add(Text(
@@ -99,6 +106,17 @@ public sealed class AutomationView : StackPanel
         Refresh(controller.Snapshot);
     }
 
+    public void ClearStrategy()
+    {
+        controller.CancelPending("Strategy run ended.");
+        recommendationKey = null;
+        currentRecommendation = null;
+        currentRoundCount = 0;
+        lastAutomatedRound = -1;
+        recommendation.Text = "Apply a supported strategy or load one in Tools.";
+        Refresh(controller.Snapshot);
+    }
+
     private async Task PrepareInitialAsync()
     {
         if (currentRecommendation is null) return;
@@ -130,6 +148,7 @@ public sealed class AutomationView : StackPanel
 
     private void OnSnapshotChanged(AutomationSnapshot snapshot)
     {
+        if (disposed) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(() => OnSnapshotChanged(snapshot));
@@ -141,7 +160,7 @@ public sealed class AutomationView : StackPanel
     private void Refresh(AutomationSnapshot snapshot)
     {
         status.Text = $"{snapshot.State}: {snapshot.Message}";
-        status.Foreground = Brush.Parse(snapshot.State is AutomationRunState.Faulted or AutomationRunState.Stopped
+        status.Foreground = WorkspaceUi.Tone(snapshot.State is AutomationRunState.Faulted or AutomationRunState.Stopped
             ? "#E48787"
             : snapshot.State == AutomationRunState.Ready ? "#7BD88F" : "#E9BC72");
         totals.Text = $"Accepted bets {snapshot.AcceptedBets} · Session stake {snapshot.SessionStake:0.00} · " +
@@ -163,5 +182,5 @@ public sealed class AutomationView : StackPanel
     private static StackPanel Row() => WorkspaceUi.Row();
     private static Button Button(string content) => WorkspaceUi.Action(content);
     private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>
-        new() { Text = value, FontSize = size, Foreground = Brush.Parse(color), TextWrapping = TextWrapping.Wrap };
+        new() { Text = value, FontSize = size, Foreground = WorkspaceUi.Tone(color), TextWrapping = TextWrapping.Wrap };
 }

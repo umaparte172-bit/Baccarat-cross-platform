@@ -2,14 +2,45 @@
 
 The replacement is organized around verified behavior and replaceable external adapters. Core logic does not depend on Avalonia, Windows APIs, browser drivers or an assumed server schema.
 
-## Current composition (2026-10-15)
+## Current composition (2026-10-16)
 
-The latest clarification restores account screens and supersedes the prior
-no-login change. `ApplicationServices` composes an unavailable/offline authentication
+`App` now starts `DashboardWindow`, which owns `DashboardView` and a
+`DashboardWorkspace` presentation model. No authentication is required.
+`DashboardSession` owns the timestamped ledger using Core `Round` records and retains its
+loaded Core `StrategySessionEngine`. It adds pair flags, settings drafts, shoe boundaries,
+captured strategy settlements and CSV serialization, without reimplementing progression.
+Dashboard and tool actions delegate to that same session/engine.
+
+`Tools` routes to the retained feature views in the same window. `SessionTools`
+owns a strategy view, simulation controller and versioned viewer channel per
+session. Session switches cancel approvals and pause the previous simulation;
+close disposes subscriptions and cancels approvals. AccountView is constructed
+only when Account is opened, preserving Remember Me without gating the dashboard.
+No server adapter is enabled. Unrecovered video-specific algorithms remain later
+work. Core `RoadmapCalculator` now derives all five roads and both Ask previews
+from the selected shoe; Desktop `RoadmapsView` renders them without storing a
+second hand history. See [Phase 5](video-phase-5-roadmaps.md) and
+[integration details](integrated-tools.md).
+
+`DashboardPersistence` handles debounced save and close-time flushing. Desktop
+archive validation checks complete versioned shapes and ledger consistency; the
+Core engine restores decisions by replay, rebuilding its Undo snapshots. Infrastructure
+`WorkspaceFileStore` supplies bounded reads, a single-writer lease, flushed atomic
+replacement and a previous-save backup. Recovery requires confirmation and preserves
+the rejected original. Automation approvals/connections and credentials are never
+part of this archive. See [Phase 3](video-phase-3-persistence.md).
+
+## Retained account composition (2026-10-15)
+
+At this historical checkpoint account screens were restored. They are retained,
+but do not gate the new dashboard. `ApplicationServices` composes an unavailable/offline authentication
 service, simulation, loopback communication, redacted diagnostics and disconnected
 network options. Startup shows AccountView; successful authentication opens Home
 with Sign Out. Explicit offline entry preserves local tools without creating a
-session. No secret store is configured by default, and Remember Me is disabled.
+session. Remember Me uses protected storage in the separate
+`com.baccarat.crossplatform.wetalkbet` namespace; passwords are not persisted.
+Injected services require explicitly injected session storage to avoid mixing test
+and production sessions. The unavailable/offline service skips token restoration.
 Sign-out, returning from offline mode and closing cancel pending approvals and
 disable auto-bet. Real server success remains unimplemented, not simulated by the
 default composition.
@@ -54,7 +85,8 @@ Future WebSocket adapters belong here. Windows Credential Manager and macOS Keyc
 
 Cross-platform Avalonia presentation:
 
-- `MainWindow` owns top-level navigation.
+- `DashboardWindow` is the default shell; `MainWindow` retains the earlier tools' navigation.
+- `DashboardView` presents the video-led workspace; `DashboardWorkspace` owns isolated session drafts without network dependencies.
 - `AccountView` owns account input and displays normalized authentication state.
 - `StrategyView` imports strategy files, displays recommendations, accepts observed outcomes and exposes manual resolution, undo, reset and export.
 - `ViewerView` displays the active protocol/document versions, communication status, current session and strategy snapshots, and bounded document history. Transport callbacks are marshalled onto the Avalonia UI thread.

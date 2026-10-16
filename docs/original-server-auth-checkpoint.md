@@ -1,5 +1,11 @@
 # Original Wetalkbet account integration: blocked, not complete
 
+**2026-10-16 update:** bounded static interpretation recovered 582 strings,
+including API/WebSocket addresses, route names and browser selectors. The
+recovered API base currently returns a domain-parking page. The older statement
+below that endpoints are unknown is superseded by
+[the new recovery report](static-network-recovery-2026-10-16.md).
+
 Checked 2026-10-15. The user explicitly requires original Wetalkbet server accounts,
 not local accounts. This supersedes the earlier no-login request. The current
 application now starts at restored Sign In/Sign Up screens. Successful

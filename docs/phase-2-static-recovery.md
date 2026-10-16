@@ -1,5 +1,10 @@
 # Phase 2 static recovery report
 
+Update 2026-10-16: subsequent bounded interpretation recovered the protected
+string table, including network addresses and candidate routes/selectors.
+This supersedes the endpoint-recovery limitation below, but application method
+bodies remain protected. See [new evidence](static-network-recovery-2026-10-16.md).
+
 Phase completed: 2026-10-13. Source: installed version 2 client with SHA-256 `B051ADE2E179154614BD566ADC35C5C3672A04F899B891FEBAFBF0CD4045ECB1`. No supplied program was executed.
 
 ## Outcome

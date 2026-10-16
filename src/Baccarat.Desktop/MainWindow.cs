@@ -36,7 +36,8 @@ public sealed class MainWindow : Window
         ViewerCommunicationModule? viewerCommunication = null,
         AutomationController? automationController = null,
         IAuthenticationService? authenticationService = null,
-        IAuthenticationSessionStore? authenticationSessions = null)
+        IAuthenticationSessionStore? authenticationSessions = null,
+        bool startOffline = false)
     {
         var defaults = ApplicationServices.CreateDefault();
         this.diagnostics = diagnostics ?? defaults.Diagnostics;
@@ -48,7 +49,7 @@ public sealed class MainWindow : Window
         clear = ActionButton("Clear session…", async () => await ConfirmClear());
         export = ActionButton("Export CSV", async () => await Export());
 
-        var overview = WorkspaceUi.Page("TABLE WORKSPACE", "Session tracker", "Record outcomes and review the running table history.");
+        var overview = WorkspaceUi.Page("TABLE WORKSPACE", "Session tracker", "Record outcomes and review the running table history.", centerHeading: true);
         var summary = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*,*"), ColumnSpacing = 10 };
         AddMetric(summary, 0, "ROUNDS", stats, LegacyTheme.Gold);
         AddMetric(summary, 1, "PLAYER", playerCount, Brush.Parse("#76A8FF"));
@@ -78,7 +79,11 @@ public sealed class MainWindow : Window
         overview.Children.Add(WorkspaceUi.Card("ROUND HISTORY", recordTools));
         overview.Children.Add(WorkspaceUi.Text("MANUAL MODE · Data remains on this device until exported.", 12, LegacyTheme.Muted));
 
-        var account = new AccountView(authenticationService ?? defaults.Authentication, this.diagnostics, authenticationSessions);
+        // Injected test/demo services must never share the real account namespace.
+        var sessions = authenticationSessions ?? (authenticationService is null
+            ? defaults.AuthenticationSessions
+            : NullAuthenticationSessionStore.Instance);
+        var account = new AccountView(authenticationService ?? defaults.Authentication, this.diagnostics, sessions);
         var accountScreen = new ScrollViewer { Content = account };
 
         var viewer = new ViewerView(this.viewerCommunication);
@@ -159,12 +164,13 @@ public sealed class MainWindow : Window
             Content = layout;
             ShowHome();
         };
-        account.OfflineRequested += () =>
+        void OpenOfflineWorkspace()
         {
             signOut.Content = "BACK TO SIGN IN";
             Content = layout;
             ShowHome();
-        };
+        }
+        account.OfflineRequested += OpenOfflineWorkspace;
         account.SignedOut += () =>
         {
             controlledAutomation.CancelPending("Pending simulation cancelled on sign-out.");
@@ -175,6 +181,7 @@ public sealed class MainWindow : Window
         };
         Content = accountScreen;
         Title = "Baccarat (Evolution) — Sign In";
+        if (startOffline) OpenOfflineWorkspace();
         Refresh();
         Publish(new CommunicationStatusPayload("offline", "Local versioned communication is ready."));
         PublishSession();
@@ -191,7 +198,7 @@ public sealed class MainWindow : Window
         Action openViewer)
     {
         var page = WorkspaceUi.Page("WORKSPACE HOME", "Baccarat workspace",
-            "Choose a workspace to begin. Current workspace tools are local; live table integration is not connected.");
+            "Choose a workspace to begin. Current workspace tools are local; live table integration is not connected.", centerHeading: true);
         var choices = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("*,*"),

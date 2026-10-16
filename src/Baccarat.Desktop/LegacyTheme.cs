@@ -11,16 +11,18 @@ namespace Baccarat.Desktop;
 
 internal static class LegacyTheme
 {
-    internal static readonly IBrush Window = Brush.Parse("#19294B");
-    internal static readonly IBrush Panel = Brush.Parse("#122342");
-    internal static readonly IBrush Field = Brush.Parse("#203965");
-    internal static readonly IBrush FieldBorder = Brush.Parse("#68748B");
-    internal static readonly IBrush Gold = Brush.Parse("#E9A43A");
-    internal static readonly IBrush Blue = Brush.Parse("#416DE1");
-    internal static readonly IBrush Green = Brush.Parse("#12F45C");
-    internal static readonly IBrush Ink = Brush.Parse("#111A31");
-    internal static readonly IBrush Text = Brush.Parse("#F4F6FA");
-    internal static readonly IBrush Muted = Brush.Parse("#A7B3C7");
+    // Shared with the dashboard. The historical class name is kept because the
+    // retained views use it, but every workspace now uses one light visual system.
+    internal static readonly IBrush Window = DashboardUi.Surface;
+    internal static readonly IBrush Panel = Brushes.White;
+    internal static readonly IBrush Field = Brush.Parse("#F0F3F8");
+    internal static readonly IBrush FieldBorder = DashboardUi.Line;
+    internal static readonly IBrush Gold = Brush.Parse("#A66308");
+    internal static readonly IBrush Blue = Brush.Parse("#1769CE");
+    internal static readonly IBrush Green = Brush.Parse("#119C50");
+    internal static readonly IBrush Ink = DashboardUi.Ink;
+    internal static readonly IBrush Text = DashboardUi.Ink;
+    internal static readonly IBrush Muted = DashboardUi.Muted;
 
     internal static void AddStyles(Styles styles)
     {
@@ -28,7 +30,7 @@ internal static class LegacyTheme
         {
             Setters =
             {
-                new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(0)),
+                new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(5)),
                 new Setter(TemplatedControl.BackgroundProperty, Panel),
                 new Setter(TemplatedControl.ForegroundProperty, Text),
                 new Setter(TemplatedControl.BorderBrushProperty, Blue),
@@ -43,7 +45,7 @@ internal static class LegacyTheme
         {
             Setters =
             {
-                new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(0)),
+                new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(4)),
                 new Setter(TemplatedControl.BackgroundProperty, Field),
                 new Setter(TemplatedControl.ForegroundProperty, Text),
                 new Setter(TemplatedControl.BorderBrushProperty, FieldBorder),

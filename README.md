@@ -1,8 +1,31 @@
 # Baccarat macOS migration
 
+## Current direction — 2026-10-16
+
+The application is modeled on the supplied friend's-app video. The latest follow-up
+also requests account and live-table connectivity; those remain under recovery.
+The decoded old API currently serves a domain-parking page. See the
+[new static recovery evidence](docs/static-network-recovery-2026-10-16.md). The new
+[Phase 1 video specification](docs/video-reference-phase-1.md) contains the screen
+inventory, 21 recovered written cases, 10 observed histories, contradictions and
+the Phase 2 dashboard handoff. This is a new seven-phase plan; earlier stage
+reports below describe the existing foundation, not completion of this new target.
+The [Phase 2 dashboard](docs/video-dashboard-phase-2.md) is now the default entry:
+create independent local sessions, record results/pairs, undo, export CSV and
+edit strategy settings. **Tools** now navigates inside the same window to the
+existing strategy, automation, viewer and account features. The dashboard and
+tools share the selected session and its existing strategy engine; the separate
+legacy-window approach has been removed. See [the integration correction](docs/integrated-tools.md).
+[Phase 3](docs/video-phase-3-persistence.md) adds shoe boundaries, ledger statistics
+and local autosave/backup recovery, preserving imported strategies and manual decisions
+across restarts. [Phase 5](docs/video-phase-5-roadmaps.md) implements all five
+current-shoe roadmaps and Ask previews. Unrecovered strategy algorithms remain pending.
+
+## Existing build and historical migration records
+
 Local project for investigating the supplied Windows executable and rebuilding verified behavior for Windows and macOS. No original source code is available. The first desktop foundation is implemented; original-service integration is pending. See [running instructions](docs/running.md).
 
-The current build starts at Sign In, with Sign Up available there. Successful
+The retained account workflow starts at Sign In, with Sign Up available there. Successful
 authentication opens the workspace with Sign Out at the upper-right. Original
 Wetalkbet server integration is still unavailable; an explicit Open Offline
 Workspace action preserves access to local tools without pretending to authenticate.
@@ -25,7 +48,7 @@ Stage 5 authentication progress and the exact remaining evidence boundary are re
 
 The completed offline strategy/session engine and its protected-algorithm boundary are documented in [the Stage 6 strategy report](docs/stage-6-strategy-session-report.md).
 
-The latest clarification restores account screens and continues to prioritize
+The earlier account-screen clarification preserved those screens and prioritized
 [PATTERN](docs/pattern-strategy-evidence.md). IHG is supporting description and is
 separate from PATTERN. The [IHG reference review](docs/strategy-9-ihg-evidence.md)
 records its 315 worked hands and unresolved document questions. The current build

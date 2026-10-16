@@ -15,6 +15,7 @@ using Baccarat.Infrastructure.Security;
 using Baccarat.Infrastructure.Strategies;
 
 static void Check(bool value, string message) { if (!value) throw new Exception(message); }
+RoadmapChecks.Run();
 var session = new Session();
 Check(!session.Undo(), "Empty undo should be harmless");
 session.Record(Outcome.Banker);
@@ -136,6 +137,61 @@ boundedStrategy.Record(Outcome.Banker);
 Check(boundedStrategy.Recommendation.State == StrategyEngineState.Stopped,
     "Stake multiplication beyond the supported limit must stop safely");
 Console.WriteLine("PASS: strategy recommendations, settlement, progression and guarded opaque rules");
+
+// Reference vectors transcribed from the supplied friend's-app video. Verify
+// every next recommendation and the ledger, not merely the final balance.
+static void VideoVector(StrategyDefinition definition, Outcome[] outcomes,
+    (BetSide side, decimal stake)[] next, decimal expectedProfit)
+{
+    var engine = new StrategySessionEngine(definition);
+    Check(engine.Recommendation is { Side: { }, Stake: { } } initial &&
+          initial.Side == next[0].side && initial.Stake == next[0].stake,
+        "Video vector initial recommendation");
+    for (var index = 0; index < outcomes.Length; index++)
+    {
+        engine.Record(outcomes[index]);
+        Check(engine.Recommendation.Side == next[index + 1].side &&
+              engine.Recommendation.Stake == next[index + 1].stake,
+            $"Video vector {definition.Name} hand {index + 1} next recommendation");
+    }
+    Check(engine.Profit == expectedProfit, $"Video vector {definition.Name} ledger");
+    var restored = StrategySessionEngine.RestoreArchive(engine.ExportArchive());
+    Check(restored.Recommendation == engine.Recommendation && restored.Profit == expectedProfit,
+        "Video vector survives archive replay");
+    Check(restored.Undo() && restored.Rounds.Count == outcomes.Length - 1,
+        "Video vector restores Undo snapshot");
+}
+VideoVector(VideoStrategyFactory.Martingale(BetSide.Player, 1m),
+    [Outcome.Banker, Outcome.Player, Outcome.Player],
+    [(BetSide.Player, 1m), (BetSide.Banker, 2m), (BetSide.Player, 4m), (BetSide.Player, 1m)], 1m);
+VideoVector(VideoStrategyFactory.Martingale(BetSide.Player, 1m),
+    [Outcome.Tie, Outcome.Banker, Outcome.Tie, Outcome.Banker],
+    [(BetSide.Player, 1m), (BetSide.Player, 1m), (BetSide.Banker, 2m),
+     (BetSide.Banker, 2m), (BetSide.Banker, 1m)], 0.90m);
+var referenceSequence = VideoStrategyFactory.Sequence(
+    [BetSide.Banker, BetSide.Player, BetSide.Player, BetSide.Banker, BetSide.Banker,
+     BetSide.Player, BetSide.Banker, BetSide.Player], [1m, 2m, 3m]);
+VideoVector(referenceSequence, [Outcome.Player, Outcome.Banker, Outcome.Banker, Outcome.Banker],
+    [(BetSide.Banker, 1m), (BetSide.Player, 2m), (BetSide.Player, 3m),
+     (BetSide.Banker, 1m), (BetSide.Banker, 1m)], -5.05m);
+VideoVector(referenceSequence, [Outcome.Banker, Outcome.Tie],
+    [(BetSide.Banker, 1m), (BetSide.Banker, 1m), (BetSide.Banker, 1m)], 0.95m);
+var videoPattern = new StrategySessionEngine(VideoStrategyFactory.PatternManual(BetSide.Player, 1m));
+Check(videoPattern.Recommendation is { Side: BetSide.Player, Stake: 1m }, "PATTERN explicit opening");
+videoPattern.Record(Outcome.Player);
+Check(videoPattern.Recommendation.State == StrategyEngineState.AwaitingSide,
+    "PATTERN next side is unresolved, not fabricated");
+videoPattern.ChooseSide(BetSide.Player);
+Check(videoPattern.Recommendation.State == StrategyEngineState.AwaitingStake,
+    "PATTERN next stake is unresolved, not fabricated");
+videoPattern.SetManualStake(1m);
+videoPattern.Record(Outcome.Tie);
+Check(videoPattern.Recommendation is { Side: BetSide.Player, Stake: 1m },
+    "Observed PATTERN tie retains the manually resolved bet");
+var restoredPattern = StrategySessionEngine.RestoreArchive(videoPattern.ExportArchive());
+Check(restoredPattern.Undo() && restoredPattern.Recommendation is { Side: BetSide.Player, Stake: 1m },
+    "Manual PATTERN state survives restart and Undo");
+Console.WriteLine("PASS: video Martingale and Sequence hand vectors, manual PATTERN boundary, replay and Undo");
 
 var selectedChips = ChipSelection.SelectExact(16m, [1m, 5m, 10m], 10);
 Check(selectedChips.SequenceEqual([10m, 5m, 1m]),

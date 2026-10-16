@@ -39,10 +39,11 @@ public static class StrategyDefinitionValidator
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(definition.Name)) errors.Add("Strategy name is required.");
         else if (definition.Name.Length > 100) errors.Add("Strategy name must not exceed 100 characters.");
+        if (definition.RuleCondition?.Length > 16384) errors.Add("Rule condition must not exceed 16384 characters.");
         ValidateRule(definition.Initial, "Initial", errors);
         ValidateRule(definition.AfterWin, "Win", errors);
         ValidateRule(definition.AfterLoss, "Loss", errors);
-        if (definition.Initial.AmountRule != AmountRuleKind.Set)
+        if (definition.Initial?.AmountRule != AmountRuleKind.Set)
             errors.Add("The initial amount rule must be Set.");
         if (definition.StopProfit is <= 0) errors.Add("Stop profit must be positive when supplied.");
         if (definition.StopProfit > MaximumSupportedAmount) errors.Add("Stop profit exceeds the supported limit.");
@@ -71,6 +72,7 @@ public static class StrategyDefinitionValidator
 
         if (string.IsNullOrWhiteSpace(rule.Selector)) errors.Add($"{label} selector is required.");
         else if (rule.Selector.Length > 200) errors.Add($"{label} selector must not exceed 200 characters.");
+        if (!Enum.IsDefined(typeof(AmountRuleKind), rule.AmountRule)) errors.Add($"{label} amount rule is unsupported.");
         if (rule.Values is null || rule.Values.Count == 0)
         {
             errors.Add($"{label} amount value is required.");

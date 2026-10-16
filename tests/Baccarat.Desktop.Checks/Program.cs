@@ -4,8 +4,10 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Baccarat.Core;
+using Baccarat.Core.Authentication;
 using Baccarat.Core.Automation;
 using Baccarat.Core.Strategies;
 using Baccarat.Desktop;
@@ -13,8 +15,12 @@ using Baccarat.Desktop.Views;
 using Baccarat.Infrastructure.Automation;
 using Baccarat.Infrastructure.Authentication;
 using Baccarat.Infrastructure.Strategies;
+using Baccarat.Infrastructure.Security;
 
-AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
+var screenshotDirectory = Environment.GetEnvironmentVariable("BACCARAT_SCREENSHOT_DIR");
+var builder = AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = screenshotDirectory is null });
+if (screenshotDirectory is not null) builder.UseSkia();
+builder.SetupWithoutStarting();
 var strategyDefinition = new StrategyDefinition(
     "UI Fixture", null,
     new StrategyRule("PLAYER", AmountRuleKind.Set, [1m]),
@@ -216,7 +222,7 @@ Check(controller.Snapshot.State == AutomationRunState.Paused && !controller.Snap
     "Close must cancel pending simulation and disable auto-bet");
 Check(controller.ApprovePendingAsync().GetAwaiter().GetResult().Outcome != AutomationActionOutcome.Accepted,
     "Closed workspace must not retain an approvable bet");
-window = new MainWindow();
+window = new MainWindow(authenticationSessions: new SecretAuthenticationSessionStore(new VolatileSecretStore()));
 window.Show();
 window.UpdateLayout();
 Check(!HasText("WORKSPACE HOME") && HasText("Wetalkbet server integration is not configured"),
@@ -249,3 +255,64 @@ foreach (var button in accountWindow.GetVisualDescendants().OfType<Button>().Whe
         "Fixed-height account buttons must reserve enough vertical space for their labels");
 accountWindow.Close();
 Console.WriteLine("PASS: horizontal and vertical button alignment across workspaces and account forms");
+
+var rememberedSecrets = new VolatileSecretStore();
+var rememberedSessions = new SecretAuthenticationSessionStore(rememberedSecrets);
+void OpenAccountWindow(IAuthenticationService service, IAuthenticationSessionStore sessions)
+{
+    window = new MainWindow(authenticationService: service, authenticationSessions: sessions);
+    window.Show();
+    Dispatcher.UIThread.RunJobs();
+    window.UpdateLayout();
+}
+void SignInFixture(bool remember, string password = DemoAuthenticationService.Password)
+{
+    var rememberBox = window.GetVisualDescendants().OfType<CheckBox>().Single(b => Equals(b.Content, "REMEMBER ME"));
+    Check(rememberBox.IsEnabled, "Remember Me must be available with a configured session store");
+    rememberBox.IsChecked = remember;
+    var fields = window.GetVisualDescendants().OfType<TextBox>().ToArray();
+    fields[0].Text = DemoAuthenticationService.Email;
+    fields[1].Text = password;
+    Click("SIGN IN");
+    Check(string.IsNullOrEmpty(fields[1].Text), "Remember Me must not retain the password in the UI");
+}
+OpenAccountWindow(new DemoAuthenticationService(), rememberedSessions);
+SignInFixture(true);
+CheckAuthenticatedWorkspace();
+Check(rememberedSessions.ReadAsync().GetAwaiter().GetResult() is not null, "Checked Remember Me must save a successful session");
+Check(!rememberedSecrets.ReadAsync("authentication.session.v1").GetAwaiter().GetResult()!
+    .Contains(DemoAuthenticationService.Password, StringComparison.Ordinal), "Stored session must not contain password");
+window.Close();
+// A new store wrapper and window simulate a fresh application instance.
+OpenAccountWindow(new DemoAuthenticationService(), new SecretAuthenticationSessionStore(rememberedSecrets));
+CheckAuthenticatedWorkspace();
+Check(HasText("WORKSPACE HOME"), "Remembered valid session must restore Home");
+Click("SIGN OUT");
+Check(rememberedSessions.ReadAsync().GetAwaiter().GetResult() is null, "Sign Out must delete remembered session");
+SignInFixture(false);
+CheckAuthenticatedWorkspace();
+Check(rememberedSessions.ReadAsync().GetAwaiter().GetResult() is null, "Unchecked Remember Me must not persist session");
+window.Close();
+OpenAccountWindow(new DemoAuthenticationService(), rememberedSessions);
+Check(!HasText("WORKSPACE HOME"), "Unchecked session must not survive relaunch");
+SignInFixture(true, "incorrect");
+Check(!HasText("WORKSPACE HOME") && rememberedSessions.ReadAsync().GetAwaiter().GetResult() is null,
+    "Rejected login must never be remembered");
+window.Close();
+rememberedSessions.SaveAsync(new AuthenticatedSession("expired-fixture", "test-token", DateTimeOffset.UtcNow.AddMinutes(-1)))
+    .GetAwaiter().GetResult();
+OpenAccountWindow(new DemoAuthenticationService(), rememberedSessions);
+Check(!HasText("WORKSPACE HOME") && HasText("expired") && rememberedSessions.ReadAsync().GetAwaiter().GetResult() is null,
+    "Expired remembered sessions must be rejected and cleared");
+window.Close();
+rememberedSessions.SaveAsync(new AuthenticatedSession("old-fixture", "test-token", DateTimeOffset.UtcNow.AddHours(1)))
+    .GetAwaiter().GetResult();
+OpenAccountWindow(new OfflineAuthenticationService(), rememberedSessions);
+Check(!HasText("WORKSPACE HOME"), "Unconfigured server service must never restore an old token as a valid login");
+Check(window.GetVisualDescendants().OfType<CheckBox>().Single(b => Equals(b.Content, "REMEMBER ME")).IsEnabled,
+    "Remember Me must be selectable even while server integration is unavailable");
+window.Close();
+Console.WriteLine("PASS: Remember Me opt-in, restoration, password exclusion, rejection, expiry, sign-out and offline safety");
+DashboardChecks.Run(CheckButtonAlignment, screenshotDirectory);
+RoadmapViewChecks.Run(screenshotDirectory);
+WorkspacePersistenceChecks.Run();

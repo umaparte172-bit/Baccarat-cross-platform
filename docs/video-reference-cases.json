@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "source": "VID-20261016-WA0002.mp4",
+  "source_sha256": "9f3a68fad62f9c225220ddc2226e41e1ca82e1c812db6ff16cb8113333d80f9e",
+  "description": "Transcribed evidence, not an implemented strategy specification or proof of original-app parity. Each next entry is the recommendation AFTER that outcome. N means no bet. Monetary values are decimal strings.",
+  "defaults": {"base_unit": "1", "starting_bankroll": "1000", "other_settings": "empty unless explicitly specified", "arithmetic_model": "Player win +stake; Banker win +0.95*stake; loss -stake; tie or no bet 0. This checks arithmetic only, not strategy transitions."},
+  "document_cases": [
+    {"id":"M1","strategy":"Martingale","at_seconds":0,"initial":"P1","outcomes":"BPP","next":["B2","P4","P1"],"balance":"1001"},
+    {"id":"M2","strategy":"Martingale","at_seconds":0,"initial":"P1","outcomes":"TBTB","next":["P1","B2","B2","B1"],"balance":"1000.90"},
+    {"id":"G1","strategy":"Grinding","at_seconds":125,"initial":"P1","outcomes":"BBB","next":["B1","B2","B1"],"balance":"1001.85"},
+    {"id":"G2","strategy":"Grinding","at_seconds":125,"initial":"P1","outcomes":"BPPP","next":["B1","P1","P2","P1"],"balance":"1001"},
+    {"id":"G3","strategy":"Grinding","at_seconds":125,"settings":{"grind_unit":"2"},"initial":"P2","outcomes":"PBB","next":["P2","B2","B4"],"balance":"1001.90"},
+    {"id":"S1","strategy":"Sequence","at_seconds":220,"initial":"B1","outcomes":"PPBB","next":["P2","P3","B1","B1"],"balance":"994.95","issue":"SEQ-01: text arithmetic gives 998.95. Recorded history is PBBB; see S1-UI."},
+    {"id":"S2","strategy":"Sequence","at_seconds":230,"initial":"B1","outcomes":"BT","next":["B1","B1"],"balance":"1000.95"},
+    {"id":"P1","strategy":"PATTERN","at_seconds":260,"settings":{"run_ends_at_bet":"2"},"initial":null,"outcomes":"PPPBBPPPBPPBPB","next":null,"balance":"1001.95","issue":"PAT-01: note references absent P2 bet history; UI run limit is 1, not 2. Not a complete acceptance vector."},
+    {"id":"P4","strategy":"PATTERN","at_seconds":260,"initial":"P1","outcomes":"PTPB","next":["P1","P1","P1","P1"],"next_labels":["Follow","Follow","Streak","Chop"],"balance":"1001"},
+    {"id":"E1","strategy":"Odd Even","at_seconds":330,"initial":"B1","outcomes":"PBTB","next":["P2","B3","B3","P1"],"balance":"999.85"},
+    {"id":"E2","strategy":"Odd Even","at_seconds":390,"settings":{"odd_results_on":"P"},"initial":"P1","outcomes":"PPB","next":["B1","P2","B3"],"balance":"998"},
+    {"id":"E3","strategy":"Odd Even","at_seconds":430,"settings":{"stakes":["2","4","6"]},"initial":"B2","outcomes":"PBPB","next":["P4","B6","P2","B4"],"balance":"986"},
+    {"id":"D1","strategy":"ODD Diff","at_seconds":430,"initial":"N","outcomes":"BPPBB","next":["B1","B2","N","N","B3"],"balance":"997"},
+    {"id":"D2","strategy":"ODD Diff","at_seconds":430,"initial":"N","outcomes":"PBP","next":["P1","P2","P1"],"balance":"1001"},
+    {"id":"D3","strategy":"ODD Diff","at_seconds":430,"initial":"N","outcomes":"BTB","next":["B1","B1","B1"],"balance":"1000.95"},
+    {"id":"L1","strategy":"ODD Looser","at_seconds":550,"initial":"N","outcomes":"BPPBB","next":["P1","P1","N","N","P1"],"balance":"1002"},
+    {"id":"L2","strategy":"ODD Looser","at_seconds":550,"initial":"N","outcomes":"PBP","next":["B1","B1","B2"],"balance":"999.95"},
+    {"id":"L3","strategy":"ODD Looser","at_seconds":590,"initial":"N","outcomes":"BTB","next":["P1","P1","P2"],"balance":"999"},
+    {"id":"O1","strategy":"ODD is God","at_seconds":590,"initial":"N","outcomes":"BPP","next":["B1","B2","P3"],"balance":"997"},
+    {"id":"O2","strategy":"ODD is God","at_seconds":590,"initial":"N","outcomes":"TPB","next":["N","P1","P2"],"balance":"999"},
+    {"id":"O3","strategy":"ODD is God","at_seconds":590,"settings":{"stakes":["5","10"]},"initial":"N","outcomes":"BPB","next":["B5","B10","B5"],"balance":"1004.50"}
+  ],
+  "observed_histories": [
+    {"id":"M2-UI","strategy":"Martingale","at_seconds":65,"outcomes":"TBTB","bets":["P1","P1","B2","B2"],"balances":["1000","999","999","1000.90"],"next":"B1"},
+    {"id":"G3-UI","strategy":"Grinding","at_seconds":180,"settings":{"grind_unit":"2"},"outcomes":"PBB","bets":["P2","P2","B2"],"balances":["1002","1000","1001.90"],"next":"B4"},
+    {"id":"S1-UI","strategy":"Sequence","at_seconds":220,"outcomes":"PBBB","bets":["B1","P2","P3","B1"],"balances":["999","997","994","994.95"],"next":"B1"},
+    {"id":"S2-UI","strategy":"Sequence","at_seconds":230,"outcomes":"BT","bets":["B1","B1"],"balances":["1000.95","1000.95"],"next":"B1"},
+    {"id":"P4-UI","strategy":"PATTERN","at_seconds":310,"settings":{"run_ends_at_bet":"1"},"outcomes":"PTPB","bets":["P1","P1","P1","P1"],"balances":["1001","1001","1002","1001"],"next":"P1","next_label":"Chop"},
+    {"id":"E2-different-UI","strategy":"Odd Even","at_seconds":390,"outcomes":"PPPB","bets":["B1","P2","B1","P2"],"balances":["999","1001","1000","998"],"next":"B3","issue":"Not E2: one extra Player and different bet history; coincidentally same final balance. Do not use balance alone to establish parity."},
+    {"id":"D3-UI","strategy":"ODD Diff","at_seconds":490,"outcomes":"BTB","bets":["N","B1","B1"],"balances":["1000","1000","1000.95"],"next":"B1"},
+    {"id":"L2-UI","strategy":"ODD Looser","at_seconds":550,"outcomes":"PBP","bets":["N","B1","B1"],"balances":["1000","1000.95","999.95"],"next":"B2"},
+    {"id":"L3-UI","strategy":"ODD Looser","at_seconds":590,"outcomes":"BTB","bets":["N","P1","P1"],"balances":["1000","1000","999"],"next":"P2"},
+    {"id":"O3-UI","strategy":"ODD is God","at_seconds":663,"settings":{"stakes":["5","10"]},"outcomes":"BPB","bets":["N","B5","B10"],"balances":["1000","995","1004.50"],"next":"B5","issue":"First row shows Suggested Banker x1 with Stake 0 and no net. Ledger treats it as no wager; label inconsistency is not a requirement to copy."}
+  ]
+}

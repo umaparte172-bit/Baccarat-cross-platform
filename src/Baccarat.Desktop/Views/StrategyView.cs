@@ -7,6 +7,7 @@ using Avalonia.Platform.Storage;
 using Baccarat.Core;
 using Baccarat.Core.Strategies;
 using Baccarat.Infrastructure.Strategies;
+using Baccarat.Desktop.ViewModels;
 
 namespace Baccarat.Desktop.Views;
 
@@ -28,25 +29,30 @@ public sealed class StrategyView : StackPanel
     private readonly Button playerResult = Button("Player result");
     private readonly Button bankerResult = Button("Banker result");
     private readonly Button tieResult = Button("Tie result");
-    private StrategySessionEngine? engine;
+    private StrategySessionEngine? standaloneEngine;
+    private readonly DashboardSession? sharedSession;
+    private StrategySessionEngine? engine => sharedSession?.Engine ?? standaloneEngine;
 
     public StrategyView(
         StrategyFileLoader loader,
         StrategyDefinition? initialDefinition = null,
-        Action<StrategySessionEngine>? changed = null)
+        Action<StrategySessionEngine>? changed = null,
+        DashboardSession? sharedSession = null)
     {
         this.loader = loader ?? throw new ArgumentNullException(nameof(loader));
         this.changed = changed;
+        this.sharedSession = sharedSession;
         Margin = new Thickness(0);
         Spacing = 0;
         var page = WorkspaceUi.Page("STRATEGY WORKSPACE", "Strategy session",
-            "Import a recovered strategy, review its recommendation, and record observed table outcomes.");
+            sharedSession is null ? "Import a recovered strategy, review its recommendation, and record observed table outcomes." :
+            "These tools use the selected dashboard session. Loading or resetting starts a new strategy run; prior session results are retained.");
         Children.Add(page);
 
         var fileActions = Row();
         var load = Button("Load strategy");
         load.Background = LegacyTheme.Green;
-        load.Foreground = LegacyTheme.Ink;
+        load.Foreground = Brushes.White;
         fileActions.Children.Add(load);
         fileActions.Children.Add(reset);
         fileActions.Children.Add(undo);
@@ -73,9 +79,10 @@ public sealed class StrategyView : StackPanel
             14, "#91A1B9"));
 
         var outcomes = Row();
-        playerResult.Background = Brush.Parse("#325C9C");
-        bankerResult.Background = Brush.Parse("#8D3E50");
-        tieResult.Background = Brush.Parse("#2F7054");
+        playerResult.Background = DashboardUi.OutcomeColor(Outcome.Player);
+        bankerResult.Background = DashboardUi.OutcomeColor(Outcome.Banker);
+        tieResult.Background = DashboardUi.OutcomeColor(Outcome.Tie);
+        playerResult.Foreground = bankerResult.Foreground = tieResult.Foreground = Brushes.White;
         outcomes.Children.Add(playerResult);
         outcomes.Children.Add(bankerResult);
         outcomes.Children.Add(tieResult);
@@ -83,8 +90,8 @@ public sealed class StrategyView : StackPanel
         page.Children.Add(WorkspaceUi.Card("STRATEGY HISTORY", history));
 
         load.Click += async (_, _) => await LoadAsync();
-        reset.Click += (_, _) => { engine?.Reset(); Refresh(); NotifyChanged(); };
-        undo.Click += (_, _) => { engine?.Undo(); Refresh(); NotifyChanged(); };
+        reset.Click += (_, _) => { if (sharedSession is null) engine?.Reset(); else sharedSession.ResetStrategy(); Refresh(); NotifyChanged(); };
+        undo.Click += (_, _) => { if (sharedSession is null) engine?.Undo(); else sharedSession.Undo(); Refresh(); NotifyChanged(); };
         export.Click += async (_, _) => await ExportAsync();
         choosePlayer.Click += (_, _) => Choose(BetSide.Player);
         chooseBanker.Click += (_, _) => Choose(BetSide.Banker);
@@ -99,7 +106,8 @@ public sealed class StrategyView : StackPanel
 
     public void Load(StrategyDefinition definition)
     {
-        engine = new StrategySessionEngine(definition);
+        if (sharedSession is null) standaloneEngine = new StrategySessionEngine(definition);
+        else sharedSession.LoadStrategy(definition);
         strategyName.Text = definition.Name;
         Refresh();
         NotifyChanged();
@@ -129,7 +137,7 @@ public sealed class StrategyView : StackPanel
         catch (Exception exception) when (exception is StrategyFormatException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
             recommendation.Text = $"Strategy could not be loaded: {exception.Message}";
-            recommendation.Foreground = Brush.Parse("#E48787");
+            recommendation.Foreground = WorkspaceUi.Tone("#E48787");
         }
     }
 
@@ -174,7 +182,8 @@ public sealed class StrategyView : StackPanel
         if (engine is null) return;
         try
         {
-            engine.Record(outcome);
+            if (sharedSession is null) engine.Record(outcome);
+            else if (!sharedSession.Record(outcome)) throw new InvalidOperationException("Session hand limit reached (10,000).");
             Refresh();
             NotifyChanged();
         }
@@ -187,6 +196,7 @@ public sealed class StrategyView : StackPanel
     private async Task ExportAsync()
     {
         if (engine is null || engine.Rounds.Count == 0) return;
+        var csv = engine.ToCsv();
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel is null) return;
 
@@ -203,10 +213,10 @@ public sealed class StrategyView : StackPanel
             await using var stream = await file.OpenWriteAsync();
             stream.SetLength(0);
             await using var writer = new StreamWriter(stream);
-            await writer.WriteAsync(engine.ToCsv());
+            await writer.WriteAsync(csv);
             await writer.FlushAsync();
             recommendation.Text = "Strategy session exported.";
-            recommendation.Foreground = Brush.Parse("#7BD88F");
+            recommendation.Foreground = WorkspaceUi.Tone("#7BD88F");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -214,11 +224,12 @@ public sealed class StrategyView : StackPanel
         }
     }
 
-    private void Refresh()
+    public void Refresh()
     {
+        strategyName.Text = engine?.StrategyName ?? "No strategy loaded";
         var next = engine?.Recommendation;
         recommendation.Text = next?.Message ?? "Load a strategy file to begin.";
-        recommendation.Foreground = Brush.Parse(next?.State == StrategyEngineState.Stopped ? "#E48787" : "#E9BC72");
+        recommendation.Foreground = WorkspaceUi.Tone(next?.State == StrategyEngineState.Stopped ? "#E48787" : "#E9BC72");
 
         var rounds = engine?.Rounds ?? [];
         totals.Text = $"Profit {engine?.Profit ?? 0:0.00}  ·  Bets {rounds.Count(round => round.WasBet)}  ·  Observed rounds {rounds.Count}";
@@ -226,7 +237,8 @@ public sealed class StrategyView : StackPanel
         undo.IsEnabled = export.IsEnabled = rounds.Count > 0;
         choosePlayer.IsEnabled = chooseBanker.IsEnabled = next?.State == StrategyEngineState.AwaitingSide;
         manualStake.IsEnabled = applyStake.IsEnabled = next?.State == StrategyEngineState.AwaitingStake;
-        var canRecord = next?.State is StrategyEngineState.Ready or StrategyEngineState.Paused;
+        var canRecord = (next?.State is StrategyEngineState.Ready or StrategyEngineState.Paused) &&
+            (sharedSession is null || sharedSession.CanRecord);
         playerResult.IsEnabled = bankerResult.IsEnabled = tieResult.IsEnabled = canRecord;
 
         history.Children.Clear();
@@ -248,7 +260,7 @@ public sealed class StrategyView : StackPanel
     private void ShowError(string message)
     {
         recommendation.Text = message;
-        recommendation.Foreground = Brush.Parse("#E48787");
+        recommendation.Foreground = WorkspaceUi.Tone("#E48787");
     }
 
     private void NotifyChanged()
@@ -261,5 +273,5 @@ public sealed class StrategyView : StackPanel
     private static Button Button(string content) => WorkspaceUi.Action(content);
 
     private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>
-        new() { Text = value, FontSize = size, Foreground = Brush.Parse(color), TextWrapping = TextWrapping.Wrap };
+        new() { Text = value, FontSize = size, Foreground = WorkspaceUi.Tone(color), TextWrapping = TextWrapping.Wrap };
 }

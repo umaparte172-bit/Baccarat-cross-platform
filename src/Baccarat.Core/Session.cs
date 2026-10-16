@@ -13,7 +13,7 @@ public sealed class Session
     public Session() => Rounds = new(rounds);
     public void Record(Outcome outcome)
     {
-        if (!Enum.IsDefined(outcome)) throw new ArgumentOutOfRangeException(nameof(outcome));
+        if (!Enum.IsDefined(typeof(Outcome), outcome)) throw new ArgumentOutOfRangeException(nameof(outcome));
         rounds.Add(new(rounds.Count + 1, outcome, DateTimeOffset.UtcNow));
     }
     public bool Undo()
