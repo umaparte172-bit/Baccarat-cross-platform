@@ -182,7 +182,7 @@ internal static class DashboardChecks
         Capture("tools-viewer");
         Assert(Text("Rounds 2 · Player 1 · Banker 1 · Tie 0") && Text("Shared fixture · Profit 0.00"),
             "Viewer must receive the selected dashboard session and engine snapshots");
-        Click("Back to Tools");
+        Click("Tools");
         Click("Automation");
         Capture("tools-automation");
         Click("Connect simulation");
@@ -195,7 +195,7 @@ internal static class DashboardChecks
         Click("Tools");
         Click("Viewer");
         Assert(Text("Rounds 1 · Player 1 · Banker 0 · Tie 0") && !Text("Shared fixture · Profit"), "Another session must not show the previous session's viewer state");
-        Click("Back to Tools");
+        Click("Tools");
         Click("Clear session…");
         Click("Cancel");
         Assert(second.Hands.Count == 1, "Cancel must preserve results");
@@ -226,7 +226,7 @@ internal static class DashboardChecks
         Click("Automation");
         Assert(!Button("Approve pending bet").IsEnabled && first.Profit == 0,
             "Shared Undo must invalidate a pending bet and roll back settlement");
-        Click("Back to Tools");
+        Click("Tools");
         Click("Strategies");
         using var patternStream = new MemoryStream(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "pattern-strategy.json")));
         strategyView.Load(new StrategyFileLoader().LoadAsync(patternStream).GetAwaiter().GetResult());
@@ -260,7 +260,7 @@ internal static class DashboardChecks
         Click("Tools");
         Click("Strategies");
         Click("Use Player");
-        Click("Back to Tools");
+        Click("Tools");
         Click("Automation");
         Click("Prepare initial bet");
         Click("Back to dashboard");

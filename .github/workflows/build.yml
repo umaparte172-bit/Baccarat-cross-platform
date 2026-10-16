@@ -31,6 +31,7 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_*.py' -v
 
   macos-packages:
+    needs: [build, static-analysis-tools]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -77,6 +78,7 @@ jobs:
           ./artifacts/legacy-checks/desktop/Baccarat.Desktop.Checks
 
   macos-legacy-packages:
+    needs: [build, static-analysis-tools, macos-legacy-checks]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -104,6 +106,7 @@ jobs:
           if-no-files-found: error
 
   windows-package:
+    needs: [build, static-analysis-tools]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5

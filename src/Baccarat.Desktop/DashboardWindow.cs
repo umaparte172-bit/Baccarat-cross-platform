@@ -160,14 +160,18 @@ public sealed partial class DashboardWindow : Window
         RequestedThemeVariant = ThemeVariant.Light;
         Background = DashboardUi.Surface;
         var shell = new DockPanel { Margin = new Thickness(16) };
-        var actions = WorkspaceUi.Row();
+        var actions = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 12) };
         var back = WorkspaceUi.Action("Back to dashboard");
+        back.HorizontalAlignment = HorizontalAlignment.Left;
         back.Click += (_, _) => ShowDashboard();
         actions.Children.Add(back);
         if (showBack)
         {
-            var menu = WorkspaceUi.Action("Back to Tools");
+            var menu = WorkspaceUi.Action("Tools");
+            menu.Name = "ToggleTools";
+            Avalonia.Automation.AutomationProperties.SetName(menu, "Show or hide session tools");
             menu.Click += (_, _) => ShowTools();
+            Grid.SetColumn(menu, 1);
             actions.Children.Add(menu);
         }
         DockPanel.SetDock(actions, Dock.Top);

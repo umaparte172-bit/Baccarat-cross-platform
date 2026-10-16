@@ -31,6 +31,9 @@ production connectivity remains disabled. PATTERN remains the strategy priority.
   starting stake/loss multiplier and rollback disarming are implemented. Live account
   and casino connectivity are still incomplete, not an offline-only delivery decision.
 - [ ] Phase 7: package and validate on client macOS/Apple Silicon.
+  Packaging gates, nested-binary architecture checks, post-stapling distribution
+  archives and the [native acceptance checklist](docs/phase-7-delivery.md) are ready.
+  Actual Mac acceptance, signed/notarized release and live validation remain open.
 
 See [Phase 1](docs/video-reference-phase-1.md),
 [Phase 2](docs/video-dashboard-phase-2.md), [Phase 3](docs/video-phase-3-persistence.md)

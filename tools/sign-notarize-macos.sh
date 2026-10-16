@@ -41,11 +41,18 @@ codesign --force --options runtime --timestamp --entitlements "$entitlements" \
   --sign "$identity" "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
 
-ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
-xcrun notarytool submit "$archive" --keychain-profile "$notary_profile" --wait
+# Submit a temporary archive, then package the stapled bundle for distribution.
+# Packaging before stapling leaves the downloadable ZIP without its offline ticket.
+submission_directory="$(mktemp -d)"
+submission_archive="$submission_directory/submission.zip"
+trap 'rm -f -- "$submission_archive"; rmdir -- "$submission_directory"' EXIT
+ditto -c -k --sequesterRsrc --keepParent "$app" "$submission_archive"
+xcrun notarytool submit "$submission_archive" --keychain-profile "$notary_profile" --wait
 xcrun stapler staple "$app"
 xcrun stapler validate "$app"
 spctl --assess --type execute --verbose=2 "$app"
+ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
+(cd "$(dirname "$archive")" && shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256")
 
 echo "Signed, notarized and stapled: $app"
 echo "Distribution archive: $archive"

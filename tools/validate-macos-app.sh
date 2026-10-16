@@ -58,6 +58,10 @@ validate_deployment_target() {
 
 while IFS= read -r -d '' candidate; do
   if file "$candidate" | grep -q 'Mach-O'; then
+    if ! lipo -verify_arch "$expected_architecture" "$candidate"; then
+      echo "Wrong architecture in bundled native dependency: $candidate" >&2
+      exit 1
+    fi
     validate_deployment_target "$candidate"
   fi
 done < <(find "$app/Contents" -type f -print0)
