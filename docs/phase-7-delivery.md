@@ -12,6 +12,8 @@ Phase 4 strategy recovery or Phase 6 live integration has been completed.
   on successful behavioral/static checks; legacy packages also require legacy checks.
 - Bundle validation checks every Mach-O dependency's architecture and deployment
   target, the bundle metadata and executable permissions.
+- Fixed a legacy-framework overload-resolution build failure in the statistics
+  streak calculation by explicitly using the non-mutating LINQ Reverse operation.
 - The signing script submits a temporary ZIP, staples and verifies the app, then
   creates the final distribution ZIP and SHA-256 checksum. The final ZIP therefore
   includes the stapled ticket instead of an earlier copy of the app.

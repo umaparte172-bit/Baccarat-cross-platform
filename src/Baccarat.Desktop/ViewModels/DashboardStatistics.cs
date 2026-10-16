@@ -18,7 +18,7 @@ public sealed record DashboardStatistics(int Bets, int Wins, int Losses, int Pus
         }
         // Ties do not break a decisive-result streak or alternation.
         var decisive = session.ShoeHands.Select(h => h.Round.Outcome).Where(o => o != Outcome.Tie).ToArray();
-        var streak = decisive.Length == 0 ? 0 : decisive.Reverse().TakeWhile(o => o == decisive[^1]).Count();
+        var streak = decisive.Length == 0 ? 0 : Enumerable.Reverse(decisive).TakeWhile(o => o == decisive[^1]).Count();
         var chop = decisive.Length == 0 ? 0 : 1;
         for (var i = decisive.Length - 1; i > 0 && decisive[i] != decisive[i - 1]; i--) chop++;
         if (chop < 2) chop = 0;
