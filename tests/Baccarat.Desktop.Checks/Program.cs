@@ -227,19 +227,14 @@ Check(controller.ApprovePendingAsync().GetAwaiter().GetResult().Outcome != Autom
 window = new MainWindow(authenticationSessions: new SecretAuthenticationSessionStore(new VolatileSecretStore()));
 window.Show();
 window.UpdateLayout();
-Check(!HasText("WORKSPACE HOME") && HasText("Wetalkbet server integration is not configured"),
-    "Default launch must show honest server status and Sign In");
+Check(!HasText("WORKSPACE HOME") && !HasText("Wetalkbet server integration is not configured") &&
+    !window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "OPEN OFFLINE WORKSPACE")),
+    "Account page must omit the removed explanation and offline-workspace button");
 credentials = window.GetVisualDescendants().OfType<TextBox>().ToArray();
 credentials[0].Text = "test@example.com";
 credentials[1].Text = "test-password";
 Click("SIGN IN");
 Check(HasText("contract has not yet been recovered") && !HasText("WORKSPACE HOME"), "Offline service must never fake successful authentication");
-Click("OPEN OFFLINE WORKSPACE");
-Check(HasText("WORKSPACE HOME"), "Offline tools must remain accessible without pretending to authenticate");
-Click("OPEN STRATEGIES");
-Check(HasText("No strategy loaded") && !FindButton("Player result").IsEnabled, "Fresh launch must be empty and safe");
-Click("BACK TO SIGN IN");
-Check(window.GetVisualDescendants().OfType<AccountView>().Any(), "Offline mode must return to Sign In");
 window.Close();
 Console.WriteLine("PASS: account entry, signup/signin fixtures, rejection, signout, offline access and all existing workspace checks");
 

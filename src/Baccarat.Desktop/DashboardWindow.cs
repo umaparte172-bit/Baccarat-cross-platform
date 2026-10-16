@@ -187,7 +187,6 @@ public sealed partial class DashboardWindow : Window
         if (account is null)
         {
             account = new AccountView(services.Authentication, services.Diagnostics, services.AuthenticationSessions);
-            account.OfflineRequested += ShowDashboard;
             account.Authenticated += ShowTools;
             account.SignedOut += () =>
             {

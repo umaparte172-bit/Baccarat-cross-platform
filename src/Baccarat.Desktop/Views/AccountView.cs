@@ -34,7 +34,6 @@ public sealed class AccountView : Grid
 
     public event Action? Authenticated;
     public event Action? SignedOut;
-    public event Action? OfflineRequested;
 
     public AccountView(IAuthenticationService service, IDiagnosticSink? diagnostics = null)
         : this(service, diagnostics, null)
@@ -102,16 +101,6 @@ public sealed class AccountView : Grid
         panel.Children.Add(activeForm);
         shell.Children.Add(new Border { Background = LegacyTheme.Panel, Child = panel });
         shell.Children.Add(result);
-        if (offlineMode)
-        {
-            shell.Children.Add(LegacyTheme.TextBlock(
-                "Wetalkbet server integration is not configured. Sign-in and registration cannot create a server session yet. " +
-                "You can open the offline workspace without creating or signing into an account.", 14, LegacyTheme.Muted));
-            var offline = SecondaryButton("OPEN OFFLINE WORKSPACE");
-            offline.HorizontalAlignment = HorizontalAlignment.Center;
-            offline.Click += (_, _) => OfflineRequested?.Invoke();
-            shell.Children.Add(offline);
-        }
         if (demoMode)
             shell.Children.Add(LegacyTheme.TextBlock(
                 $"LOCAL DEMO ONLY · {DemoAuthenticationService.Email} · No server account is created.",

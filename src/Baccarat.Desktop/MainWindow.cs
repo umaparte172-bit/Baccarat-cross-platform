@@ -170,7 +170,6 @@ public sealed class MainWindow : Window
             Content = layout;
             ShowHome();
         }
-        account.OfflineRequested += OpenOfflineWorkspace;
         account.SignedOut += () =>
         {
             controlledAutomation.CancelPending("Pending simulation cancelled on sign-out.");
