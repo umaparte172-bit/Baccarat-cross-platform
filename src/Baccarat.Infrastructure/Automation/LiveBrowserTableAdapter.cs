@@ -13,7 +13,7 @@ public sealed record LiveBrowserOptions(int DebugPort = 9014, string? ProfileDir
 // Drives a real table page in the user's own Chrome/Edge (remote debugging on loopback, dedicated profile).
 // The user signs in and opens the table themselves; this class never sees credentials. It only touches a page
 // whose host matches the profile, re-checks that host before every read and click, and never retries a placement.
-public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTableSource, IAsyncDisposable
+public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTableSource, IAsyncDisposable
 {
     private readonly LiveTableProfile profile;
     private readonly LiveBrowserOptions options;
@@ -21,12 +21,13 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
     private readonly List<decimal> selection = [];
     private readonly Dictionary<string, string> frames = []; // child session -> frame url
     private readonly Dictionary<string, string> parents = []; // child session -> parent session
+    private readonly Dictionary<string, string> targetIds = []; // child session -> its root frame id
+    private readonly Dictionary<string, string> parentFrameIds = []; // child session -> frame (in the parent session) holding it
     public event Action<string>? Progress;
     private CdpConnection? cdp;
     private Process? launched;
     private string? pageSession;
     private string? lockedHost;
-    private string? frameKey;
     public string? DetectedHost => lockedHost;
     private List<(decimal Value, int Index)> chipIndex = [];
     private CancellationTokenSource? polling;
@@ -148,6 +149,7 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         var targets = await cdp!.SendAsync("Target.getTargets");
         var seen = new List<string>();
         var frameReport = new List<string>();
+        var maxDepth = 0;
         foreach (var target in targets.GetProperty("targetInfos").EnumerateArray())
         {
             if (target.GetProperty("type").GetString() != "page") continue;
@@ -159,7 +161,7 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
             {
                 var attached = await cdp.SendAsync("Target.attachToTarget", new { targetId = target.GetProperty("targetId").GetString(), flatten = true });
                 session = attached.GetProperty("sessionId").GetString()!;
-                lock (frames) { frames.Clear(); parents.Clear(); }
+                lock (frames) { frames.Clear(); parents.Clear(); targetIds.Clear(); parentFrameIds.Clear(); }
                 await cdp.SendAsync("Target.setAutoAttach", new { autoAttach = true, waitForDebuggerOnStart = false, flatten = true }, session);
                 for (var settle = -1; ;)
                 {
@@ -168,17 +170,18 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
                     if (count == settle) break;
                     settle = count;
                 }
-                if (await DetectAsync(session) is { } found)
+                var all = await EnumerateFramesAsync(session);
+                frameReport.AddRange(all.Where(f => f.Depth > 0 || f.Session != session).Select(f => f.Host).Where(h => h.Length > 0));
+                maxDepth = Math.Max(maxDepth, all.Count == 0 ? 0 : all.Max(f => f.Depth));
+                if (await DetectFrameAsync(all) is { } found)
                 {
-                    await cdp.SendAsync("Runtime.enable", null, session);
                     lockedHost = new Uri(url!).Host;
-                    frameKey = found.Length == 0 ? null : found;
                     pageSession = session;
+                    tableFrame = found;
                     return true;
                 }
             }
             catch (Exception ex) when (ex is CdpException or InvalidOperationException) { }
-            lock (frames) frameReport.AddRange(frames.Values.Select(u => Uri.TryCreate(u, UriKind.Absolute, out var fu) ? fu.Host : "?").Where(h => h.Length > 0));
             if (session is not null && pageSession != session)
             {
                 try { await cdp.SendAsync("Target.detachFromTarget", new { sessionId = session }); } catch (Exception ex) when (ex is CdpException or IOException) { }
@@ -186,40 +189,8 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         }
         Progress?.Invoke(seen.Count == 0
             ? "Watching… the live browser (the window opened by Open live browser) has no website open. Your normal Chrome cannot be watched: open the table in that window, or paste its address above and press Open live browser."
-            : $"Watching… {seen.Count} tab(s) checked ({string.Join(", ", seen.Distinct())}); {frameReport.Count} embedded frame(s) ({string.Join(", ", frameReport.Distinct().Take(6))}); no table text found yet. If the site needs a sign-in to show the table, sign in inside that window.");
+            : $"Watching… {seen.Count} tab(s) checked ({string.Join(", ", seen.Distinct())}); {frameReport.Count} embedded frame(s), nested up to {maxDepth} level(s) ({string.Join(", ", frameReport.Distinct().Take(8))}); no table text found yet. If the site needs a sign-in to show the table, sign in inside that window.");
         return false;
-    }
-
-    // Returns null when this tab shows no table; otherwise the frame key ("" = the page itself).
-    private async Task<string?> DetectAsync(string session)
-    {
-        var texts = JsonSerializer.Serialize(profile.DetectText);
-        var test = $$"""
-            const need = {{texts}}, sel = {{Js(profile.DetectSelector)}};
-            const check = (d) => { try { const t = (d.body ? (d.body.innerText || '') + ' ' + (d.body.textContent || '') : '').toUpperCase();
-              if (!need.every(x => t.includes(x.toUpperCase()))) return false;
-              if (!sel) return true;
-              if (sel.startsWith('xpath:')) return d.evaluate(sel.slice(6), d, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength > 0;
-              return d.querySelector(sel) !== null; } catch (e) { return false; } };
-            """;
-        var topResult = await cdp!.EvaluateAsync("(() => {" + test + """
-            if (check(document)) return '';
-            for (const f of document.querySelectorAll('iframe')) { try { if (f.contentDocument && check(f.contentDocument)) return f.src || null; } catch (e) {} }
-            return null; })()
-            """, session);
-        if (topResult.ValueKind == JsonValueKind.String) return topResult.GetString();
-        KeyValuePair<string, string>[] children;
-        lock (frames) children = frames.ToArray();
-        foreach (var child in children)
-        {
-            try
-            {
-                var inner = await cdp.EvaluateAsync("(() => {" + test + "return check(document); })()", child.Key);
-                if (inner.ValueKind == JsonValueKind.True) return child.Value;
-            }
-            catch (Exception ex) when (ex is CdpException) { }
-        }
-        return null;
     }
 
     private bool Eligible(string? url) =>
@@ -255,13 +226,13 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
             var child = args.GetProperty("sessionId").GetString()!;
             if (info.GetProperty("type").GetString() == "iframe")
             {
-                lock (frames) { frames[child] = info.GetProperty("url").GetString() ?? ""; if (session is not null) parents[child] = session; }
+                lock (frames) { frames[child] = info.GetProperty("url").GetString() ?? ""; targetIds[child] = info.GetProperty("targetId").GetString() ?? ""; parentFrameIds[child] = info.TryGetProperty("parentFrameId", out var pf) ? pf.GetString() ?? "" : ""; if (session is not null) parents[child] = session; }
                 // Providers nest frames (site -> provider -> game); every level needs its own auto-attach.
                 _ = AttachNestedAsync(child);
             }
         }
         else if (method == "Target.detachedFromTarget")
-            lock (frames) { var gone = args.GetProperty("sessionId").GetString()!; frames.Remove(gone); parents.Remove(gone); }
+            lock (frames) { var gone = args.GetProperty("sessionId").GetString()!; frames.Remove(gone); parents.Remove(gone); targetIds.Remove(gone); parentFrameIds.Remove(gone); }
     }
 
     private async Task AttachNestedAsync(string child)
@@ -278,7 +249,9 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         polling = null;
         pageSession = null;
         lockedHost = null;
-        frameKey = null;
+        tableFrame = null;
+        contexts.Clear();
+        pagesEnabled.Clear();
         selection.Clear();
         if (cdp is not null) { await cdp.DisposeAsync(); cdp = null; }
     }
@@ -476,107 +449,13 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
 
     // ---- Page access --------------------------------------------------------------------------------------
 
-    private static string Js(string value) => JsonSerializer.Serialize(value);
-
-    private (string Session, string? FrameArg, string? ChildUrl) Context()
-    {
-        var session = pageSession ?? throw new AutomationDisconnectedException("The live table is disconnected.");
-        var key = string.IsNullOrEmpty(profile.FrameUrlContains) ? frameKey : profile.FrameUrlContains;
-        if (string.IsNullOrEmpty(key)) return (session, null, null);
-        lock (frames)
-        {
-            var child = frames.FirstOrDefault(f => f.Value.Contains(key, StringComparison.OrdinalIgnoreCase) || key.Contains(f.Value, StringComparison.OrdinalIgnoreCase));
-            return child.Key is not null ? (child.Key, null, child.Value) : (session, key, null);
-        }
-    }
-
-    private const string Prelude = """
-        const frameUrl = FRAME;
-        const doc = (() => { if (!frameUrl) return document;
-          for (const f of document.querySelectorAll('iframe')) { try { if ((f.src||'').includes(frameUrl) && f.contentDocument) return f.contentDocument; } catch (e) {} }
-          return document; })();
-        const all = (s) => { if (!s) return []; if (s.startsWith('xpath:')) { const r = doc.evaluate(s.slice(6), doc, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-          const a = []; for (let i = 0; i < r.snapshotLength; i++) a.push(r.snapshotItem(i)); return a; } return [...doc.querySelectorAll(s)]; };
-        const blob = (e) => [e.textContent, (e.className && e.className.baseVal !== undefined) ? e.className.baseVal : e.className, e.getAttribute('aria-label'),
-          ...[...e.attributes].filter(a => a.name.startsWith('data-')).map(a => a.name + '=' + a.value)].join('|').toLowerCase();
-        """;
-
-    private async Task<JsonElement> EvaluateInTableAsync(string body)
-    {
-        var (session, frameArg, _) = Context();
-        var script = "(() => {" + Prelude.Replace("FRAME", frameArg is null ? "null" : Js(frameArg)) + body + "})()";
-        return await cdp!.EvaluateAsync(script, session);
-    }
-
-    private async Task ClickAsync(string selector, int index)
-    {
-        await EnsurePageHostAsync();
-        var (session, frameArg, childUrl) = Context();
-        var rect = await EvaluateInTableAsync($$"""
-            const e = all({{Js(selector)}})[{{index}}];
-            if (!e) return null;
-            e.scrollIntoView({block: 'center', inline: 'center'});
-            const r = e.getBoundingClientRect();
-            const style = getComputedStyle(e);
-            if (r.width < 2 || r.height < 2 || style.visibility === 'hidden' || style.display === 'none' || e.disabled) return null;
-            return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-            """);
-        if (rect.ValueKind == JsonValueKind.Null) throw new InvalidOperationException("A table control was not found or is not clickable.");
-        double x = rect.GetProperty("x").GetDouble(), y = rect.GetProperty("y").GetDouble();
-        if (childUrl is not null)
-        {
-            var (ox, oy) = await ChainOffsetAsync(session);
-            x += ox; y += oy;
-        }
-        else if (frameArg is not null)
-        {
-            // Mouse input is dispatched in top-level page coordinates; add the frame's offset.
-            var key = frameArg ?? childUrl ?? frameKey!;
-            var offset = await cdp!.EvaluateAsync($$"""
-                (() => { for (const f of document.querySelectorAll('iframe')) if ((f.src||'').includes({{Js(key)}}) || {{Js(key)}}.includes(f.src||'\u0000')) { const r = f.getBoundingClientRect(); return {x: r.left, y: r.top}; } return null; })()
-                """, pageSession);
-            if (offset.ValueKind == JsonValueKind.Null) throw new InvalidOperationException("The table frame is not visible.");
-            x += offset.GetProperty("x").GetDouble();
-            y += offset.GetProperty("y").GetDouble();
-        }
-        foreach (var type in new[] { "mouseMoved", "mousePressed", "mouseReleased" })
-            await cdp!.SendAsync("Input.dispatchMouseEvent", new { type, x, y, button = "left", clickCount = type == "mouseMoved" ? 0 : 1 }, pageSession);
-        await Task.Delay(Math.Clamp(profile.ClickDelayMilliseconds, 20, 2000));
-    }
-
-    // Offset of a (possibly nested) frame inside the top-level page: sum each ancestor's iframe position.
-    private async Task<(double X, double Y)> ChainOffsetAsync(string child)
-    {
-        double x = 0, y = 0;
-        var current = child;
-        for (var depth = 0; current != pageSession && depth < 8; depth++)
-        {
-            string parent, url;
-            lock (frames)
-            {
-                if (!parents.TryGetValue(current, out parent!) || !frames.TryGetValue(current, out url!))
-                    throw new InvalidOperationException("The table frame position is unknown.");
-            }
-            var rect = await cdp!.EvaluateAsync($$"""
-                (() => { const u = {{Js(url)}}.split('#')[0]; const list = [...document.querySelectorAll('iframe')];
-                  const f = list.find(i => i.src === {{Js(url)}}) || list.find(i => i.src && (u.startsWith(i.src.split('#')[0]) || i.src.split('#')[0].startsWith(u))) || (list.length === 1 ? list[0] : null);
-                  if (!f) return null; const r = f.getBoundingClientRect(); return {x: r.left, y: r.top}; })()
-                """, parent);
-            if (rect.ValueKind == JsonValueKind.Null) throw new InvalidOperationException("The table frame is not visible.");
-            x += rect.GetProperty("x").GetDouble();
-            y += rect.GetProperty("y").GetDouble();
-            current = parent;
-        }
-        return (x, y);
-    }
-
     private void EnsureConnected(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         if (!IsConnected) throw new AutomationDisconnectedException("The live table is disconnected.");
     }
 
-    // Writes a structure report (frames, data-role/aria/id candidates, short texts) to calibrate a profile.
+    // Writes a structure report (frame tree, data-role/aria/id candidates, short texts) to calibrate a profile.
     public async Task<string> InspectAsync(CancellationToken token = default)
     {
         EnsureConnected(token);
@@ -588,11 +467,11 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
                   .map(e => ({tag: e.tagName.toLowerCase(), id: e.id || null, cls: (typeof e.className === 'string' ? e.className : '').slice(0, 80),
                     role: e.getAttribute('data-role'), testid: e.getAttribute('data-testid'), aria: e.getAttribute('aria-label'),
                     text: (e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40)}));
-                return {url: location.href, title: document.title, frames: [...document.querySelectorAll('iframe')].map(f => f.src), elements: pick};
+                return {url: location.href, title: document.title, elements: pick};
                 """);
-            List<string> childFrames;
-            lock (frames) childFrames = frames.Values.ToList();
-            return JsonSerializer.Serialize(new { inspected = DateTime.UtcNow, childFrames, page = report }, LiveTableProfile.Json);
+            var all = await EnumerateFramesAsync(pageSession!);
+            var tree = all.Select(f => new { f.Depth, f.Url, tableFrame = tableFrame is { } t && t.Session == f.Session && t.FrameId == f.FrameId }).ToArray();
+            return JsonSerializer.Serialize(new { inspected = DateTime.UtcNow, frames = tree, page = report }, LiveTableProfile.Json);
         }
         finally { page.Release(); }
     }

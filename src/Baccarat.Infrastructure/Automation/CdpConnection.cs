@@ -49,9 +49,11 @@ internal sealed class CdpConnection : IAsyncDisposable
         finally { replies.TryRemove(id, out _); }
     }
 
-    public async Task<JsonElement> EvaluateAsync(string expression, string? sessionId = null)
+    public async Task<JsonElement> EvaluateAsync(string expression, string? sessionId = null, int? contextId = null)
     {
-        var result = await SendAsync("Runtime.evaluate", new { expression, returnByValue = true, awaitPromise = false }, sessionId);
+        var result = contextId is { } id
+            ? await SendAsync("Runtime.evaluate", new { expression, contextId = id, returnByValue = true, awaitPromise = false }, sessionId)
+            : await SendAsync("Runtime.evaluate", new { expression, returnByValue = true, awaitPromise = false }, sessionId);
         if (result.TryGetProperty("exceptionDetails", out var details))
             throw new CdpException("Page script failed: " + (details.TryGetProperty("text", out var t) ? t.GetString() : "error"));
         return result.GetProperty("result").TryGetProperty("value", out var value) ? value.Clone() : default;

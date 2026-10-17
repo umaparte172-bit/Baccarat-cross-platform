@@ -11,6 +11,9 @@ using Baccarat.Infrastructure.Automation;
 internal static class LiveTableChecks
 {
     private static string Outer => $"<!doctype html><title>Mock lobby</title><div style=\"height:60px\">lobby</div><iframe id=f src=\"http://localhost:{mockPort}/mid\" style=\"width:760px;height:560px;border:0;margin-left:20px\"></iframe>";
+    // Same-site, cross-origin chain (different ports): frames share one process, so only isolated worlds can read them.
+    private static string Same0 => $"<!doctype html><title>Same-site lobby</title><div style=\"height:35px\">lobby</div><iframe src=\"http://127.0.0.1:{mockPort + 1}/same1\" style=\"width:760px;height:560px;border:0;margin-left:15px\"></iframe>";
+    private static string Same1 => $"<!doctype html><title>Provider</title><div style=\"height:25px\">provider</div><iframe src=\"http://127.0.0.1:{mockPort + 2}/table\" style=\"width:700px;height:500px;border:0;margin:20px\"></iframe>";
     private static string Mid => $"<!doctype html><title>Provider</title><div style=\"height:40px\">provider</div><iframe src=\"http://127.0.0.1:{mockPort}/table\" style=\"width:700px;height:500px;border:0;margin:10px\"></iframe>";
     private const string Table = """
         <!doctype html><title>Mock table</title>
@@ -44,6 +47,8 @@ internal static class LiveTableChecks
         mock = new HttpListener();
         mock.Prefixes.Add($"http://127.0.0.1:{mockPort}/");
         mock.Prefixes.Add($"http://localhost:{mockPort}/");
+        mock.Prefixes.Add($"http://127.0.0.1:{mockPort + 1}/");
+        mock.Prefixes.Add($"http://127.0.0.1:{mockPort + 2}/");
         mock.Start();
         var listener = mock;
         _ = Task.Run(async () =>
@@ -53,7 +58,7 @@ internal static class LiveTableChecks
                 HttpListenerContext ctx;
                 try { ctx = await listener.GetContextAsync(); } catch { return; }
                 var path = ctx.Request.Url!.AbsolutePath;
-                string body = path == "/table" ? Table : path == "/mid" ? Mid : path == "/cmd" ? Drain() : Outer;
+                string body = path == "/table" ? Table : path == "/mid" ? Mid : path == "/same0" ? Same0 : path == "/same1" ? Same1 : path == "/cmd" ? Drain() : Outer;
                 var bytes = Encoding.UTF8.GetBytes(body);
                 ctx.Response.ContentType = path == "/cmd" ? "text/plain" : "text/html";
                 await ctx.Response.OutputStream.WriteAsync(bytes);
@@ -281,6 +286,27 @@ internal static class LiveTableChecks
             Check(Baccarat.Infrastructure.Automation.LiveTableChecksAccess.ParseChip("1K") == 1000m &&
                   Baccarat.Infrastructure.Automation.LiveTableChecksAccess.ParseChip("chip 25") == 25m &&
                   Baccarat.Infrastructure.Automation.LiveTableChecksAccess.ParseChip("5 25") is null, "Chip parsing must be exact");
+            // Frames in one process but different origins (and deeper nesting) must also be found and clicked.
+            Wait(adapter.CloseBrowserAsync());
+            Thread.Sleep(2000);
+            var otherProfile = profile with { StartUrl = "", HostContains = "", FrameUrlContains = null };
+            var same = new LiveBrowserTableAdapter(otherProfile, new LiveBrowserOptions(debugPort + 1, profileDirectory + "-same"));
+            try
+            {
+                Wait(same.OpenBrowserAsync(default, $"http://127.0.0.1:{port}/same0"));
+                using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+                Wait(same.WaitForTableAsync(cts2.Token));
+                WaitV(same.ConnectAsync());
+                Check(WaitV2(same.GetChipsAsync()).SequenceEqual([1m, 5m, 25m, 100m]), "Same-process cross-origin frames must be readable");
+                commands.Enqueue("open");
+                Thread.Sleep(700);
+                var bet = new AutomationBetRequest(Guid.NewGuid(), BetSide.Player, 5m, [5m], false);
+                WaitV(same.ClearSelectionAsync());
+                WaitV(same.SelectChipAsync(5m));
+                var placedSame = GetV(same.PlaceBetAsync(bet));
+                Check(placedSame.Status == BetPlacementStatus.Accepted, "Click through same-process frames: " + placedSame.Message);
+            }
+            finally { try { Wait(same.CloseBrowserAsync()); } catch { } Wait(same.DisposeAsync().AsTask()); }
             Console.WriteLine("PASS: live browser adapter attach, iframe read, chips, guarded placement with table confirmation, results, host guard");
         }
         finally

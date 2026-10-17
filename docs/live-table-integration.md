@@ -19,6 +19,13 @@ read the table, place bets) without ChromeDriver, accounts or licences.
   requested stake. Anything else is *Indeterminate* and is never repeated.
 - Every read/click re-checks that the page host still equals the host it was detected on.
 
+## Frames at any depth
+The table is found however deeply it is nested. Cross-process frames (different sites) are attached recursively as
+separate DevTools sessions; same-process frames, including cross-origin ones, are read through isolated execution
+worlds. All frames of a tab are checked every second, so late-loading frames are picked up, and the deepest frame
+that matches the detection rules wins. Clicks use real mouse input at top-level coordinates, summing each ancestor
+iframe's position, border and padding. If the table frame reloads, it is re-found inside the same tab.
+
 ## Profiles
 JSON files in `%LOCALAPPDATA%/BaccaratWorkspace/live-profiles` (a `template-calibrate-me.json` is created).
 Selectors are CSS, or `xpath:...`. Fields: `StatusSelector`/`OpenText`/`ClosedText`, `ChipSelector` + `ChipValueSource`
