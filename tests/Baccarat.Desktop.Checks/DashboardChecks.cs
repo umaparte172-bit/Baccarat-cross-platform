@@ -46,6 +46,7 @@ internal static class DashboardChecks
         }
 
         Assert(workspace.Selected is null && Text("No Session"), "Default dashboard must start empty");
+        Assert(!Named<Button>("DeleteSession").IsEnabled, "Delete session must be disabled without a selection");
         Assert(!window.GetVisualDescendants().OfType<AccountView>().Any(), "Default dashboard must not require sign-in");
         Capture("dashboard-empty");
         Click("New Session");
@@ -204,6 +205,14 @@ internal static class DashboardChecks
         Click("Clear selected session");
         Assert(second.Hands.Count == 0 && first.Hands.Count == 2, "Confirmed clear must affect only the selected session");
         Assert(window.Title == "Baccarat Workspace" && Text("Session 0 hands"), "Clear must return to the dashboard with visibly empty results");
+        Click("Delete session…");
+        Assert(Text("cannot be undone"), "Delete must require explicit confirmation");
+        Click("Cancel");
+        Assert(workspace.Sessions.Contains(second), "Cancelling delete must preserve the selected session");
+        Click("Delete session…");
+        Click("Delete selected session");
+        Assert(workspace.Sessions.Count == 1 && !workspace.Sessions.Contains(second) && workspace.Selected == first,
+            "Confirmed delete must remove only the selected session and select its neighbor");
         Named<ListBox>("SessionList").SelectedItem = first;
         Layout();
         Click("Tools");

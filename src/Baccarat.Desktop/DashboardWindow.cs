@@ -43,6 +43,7 @@ public sealed partial class DashboardWindow : Window
         Dashboard.SetStorageStatus(storageStatus);
         Dashboard.WorkspaceChanged += RefreshTools;
         Dashboard.WorkspaceChanged += QueueSave;
+        Dashboard.DeleteRequested += ConfirmDelete;
         saveTimer.Tick += async (_, _) => await SaveWorkspaceAsync();
         Closing += OnClosing;
         workspaceContent.Content = Dashboard;
@@ -54,6 +55,7 @@ public sealed partial class DashboardWindow : Window
             closed = true;
             Dashboard.WorkspaceChanged -= RefreshTools;
             Dashboard.WorkspaceChanged -= QueueSave;
+            Dashboard.DeleteRequested -= ConfirmDelete;
             saveTimer.Stop();
             store?.Dispose();
             foreach (var context in tools.Values) context.Dispose();
@@ -165,6 +167,26 @@ public sealed partial class DashboardWindow : Window
         page.Children.Add(confirm);
         page.Children.Add(cancel);
         ShowTool("Clear session", page);
+    }
+
+    private void ConfirmDelete()
+    {
+        if (Dashboard.Workspace.Selected is not { } selected) return;
+        var page = WorkspaceUi.Page("CONFIRM DELETE", "Delete this session?",
+            $"{selected.Title} and all of its recorded hands will be removed from this workspace. This cannot be undone.");
+        var confirm = WorkspaceUi.Action("Delete selected session");
+        confirm.Click += (_, _) =>
+        {
+            if (tools.Remove(selected.Id, out var context)) context.Dispose();
+            if (activeSession == selected.Id) activeSession = null;
+            Dashboard.DeleteSelectedSession();
+            ShowDashboard();
+        };
+        var cancel = WorkspaceUi.Action("Cancel");
+        cancel.Click += (_, _) => { ShowDashboard(); ShowTools(); };
+        page.Children.Add(confirm);
+        page.Children.Add(cancel);
+        ShowTool("Delete session", page);
     }
 
     private void ShowTool(string name, Control view, bool showBack = true)

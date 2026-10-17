@@ -284,8 +284,19 @@ public sealed partial class DashboardWorkspace
     public bool CreateSession()
     {
         if (sessions.Count >= 100) return false;
-        Selected = new DashboardSession(sessions.Count + 1);
+        var number = 1;
+        while (sessions.Any(s => s.Title.StartsWith($"Session {number} ·", StringComparison.Ordinal))) number++;
+        Selected = new DashboardSession(number);
         sessions.Add(Selected);
+        return true;
+    }
+    public bool Delete(DashboardSession session)
+    {
+        var index = sessions.IndexOf(session);
+        if (index < 0) return false;
+        sessions.RemoveAt(index);
+        if (ReferenceEquals(Selected, session))
+            Selected = sessions.Count == 0 ? null : sessions[Math.Min(index, sessions.Count - 1)];
         return true;
     }
     public void Select(DashboardSession session)

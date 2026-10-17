@@ -17,6 +17,7 @@ public sealed class DashboardView : UserControl
 {
     public DashboardWorkspace Workspace { get; }
     public event Action? WorkspaceChanged;
+    public event Action? DeleteRequested;
     public Func<string, Task<bool>>? DomAction { get; set; }
     public void RefreshSharedState() => Refresh(true);
     public void SetStorageStatus(string status) => notice.Text = status;
@@ -31,7 +32,7 @@ public sealed class DashboardView : UserControl
     private readonly ComboBox strategy = new() { Name = "StrategySelector", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBox unit = DashboardUi.Input("BaseUnit", "1");
     private readonly TextBox bankroll = DashboardUi.Input("StartingBankroll", "1000");
-    private readonly StackPanel fields = new() { Spacing = 8 };
+    private readonly StackPanel fields = new() { Spacing = 4 };
     private readonly TextBlock settingsStatus = DashboardUi.Text("", 12, DashboardUi.Muted);
     private readonly CheckBox bankerPair = new() { Name = "BankerPair", Content = "Banker pair", FontSize = 12 };
     private readonly CheckBox playerPair = new() { Name = "PlayerPair", Content = "Player pair", FontSize = 12 };
@@ -50,6 +51,7 @@ public sealed class DashboardView : UserControl
     private readonly Button undo;
     private readonly Button export;
     private readonly Button beginDraft;
+    private readonly Button deleteSession;
     private Button newShoe = null!;
     private Button dealSimulation = null!;
     private readonly TextBlock simulatedCards = DashboardUi.Text("", 13);
@@ -97,17 +99,20 @@ public sealed class DashboardView : UserControl
         var main = new DockPanel();
         Grid.SetColumn(main, 1);
         root.Children.Add(main);
-        var toolbar = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 10, Margin = new Thickness(16, 12) };
+        var toolbar = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,*,Auto"), ColumnSpacing = 10, Margin = new Thickness(16, 12) };
         var toggle = DashboardUi.Button("☰", () => sidebar.IsVisible = !sidebar.IsVisible);
         toggle.Name = "ToggleSidebar";
         Avalonia.Automation.AutomationProperties.SetName(toggle, "Show or hide sessions");
         ToolTip.SetTip(toggle, "Show or hide session sidebar");
         toolbar.Children.Add(toggle);
         Add(toolbar, DashboardUi.Button("+ New session", CreateSession), 1);
-        Add(toolbar, DashboardUi.Stack(title, subtitle), 2);
+        deleteSession = DashboardUi.Button("Delete session…", () => DeleteRequested?.Invoke());
+        deleteSession.Name = "DeleteSession";
+        Add(toolbar, deleteSession, 2);
+        Add(toolbar, DashboardUi.Stack(title, subtitle), 3);
         var toolsButton = DashboardUi.Button("Tools", openExistingTools);
         ToolTip.SetTip(toolsButton, "Use strategy, automation, viewer and account tools for this session in the same window.");
-        Add(toolbar, toolsButton, 3);
+        Add(toolbar, toolsButton, 4);
         DockPanel.SetDock(toolbar, Dock.Top);
         main.Children.Add(toolbar);
         notice.Margin = new Thickness(16, 8);
@@ -131,18 +136,42 @@ public sealed class DashboardView : UserControl
             Workspace.Selected?.BeginDraftRun();
             Refresh(true);
         });
-        sessionBody = new StackPanel { Name = "DashboardContent", Spacing = 14, Margin = new Thickness(16, 0, 16, 16), MinWidth = 704 };
-        main.SizeChanged += (_, _) => sessionBody.Width = Math.Max(704, main.Bounds.Width - 32);
-        var top = new Grid { ColumnDefinitions = new ColumnDefinitions("400,*"), ColumnSpacing = 14 };
-        top.Children.Add(BuildEntry());
-        Add(top, BuildStrategy(), 1);
-        sessionBody.Children.Add(top);
-        sessionBody.Children.Add(roadmaps);
-        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,196"), ColumnSpacing = 14 };
-        var ledger = DashboardUi.Stack(HistoryRow("#", "Result / pairs", "Suggested", "Stake", "Net", "Balance", true), history, historyNotice);
-        bottom.Children.Add(DashboardUi.Card("History · All shoes", ledger));
-        Add(bottom, DashboardUi.Card("Statistics", statistics), 1);
-        sessionBody.Children.Add(bottom);
+        sessionBody = new StackPanel { Name = "DashboardContent", Margin = new Thickness(16, 0, 16, 12), MinWidth = 820 };
+        // Fill the viewport so everything is visible at once; scroll only when the window is too small.
+        void FitBody()
+        {
+            sessionBody.Width = Math.Max(820, main.Bounds.Width - 32);
+            sessionBody.Height = Math.Max(600, body.Bounds.Height - 12);
+        }
+        main.SizeChanged += (_, _) => FitBody();
+        body.SizeChanged += (_, _) => FitBody();
+        var left = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 12 };
+        left.Children.Add(BuildEntry());
+        var historyHeader = HistoryRow("#", "Result", "Suggested", "Stake", "Net", "Balance", true);
+        var historyScroll = new ScrollViewer { Content = history, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var ledger = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 6 };
+        ledger.Children.Add(DashboardUi.Text("History · All shoes", 12, DashboardUi.Muted, true));
+        Add(ledger, historyHeader, 0); Grid.SetRow(historyHeader, 1);
+        Grid.SetRow(historyScroll, 2); ledger.Children.Add(historyScroll);
+        Grid.SetRow(historyNotice, 3); ledger.Children.Add(historyNotice);
+        historyNotice.FontSize = 11;
+        var ledgerCard = new Border
+        {
+            Background = Brushes.White, BorderBrush = DashboardUi.Line, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(7), Padding = new Thickness(12), Child = ledger
+        };
+        Grid.SetRow(ledgerCard, 1); left.Children.Add(ledgerCard);
+        var right = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 12 };
+        var upper = new Grid { ColumnDefinitions = new ColumnDefinitions("*,170"), ColumnSpacing = 12 };
+        upper.Children.Add(BuildStrategy());
+        statistics.Spacing = 6;
+        Add(upper, DashboardUi.Card("Statistics", statistics), 1);
+        right.Children.Add(upper);
+        Grid.SetRow(roadmaps, 1); right.Children.Add(roadmaps);
+        var layout = new Grid { ColumnDefinitions = new ColumnDefinitions("350,*"), ColumnSpacing = 12 };
+        layout.Children.Add(left);
+        Add(layout, right, 1);
+        sessionBody.Children.Add(layout);
         Content = root;
         Refresh(true);
     }
@@ -155,7 +184,7 @@ public sealed class DashboardView : UserControl
 
     private Control BuildEntry()
     {
-        var results = new Grid { ColumnDefinitions = new ColumnDefinitions("0.8*,1.5*,1*,1.3*,0.8*"), ColumnSpacing = 2, Height = 116 };
+        var results = new Grid { ColumnDefinitions = new ColumnDefinitions("0.8*,1.5*,1*,1.3*,0.8*"), ColumnSpacing = 2, Height = 92 };
         var outcomes = new[] { Outcome.Player, Outcome.Tie, Outcome.Banker };
         for (var i = 0; i < outcomes.Length; i++)
         {
@@ -166,11 +195,11 @@ public sealed class DashboardView : UserControl
                 Outcome.Player => "#086CE8",
                 _ => "#119C50"
             });
-            StyleTableButton(button, outcome.ToString().ToUpperInvariant(), outcome == Outcome.Tie ? "8:1" : outcome == Outcome.Banker ? "0.95:1" : "1:1",
+            StyleTableButton(button, outcome.ToString().ToUpperInvariant(), outcome == Outcome.Tie ? "" : outcome == Outcome.Banker ? "" : "",
                 outcome == Outcome.Banker ? "#CA1008" : outcome == Outcome.Player ? "#164BB7" : "#159810",
                 outcome == Outcome.Banker ? "#69170F" : outcome == Outcome.Player ? "#102C48" : "#10480D",
                 outcome == Outcome.Tie ? new CornerRadius(40, 40, 3, 3) : new CornerRadius(3));
-            button.Height = outcome == Outcome.Tie ? 104 : 114;
+            button.Height = outcome == Outcome.Tie ? 82 : 90;
             button.VerticalAlignment = VerticalAlignment.Bottom;
             button.HorizontalAlignment = HorizontalAlignment.Stretch;
             button.Name = $"Record{outcome}";
@@ -178,9 +207,9 @@ public sealed class DashboardView : UserControl
             Add(results, button, i + 1);
         }
         var pp = DashboardUi.Button("P Pair", async () => { if (await TryDomAsync("player-pair")) return; if (Workspace.Selected is { } s) s.PlayerPairDraft = !s.PlayerPairDraft; Refresh(false); });
-        StyleTableButton(pp, "P PAIR", "11:1", "#164BB7", "#102C48", new CornerRadius(70, 3, 3, 70));
+        StyleTableButton(pp, "P PAIR", "", "#164BB7", "#102C48", new CornerRadius(70, 3, 3, 70));
         var bp = DashboardUi.Button("B Pair", async () => { if (await TryDomAsync("banker-pair")) return; if (Workspace.Selected is { } s) s.BankerPairDraft = !s.BankerPairDraft; Refresh(false); });
-        StyleTableButton(bp, "B PAIR", "15:1", "#CA1008", "#69170F", new CornerRadius(3, 70, 70, 3));
+        StyleTableButton(bp, "B PAIR", "", "#CA1008", "#69170F", new CornerRadius(3, 70, 70, 3));
         Add(results, pp, 0); Add(results, bp, 4);
         var pairs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         pairs.Children.Add(bankerPair);
@@ -208,22 +237,22 @@ public sealed class DashboardView : UserControl
             {
                 StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
                 EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
-                GradientStops = new GradientStops { new GradientStop(Color.Parse("#8D690D"), 0), new GradientStop(Color.Parse("#4B3409"), 1) }
+                GradientStops = new GradientStops { new GradientStop(Color.Parse("#ffffff"), 0), new GradientStop(Color.Parse("#ad8230"), 1) }
             },
             CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(6, 12, 6, 6),
+            Padding = new Thickness(6, 8, 6, 4),
             Child = results
         };
-        return DashboardUi.Card("Enter result", DashboardUi.Stack(table, pairs, actions, handCount,
-            dealSimulation, simulatedCards,
-            DashboardUi.Text("TRAINING ONLY · Eight decks · No money or server. Apply settings, then deal. Manual results occupy shoe positions too. Undo replays the same deal.", 11, DashboardUi.Muted),
-            DashboardUi.Text("New Shoe resets shoe counts; balance and strategy carry forward. Undo reverses an empty new shoe. Pairs are observations, not bets.", 11, DashboardUi.Muted)));
+        var note = DashboardUi.Text("TRAINING ONLY · Eight decks · No money or server. Manual results occupy shoe positions; Undo replays the same deal; New Shoe resets shoe counts. Pairs are observations, not bets.", 11, DashboardUi.Muted);
+        var entry = DashboardUi.Card("Enter result", DashboardUi.Stack(table, pairs, actions, handCount, dealSimulation, simulatedCards, note));
+        ((StackPanel)entry.Child!).Spacing = 6;
+        return entry;
     }
 
     private static void StyleTableButton(Button button, string label, string payout, string top, string bottom, CornerRadius radius)
     {
         button.Padding = new Thickness(0);
-        button.Height = 114;
+        button.Height = 90;
         button.VerticalAlignment = VerticalAlignment.Bottom;
         button.HorizontalAlignment = HorizontalAlignment.Stretch;
         button.Template = new FuncControlTemplate<Button>((_, _) => new Border
@@ -276,7 +305,7 @@ public sealed class DashboardView : UserControl
         unitRow = Field("Base unit", unit);
         var editor = DashboardUi.Stack(Field("Strategy", strategy), unitRow, Field("Starting bankroll", bankroll), fields,
             new WrapPanel { Children = { apply, beginDraft } }, settingsStatus);
-        editor.Spacing = 6;
+        editor.Spacing = 4;
         editor.MaxWidth = 390;
         editor.HorizontalAlignment = HorizontalAlignment.Left;
         beginDraft.Margin = new Thickness(6, 0, 0, 0);
@@ -286,14 +315,15 @@ public sealed class DashboardView : UserControl
         };
         var pause = new Expander
         {
-            Header = "Stop and pause",
+            Header = "Stop rules",
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Content = stopDescription
         };
-        editor.Children.Add(pause);
+
         var summary = DashboardUi.Stack(DashboardUi.Text("NEXT HAND", 11, DashboardUi.Muted, true), next, nextDescription,
             new Separator(), DashboardUi.Text("Balance", 12, DashboardUi.Muted), balance,
-            profit, DashboardUi.Text("Calculated from recorded strategy results, not a casino account. Use Tools for import and manual decisions.", 11, DashboardUi.Muted));
+            profit, pause);
+        ToolTip.SetTip(balance, "Calculated from recorded strategy results, not a casino account. Use Tools for import and manual decisions.");
         var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 16 };
         columns.Children.Add(editor);
         Add(columns, summary, 1);
@@ -312,7 +342,7 @@ public sealed class DashboardView : UserControl
 
     private static Grid Field(string label, Control input)
     {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("150,170"), ColumnSpacing = 8 };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("135,135"), ColumnSpacing = 8 };
         var text = DashboardUi.Text(label, 12);
         text.VerticalAlignment = VerticalAlignment.Center;
         grid.Children.Add(text);
@@ -323,7 +353,7 @@ public sealed class DashboardView : UserControl
 
     private static Grid HistoryRow(string number, string outcome, string suggested, string stake, string net, string amount, bool heading = false)
     {
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("30,*,78,42,38,62"), ColumnSpacing = 4, MinHeight = 30 };
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("24,*,64,34,34,56"), ColumnSpacing = 4, MinHeight = 30 };
         var values = new[] { number, outcome, suggested, stake, net, amount };
         for (var i = 0; i < values.Length; i++)
         {
@@ -338,6 +368,14 @@ public sealed class DashboardView : UserControl
     {
         if (!Workspace.CreateSession()) { notice.Text = "Session limit reached (100). Export records before closing."; return; }
         Refresh(true);
+    }
+
+    public bool DeleteSelectedSession()
+    {
+        if (Workspace.Selected is not { } selected || !Workspace.Delete(selected)) return false;
+        Refresh(true);
+        WorkspaceChanged?.Invoke();
+        return true;
     }
 
     private async void Record(Outcome outcome)
@@ -388,12 +426,15 @@ public sealed class DashboardView : UserControl
         try
         {
             // Rebuild labels when a session's strategy/count changes; never retain stale subtitles.
+            // Clear selection first: the list view wraps the live collection, so a removed session leaves stale indexes.
+            sessionList.SelectedItem = null;
             sessionList.ItemsSource = null;
-            sessionList.ItemsSource = Workspace.Sessions;
+            sessionList.ItemsSource = Workspace.Sessions.ToArray();
             sessionList.SelectedItem = Workspace.Selected;
+            deleteSession.IsEnabled = Workspace.Selected is not null;
             if (Workspace.Selected is not { } s) { body.Content = empty; return; }
             if (body.Content is not ScrollViewer)
-                body.Content = new ScrollViewer { Content = sessionBody, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto };
+                body.Content = new ScrollViewer { Content = sessionBody, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             title.Text = s.Title;
             subtitle.Text = $"{s.ActiveStrategyName} · Shoe {s.CurrentShoe} · Hand {s.ShoeHandCount}";
             handCount.Text = $"Shoe {s.CurrentShoe} · {s.ShoeHandCount} hands · Session {s.Hands.Count} hands";

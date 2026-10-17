@@ -43,13 +43,13 @@ internal static class DashboardUi
         Name = name,
         Watermark = hint,
         MaxLength = 512,
-        MinHeight = 32,
+        MinHeight = 28,
         FontSize = 13,
         Background = Brushes.White,
         Foreground = Ink,
         BorderBrush = Line,
         CornerRadius = new CornerRadius(4),
-        Padding = new Thickness(8, 5)
+        Padding = new Thickness(8, 3)
     };
     internal static StackPanel Stack(params Control[] controls)
     {
@@ -63,7 +63,7 @@ internal static class DashboardUi
         BorderBrush = Line,
         BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(7),
-        Padding = new Thickness(14),
+        Padding = new Thickness(10, 8),
         Child = Stack(Text(title, 12, Muted, true), content)
     };
     internal static IBrush OutcomeColor(Baccarat.Core.Outcome outcome) => Brush.Parse(outcome switch

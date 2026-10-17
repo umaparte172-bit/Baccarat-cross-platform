@@ -13,8 +13,8 @@ namespace Baccarat.Desktop.Views;
 
 public sealed class RoadmapsView : UserControl
 {
-    private readonly RoadGrid[] grids = [new(24, 9, RoadStyle.Bead), new(24, 18, RoadStyle.Ring),
-        new(18, 12, RoadStyle.Ring), new(18, 12, RoadStyle.Dot), new(18, 12, RoadStyle.Slash)];
+    private readonly RoadGrid[] grids = [new(20, 11, RoadStyle.Bead), new(20, 22, RoadStyle.Ring),
+        new(14, 14, RoadStyle.Ring), new(14, 14, RoadStyle.Dot), new(14, 14, RoadStyle.Slash)];
     private readonly ScrollViewer[] scrolls = new ScrollViewer[5];
     private readonly TextBlock bankerAsk = DashboardUi.Text("", 12);
     private readonly TextBlock playerAsk = DashboardUi.Text("", 12);
@@ -23,16 +23,20 @@ public sealed class RoadmapsView : UserControl
     public RoadmapsView()
     {
         Name = "Roadmaps";
-        var main = new Grid { ColumnDefinitions = new ColumnDefinitions("240,*"), ColumnSpacing = 12 };
+        var main = new Grid { ColumnDefinitions = new ColumnDefinitions("230,*"), ColumnSpacing = 12 };
         main.Children.Add(Road("Bead Plate", 0));
         Add(main, Road("Big Road", 1), 1);
         var derived = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*"), ColumnSpacing = 10 };
         Add(derived, Road("Big Eye Boy", 2), 0);
         Add(derived, Road("Small Road", 3), 1);
         Add(derived, Road("Cockroach Pig", 4), 2);
-        Content = DashboardUi.Card("Roadmaps · Current shoe", DashboardUi.Stack(main, derived,
-            DashboardUi.Text("Ask · If the next result is…", 12, bold: true), bankerAsk, playerAsk,
-            DashboardUi.Text("Ask order: Big Eye / Small / Cockroach. — means more history is needed. Colors describe road patterns, not the next winner. Scroll each road to review earlier hands.", 11, DashboardUi.Muted)));
+        var ask = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
+        ask.Children.Add(DashboardUi.Text("Ask · If next is…", 12, bold: true));
+        ask.Children.Add(bankerAsk); ask.Children.Add(playerAsk);
+        ToolTip.SetTip(ask, "Ask order: Big Eye / Small / Cockroach. — means more history is needed. Colors describe road patterns, not the next winner.");
+        var card = DashboardUi.Card("Roadmaps · Current shoe", DashboardUi.Stack(main, derived, ask));
+        ((StackPanel)card.Child!).Spacing = 6;
+        Content = card;
         Update(Snapshot);
     }
 

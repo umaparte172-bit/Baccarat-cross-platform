@@ -13,7 +13,7 @@ internal static class LocalSimulationPage
         .table small{font:700 12px system-ui;color:#55adff}.table .pp{border-radius:75px 4px 4px 75px;justify-content:center}
         .table .bp{border-radius:4px 75px 75px 4px;justify-content:center}.table .banker,.table .bp{background:linear-gradient(#d90c08,#6d1009);border-color:#bd150d}
         .table .bp small{color:#ffa34e}.table .tie{height:104px;border-radius:55px 55px 4px 4px;background:linear-gradient(#109516,#094709);border-color:#438b04}.table .tie small{color:#6df52a}
-        .table [aria-pressed=true]{box-shadow:inset 0 0 0 3px #fff5a0}.note{color:#adc0da;font-size:12px}#cards{white-space:pre-line;font-size:22px}#wager{color:#ffd78b}#message{min-height:24px}
+        .table [aria-pressed=true]{box-shadow:inset 0 0 0 3px #fdfdfd}.note{color:#adc0da;font-size:12px}#cards{white-space:pre-line;font-size:22px}#wager{color:#ffd78b}#message{min-height:24px}
         label{display:inline-flex;flex-direction:column;gap:5px;margin:8px}input,select{padding:9px;border-radius:5px;border:1px solid #6b7e9c;background:#10213a;color:white;max-width:180px}
         .buttons{display:flex;flex-wrap:wrap}output[hidden]{display:none}
         </style><main><div class="badge">LOCAL SIMULATION · NO MONEY · DOM CONTROL</div><h1 id="session">Baccarat training table</h1>
