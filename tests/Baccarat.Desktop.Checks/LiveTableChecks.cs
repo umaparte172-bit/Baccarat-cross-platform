@@ -110,7 +110,7 @@ internal static class LiveTableChecks
         var staleDir = Path.Combine(Path.GetTempPath(), "Baccarat-Stale-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staleDir);
         File.WriteAllText(Path.Combine(staleDir, "template-calibrate-me.json"), "{\"Name\":\"Template (calibrate before use)\",\"HostContains\":\"example.com\",\"StartUrl\":\"https://example.com/\"}");
-        var refreshed = new LiveTableProfileStore(staleDir).Load().Single();
+        var refreshed = new LiveTableProfileStore(staleDir).Load().First(p => p.Name.StartsWith("Template"));
         if (refreshed.HostContains.Length != 0) throw new Exception("Stale template must be rewritten without a host restriction");
         Directory.Delete(staleDir, true);
         Console.WriteLine("PASS: stale live-profile template is refreshed");
@@ -185,6 +185,9 @@ internal static class LiveTableChecks
         Check(context.Controller.Snapshot.State == AutomationRunState.AwaitingApproval, "Live bets must wait for approval");
         Pump(context.Controller.ApprovePendingAsync().AsTask());
         Check(context.Controller.Snapshot.AcceptedBets == 1, "Approved bet must be placed on the live table: " + context.Controller.Snapshot.Message);
+        Check(context.LiveActive, "Live table must be the active adapter while connected (dashboard buttons then act on the browser)");
+        var second = context.PlaceLiveBetAsync(Baccarat.Core.Strategies.BetSide.Player, 5m); Pump(second);
+        Check(second.Result.Length > 0, "A dashboard-button placement must report a result");
         // A profile with no selectors must still detect the open table and save its structure for calibration.
         Pump(context.DisconnectLiveAsync());
         File.WriteAllText(Path.Combine(profileDirectory, "bare.json"), System.Text.Json.JsonSerializer.Serialize(new LiveTableProfile { Name = "Bare" }));
@@ -263,8 +266,7 @@ internal static class LiveTableChecks
             var closed = new AutomationBetRequest(Guid.NewGuid(), BetSide.Player, 25m, [25m], false);
             Check(GetV(adapter.PlaceBetAsync(closed)).Status == BetPlacementStatus.Rejected, "Closed window must reject placement");
 
-            commands.Enqueue("open");
-            Thread.Sleep(600);
+            for (var i = 0; i < 40 && adapter.IsBettingOpen != true; i++) { commands.Enqueue("open"); Thread.Sleep(250); }
             Check(adapter.IsBettingOpen == true, "Open banner must be recognised (state " + adapter.IsBettingOpen + ")");
             Check(adapter.Balance == "Balance 1,000.00", "Balance must be read");
 

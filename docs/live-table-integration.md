@@ -42,3 +42,16 @@ next to the profiles to calibrate selectors.
 - **Not verified against any real casino table.** The original app's selectors (absolute XPaths under
   `//*[@id='root']`, status texts `PLACE YOUR BETS` / `WAIT FOR NEXT GAME`) live in its protected resources and the
   provider's page has surely changed; a profile must be calibrated on the real page before use.
+
+
+## Calibration status (Evolution Speed Baccarat on a Roobet table)
+- From the first inspection: the table is in the third frame level; the bead road is `[data-role="Bead-road"] [data-role="roadItem"]`
+  (text `P`/`B`/`T`, oldest first) and counters are `gameCount`, `playerWins`, `bankerWins`, `ties`, `playerPairs`, `bankerPairs`.
+  The shipped profile *Evolution baccarat (results only)* uses this to record results automatically.
+- Not yet known: bet spots, chips, betting-open indicator and bet total. Run **Inspect page** while a round is open for betting
+  (the report now skips chat/winners noise, lists up to 1500 elements with visibility, size, disabled state and data attributes),
+  then send the newest `inspection-*.json` to finish the betting selectors.
+
+## Dashboard buttons while connected
+With a live table connected, **Player/Banker** in Enter result ask to place that bet on the real table (stake = strategy stake,
+or one base unit), confirm in a dialog, then go through the same stake limits; Tie/pair buttons are ignored (read from the table).

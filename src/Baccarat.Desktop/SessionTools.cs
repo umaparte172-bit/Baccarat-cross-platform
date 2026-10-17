@@ -367,6 +367,21 @@ internal sealed class SessionTools : IDisposable
         { Say("Live table watch stopped: " + ex.Message); }
     }
 
+    internal bool LiveActive => live is { IsConnected: true } && ReferenceEquals(switcher.Current, live);
+
+    // The bet the strategy wants next, or one base unit when it has no stake to offer.
+    internal decimal LiveStakeFor() => session.Engine?.Recommendation is { State: StrategyEngineState.Ready, Stake: { } stake } ? stake : session.BaseUnit;
+
+    // A user-confirmed placement: goes through the controller's limits, then is approved because the user just confirmed it.
+    internal async Task<string> PlaceLiveBetAsync(BetSide side, decimal stake)
+    {
+        var request = new BetRecommendation("manual", stake, side, StrategyEngineState.Ready, $"Bet {stake:0.##} on {side}. (manual)");
+        var prepared = await Controller.InitialBetAsync(request);
+        if (prepared.Outcome != AutomationActionOutcome.ApprovalRequired) return prepared.Message;
+        var placed = await Controller.ApprovePendingAsync();
+        return placed.Message;
+    }
+
     internal async Task<string> DisconnectLiveAsync()
     {
         watching?.Cancel();

@@ -369,10 +369,12 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
     private LiveRoundResult? ParseResult(string blob, int count, string signature)
     {
         blob = blob.ToLowerInvariant();
-        var rule = profile.ResultRules.FirstOrDefault(r => blob.Contains(r.Contains.ToLowerInvariant()));
+        var text = blob.Split('|')[0].Trim();
+        bool Matches(string pattern) => pattern.StartsWith('=') ? text == pattern[1..].Trim().ToLowerInvariant() : blob.Contains(pattern.ToLowerInvariant());
+        var rule = profile.ResultRules.FirstOrDefault(r => Matches(r.Contains));
         if (rule is null) return null;
-        var bankerPair = profile.PairRules.Any(p => p.Banker && blob.Contains(p.Contains.ToLowerInvariant()));
-        var playerPair = profile.PairRules.Any(p => !p.Banker && blob.Contains(p.Contains.ToLowerInvariant()));
+        var bankerPair = profile.PairRules.Any(p => p.Banker && Matches(p.Contains));
+        var playerPair = profile.PairRules.Any(p => !p.Banker && Matches(p.Contains));
         return new LiveRoundResult(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(signature)))[..16] + ":" + count, rule.Outcome, bankerPair, playerPair);
     }
@@ -511,11 +513,25 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
         try
         {
             var report = await EvaluateInTableAsync("""
-                const pick = [...doc.querySelectorAll('[data-role],[data-testid],[aria-label],button,[class*=chip],[class*=bet],[class*=result],[class*=status],[id]')].slice(0, 400)
-                  .map(e => ({tag: e.tagName.toLowerCase(), id: e.id || null, cls: (typeof e.className === 'string' ? e.className : '').slice(0, 80),
-                    role: e.getAttribute('data-role'), testid: e.getAttribute('data-testid'), aria: e.getAttribute('aria-label'),
-                    text: (e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40)}));
-                return {url: location.href, title: document.title, elements: pick};
+                const skip = '[data-role="messages-winners-chat"],[data-role="winners-list-container"],[data-role="toasts-container"],[data-role="toast-drawer-wrapper"],[data-role="quick-chat"],[data-role="loading-screen"]';
+                const rows = [];
+                const perParent = new Map();
+                for (const e of doc.querySelectorAll('*')) {
+                  const interesting = e.hasAttribute('data-role') || e.id || e.hasAttribute('aria-label') || e.hasAttribute('data-testid') ||
+                    e.tagName === 'BUTTON' || e.tagName === 'INPUT' || /chip|bet|spot|status|timer|countdown|balance|result|road/i.test(typeof e.className === 'string' ? e.className : '');
+                  if (!interesting || e.closest(skip)) continue;
+                  const role = e.getAttribute('data-role');
+                  if (role === 'roadItem' || role === 'roadItemColor') { const n = (perParent.get(role) || 0) + 1; perParent.set(role, n); if (n > 4) continue; }
+                  const r = e.getBoundingClientRect(); const st = getComputedStyle(e);
+                  rows.push({tag: e.tagName.toLowerCase(), id: e.id || null, cls: (typeof e.className === 'string' ? e.className : '').slice(0, 60),
+                    role, testid: e.getAttribute('data-testid'), aria: e.getAttribute('aria-label'), disabled: e.disabled === true || e.getAttribute('aria-disabled') === 'true' || null,
+                    visible: r.width > 1 && r.height > 1 && st.visibility !== 'hidden' && st.display !== 'none',
+                    box: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
+                    text: (e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40),
+                    data: Object.fromEntries([...e.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-role').slice(0, 6).map(a => [a.name, a.value.slice(0, 40)]))});
+                  if (rows.length >= 1500) break;
+                }
+                return {url: location.href, title: document.title, count: rows.length, elements: rows};
                 """);
             var all = await EnumerateFramesAsync(pageSession!);
             var tree = all.Select(f => new { f.Depth, f.Url, tableFrame = tableFrame is { } t && t.Session == f.Session && t.FrameId == f.FrameId }).ToArray();

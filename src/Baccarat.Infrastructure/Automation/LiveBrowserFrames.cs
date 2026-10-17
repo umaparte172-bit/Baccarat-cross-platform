@@ -149,7 +149,8 @@ public sealed partial class LiveBrowserTableAdapter
     private async Task ClickAsync(string selector, int index)
     {
         await EnsurePageHostAsync();
-        var rect = await EvaluateInTableAsync($$"""
+        // Measure, let scrolling/layout settle, measure again: click only where the control has stopped moving.
+        async Task<JsonElement> MeasureAsync() => await EvaluateInTableAsync($$"""
             const e = all({{Js(selector)}})[{{index}}];
             if (!e) return null;
             e.scrollIntoView({block: 'center', inline: 'center'});
@@ -158,11 +159,28 @@ public sealed partial class LiveBrowserTableAdapter
             if (r.width < 2 || r.height < 2 || style.visibility === 'hidden' || style.display === 'none' || e.disabled) return null;
             return {x: r.left + r.width / 2, y: r.top + r.height / 2};
             """);
+        var rect = await MeasureAsync();
+        for (var settle = 0; settle < 5 && rect.ValueKind != JsonValueKind.Null; settle++)
+        {
+            await Task.Delay(70);
+            var again = await MeasureAsync();
+            if (again.ValueKind == JsonValueKind.Null) { rect = again; break; }
+            var moved = Math.Abs(again.GetProperty("x").GetDouble() - rect.GetProperty("x").GetDouble()) > 0.5 ||
+                        Math.Abs(again.GetProperty("y").GetDouble() - rect.GetProperty("y").GetDouble()) > 0.5;
+            rect = again;
+            if (!moved) break;
+        }
         if (rect.ValueKind == JsonValueKind.Null) throw new InvalidOperationException("A table control was not found or is not clickable.");
         var (ox, oy) = await FrameOffsetAsync(tableFrame!);
         double x = rect.GetProperty("x").GetDouble() + ox, y = rect.GetProperty("y").GetDouble() + oy;
-        foreach (var type in new[] { "mouseMoved", "mousePressed", "mouseReleased" })
-            await cdp!.SendAsync("Input.dispatchMouseEvent", new { type, x, y, button = "left", clickCount = type == "mouseMoved" ? 0 : 1 }, pageSession);
+        // A page in a background or covered window may ignore input: behave as focused and visible, like a real click would.
+        await cdp!.SendAsync("Emulation.setFocusEmulationEnabled", new { enabled = true }, pageSession);
+        await cdp.SendAsync("Page.bringToFront", null, pageSession);
+        await cdp.SendAsync("Input.dispatchMouseEvent", new { type = "mouseMoved", x, y, button = "none", buttons = 0 }, pageSession);
+        await Task.Delay(40);
+        await cdp.SendAsync("Input.dispatchMouseEvent", new { type = "mousePressed", x, y, button = "left", buttons = 1, clickCount = 1 }, pageSession);
+        await Task.Delay(40);
+        await cdp.SendAsync("Input.dispatchMouseEvent", new { type = "mouseReleased", x, y, button = "left", buttons = 0, clickCount = 1 }, pageSession);
         await Task.Delay(Math.Clamp(profile.ClickDelayMilliseconds, 20, 2000));
     }
 

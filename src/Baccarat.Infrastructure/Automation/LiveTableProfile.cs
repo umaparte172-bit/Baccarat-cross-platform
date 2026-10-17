@@ -84,6 +84,9 @@ public sealed class LiveTableProfileStore
         // The stock template is rewritten when an older build left one that is tied to a placeholder site.
         if (!File.Exists(template) || File.ReadAllText(template).Contains("example.com", StringComparison.OrdinalIgnoreCase))
             File.WriteAllText(template, JsonSerializer.Serialize(Template, LiveTableProfile.Json));
+        // Calibrated from a real Evolution Speed Baccarat page (data-role attributes): reads results only, no betting yet.
+        var evolution = System.IO.Path.Combine(Directory, "evolution-baccarat-results-only.json");
+        if (!File.Exists(evolution)) File.WriteAllText(evolution, JsonSerializer.Serialize(EvolutionResultsOnly, LiveTableProfile.Json));
         var profiles = new List<LiveTableProfile>();
         foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").Order())
         {
@@ -98,6 +101,16 @@ public sealed class LiveTableProfileStore
         }
         return profiles;
     }
+
+    public static LiveTableProfile EvolutionResultsOnly { get; } = new()
+    {
+        Name = "Evolution baccarat (results only)",
+        DetectText = ["BANKER", "PLAYER"],
+        DetectSelector = "[data-role=\"Bead-road\"]",
+        ResultSelector = "[data-role=\"Bead-road\"] [data-role=\"roadItem\"]",
+        NewestResult = "last",
+        ResultRules = [new("=p", Outcome.Player), new("=b", Outcome.Banker), new("=t", Outcome.Tie)]
+    };
 
     // Deliberately unconfigured: selectors must come from inspecting the real table page.
     public static LiveTableProfile Template { get; } = new()

@@ -45,7 +45,7 @@ public sealed partial class DashboardWindow : Window
         Foreground = DashboardUi.Ink;
         Dashboard = new DashboardView(ShowTools, LoadWorkspace(persistenceEnabled, workspacePath));
         Dashboard.DomAction = action => Dashboard.Workspace.Selected is { } selected && tools.TryGetValue(selected.Id, out var context)
-            ? context.TryDomActionAsync(action) : Task.FromResult(false);
+            ? (context.LiveActive ? Task.FromResult(HandleLiveAction(context, action)) : context.TryDomActionAsync(action)) : Task.FromResult(false);
         Dashboard.SetStorageStatus(storageStatus);
         Dashboard.WorkspaceChanged += RefreshTools;
         Dashboard.WorkspaceChanged += QueueSave;
@@ -147,6 +147,29 @@ public sealed partial class DashboardWindow : Window
         }
         toolsSidebar.Child = new ScrollViewer { Content = page };
         toolsSidebar.IsVisible = true;
+    }
+
+    // While a live table is connected the result buttons act on the real table: Player/Banker place that bet there
+    // (after an explicit confirmation); results themselves arrive from the table. Returns true when handled here.
+    private bool HandleLiveAction(SessionTools context, string action)
+    {
+        if (action is not ("player" or "banker" or "tie" or "player-pair" or "banker-pair")) return false;
+        if (action != "player" && action != "banker")
+        {
+            Dashboard.SetStorageStatus("Live table: only Player and Banker bets are supported. Results and pairs are read from the table.");
+            return true;
+        }
+        var side = action == "player" ? Baccarat.Core.Strategies.BetSide.Player : Baccarat.Core.Strategies.BetSide.Banker;
+        var stake = context.LiveStakeFor();
+        ShowModal("LIVE TABLE", $"Place {stake:0.##} on {side}?",
+            $"This clicks the {side} spot in the connected live-table browser with {stake:0.##} in chips. It uses real money and cannot be undone here.",
+            $"Place {stake:0.##} on {side}", async _ =>
+            {
+                CloseModal();
+                var message = await context.PlaceLiveBetAsync(side, stake);
+                Dashboard.SetStorageStatus("Live table: " + message);
+            });
+        return true;
     }
 
     // Modal dialog drawn over the dashboard (same window): Escape or clicking outside cancels.
