@@ -312,5 +312,6 @@ window.Close();
 Console.WriteLine("PASS: Remember Me opt-in, restoration, password exclusion, rejection, expiry, sign-out and offline safety");
 DashboardChecks.Run(CheckButtonAlignment, screenshotDirectory);
 BrowserSimulationChecks.Run();
+LiveTableChecks.Run();
 RoadmapViewChecks.Run(screenshotDirectory);
 WorkspacePersistenceChecks.Run();

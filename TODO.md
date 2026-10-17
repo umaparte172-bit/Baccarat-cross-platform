@@ -1,5 +1,11 @@
 # Migration to-do list
 
+## Live browser integration (2026-10-17)
+
+- [x] Real-browser adapter (CDP, iframe-aware), profile files, result ingestion, approval-gated placement; see [docs/live-table-integration.md](docs/live-table-integration.md).
+- [ ] Calibrate a profile on the actual table page (needs the page URL and an Inspect-page report).
+
+
 ## Strategy acceptance update (2026-10-17)
 
 - [x] Implement all eight dashboard strategies against the 21 supplied cases.

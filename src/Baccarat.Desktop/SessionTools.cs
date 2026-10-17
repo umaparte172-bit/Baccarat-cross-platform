@@ -22,6 +22,11 @@ internal sealed class SessionTools : IDisposable
     private int lastRun = -1;
     private int lastShoeRevision = -1;
     private readonly SimulatedAutomationTableAdapter adapter = new();
+    private readonly SwitchableTableAdapter switcher;
+    private readonly LiveTableProfileStore profileStore = new();
+    private LiveBrowserTableAdapter? live;
+    internal LiveBrowserOptions LiveOptions { get; set; } = new();
+    private string? lastLiveKey;
     private readonly Action changed;
     private LocalSimulationServer? browser;
     private LocalDomBrowser? domBrowser;
@@ -40,8 +45,10 @@ internal sealed class SessionTools : IDisposable
         this.session = session;
         this.diagnostics = diagnostics;
         this.changed = changed;
-        Controller = new AutomationController(adapter);
-        Automation = new AutomationView(Controller, OpenBrowser, ExecuteControlAsync);
+        switcher = new SwitchableTableAdapter(adapter);
+        Controller = new AutomationController(switcher);
+        Automation = new AutomationView(Controller, OpenBrowser, ExecuteControlAsync, new LiveTableControls(
+            LoadProfileNames, OpenLiveAsync, ConnectLiveAsync, DisconnectLiveAsync, InspectLiveAsync, profileStore.Directory));
         Viewer = new ViewerView(communication);
         Strategies = new StrategyView(new StrategyFileLoader(), changed: _ => changed(), sharedSession: session);
         Controller.SnapshotChanged += PublishAutomation;
@@ -251,6 +258,96 @@ internal sealed class SessionTools : IDisposable
         { return "Could not apply this action. Review the strategy and table state."; }
     }
 
+    // ---- Live browser table ----------------------------------------------------------------------------
+
+    internal IReadOnlyList<string> LiveProfileNames() => LoadProfileNames();
+
+    internal async Task CloseLiveBrowserAsync() { if (live is not null) await live.CloseBrowserAsync(); }
+
+    private IReadOnlyList<string> LoadProfileNames()
+    {
+        try { return profileStore.Load().Select(p => p.Name).ToArray(); }
+        catch (IOException) { return []; }
+    }
+
+    private LiveTableProfile FindProfile(string name) =>
+        profileStore.Load().FirstOrDefault(p => p.Name == name) ?? throw new InvalidOperationException("Profile not found. Reload profiles.");
+
+    internal async Task<string> OpenLiveAsync(string profileName)
+    {
+        try
+        {
+            var profile = FindProfile(profileName);
+            if (live is not null && live.IsConnected) return "Live table already connected. Disconnect it first to switch profile.";
+            live = new LiveBrowserTableAdapter(profile, LiveOptions);
+            await live.OpenBrowserAsync();
+            return "Browser opened on its own profile. Sign in and open the table yourself, then press Connect live table.";
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
+        { return "Could not open the live browser: " + ex.Message; }
+    }
+
+    internal async Task<string> ConnectLiveAsync(string profileName)
+    {
+        try
+        {
+            var profile = FindProfile(profileName);
+            if (live is null || live.Name != "Live table · " + profile.Name) live = new LiveBrowserTableAdapter(profile, LiveOptions);
+            if (!profile.CanRead) return "This profile has no result selectors yet. Use Inspect page, then edit the profile in the profiles folder.";
+            await Controller.DisconnectAsync();
+            live.ResultObserved -= OnLiveResult;
+            live.Faulted -= OnLiveFaulted;
+            live.ResultObserved += OnLiveResult;
+            live.Faulted += OnLiveFaulted;
+            switcher.Use(live);
+            lastLiveKey = null;
+            var result = await Controller.ConnectAsync();
+            if (result.Outcome != AutomationActionOutcome.Accepted) { switcher.Use(adapter); return result.Message; }
+            return profile.CanBet
+                ? "Live table connected. Results are recorded automatically; every bet still needs your approval."
+                : "Live table connected for reading results only (profile cannot place bets yet).";
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
+        { switcher.Use(adapter); return "Could not connect: " + ex.Message; }
+    }
+
+    private async Task<string> DisconnectLiveAsync()
+    {
+        await Controller.DisconnectAsync();
+        if (live is not null) { live.ResultObserved -= OnLiveResult; live.Faulted -= OnLiveFaulted; }
+        switcher.Use(adapter);
+        return "Live table disconnected. The browser stays open.";
+    }
+
+    private async Task<string> InspectLiveAsync()
+    {
+        if (live is null || !live.IsConnected) return "Connect the live table first.";
+        var report = await live.InspectAsync();
+        Directory.CreateDirectory(profileStore.Directory);
+        var path = Path.Combine(profileStore.Directory, $"inspection-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+        await File.WriteAllTextAsync(path, report);
+        return "Page structure saved to " + path;
+    }
+
+    private void OnLiveFaulted(string message) =>
+        Dispatcher.UIThread.Post(() => { if (!disposed) Pause(message); });
+
+    private void OnLiveResult(LiveRoundResult result) => Dispatcher.UIThread.Post(() =>
+    {
+        if (disposed || !active || result.Key == lastLiveKey) return;
+        lastLiveKey = result.Key;
+        if (!session.CanRecord) { Controller.Pause("A live result arrived but this session needs a manual decision or is stopped. Review before resuming."); return; }
+        try
+        {
+            session.BankerPairDraft = result.BankerPair;
+            session.PlayerPairDraft = result.PlayerPair;
+            session.Record(result.Outcome);
+        }
+        catch (InvalidOperationException ex) { Controller.Pause(ex.Message); }
+        finally { session.BankerPairDraft = false; session.PlayerPairDraft = false; }
+        changed();
+    });
+
     private void Publish(ViewerPayload payload) => _ = PublishAsync(payload);
     private async Task PublishAsync(ViewerPayload payload)
     {
@@ -262,6 +359,7 @@ internal sealed class SessionTools : IDisposable
     {
         disposed = true;
         browser?.Dispose();
+        if (live is not null) { live.ResultObserved -= OnLiveResult; live.Faulted -= OnLiveFaulted; _ = live.DisposeAsync().AsTask(); }
         if (domBrowser is not null) _ = domBrowser.DisposeAsync();
         Pause("Application closed. Pending simulation cancelled.");
         Controller.SnapshotChanged -= PublishAutomation;

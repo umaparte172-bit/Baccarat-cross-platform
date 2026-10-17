@@ -33,7 +33,7 @@ public sealed class AutomationView : StackPanel, IDisposable
         controller.SnapshotChanged -= OnSnapshotChanged;
     }
 
-    public AutomationView(AutomationController controller, Action? openBrowser = null, Func<string, Task>? domAction = null)
+    public AutomationView(AutomationController controller, Action? openBrowser = null, Func<string, Task>? domAction = null, LiveTableControls? live = null)
     {
         this.controller = controller ?? throw new ArgumentNullException(nameof(controller));
         Margin = new Thickness(0);
@@ -60,6 +60,7 @@ public sealed class AutomationView : StackPanel, IDisposable
             connectionActions.Children.Add(browser);
         }
 
+        if (live is not null) page.Children.Add(BuildLiveCard(live));
         var bettingActions = Row();
         bettingActions.Children.Add(initialBet);
         bettingActions.Children.Add(approve);
@@ -100,6 +101,43 @@ public sealed class AutomationView : StackPanel, IDisposable
         }
         controller.SnapshotChanged += OnSnapshotChanged;
         Refresh(controller.Snapshot);
+    }
+
+    private Control BuildLiveCard(LiveTableControls live)
+    {
+        var profiles = new ComboBox { MinWidth = 260, PlaceholderText = "Choose a table profile", Name = "LiveProfile" };
+        var message = Text("Opens your own Chrome/Edge on a separate profile. You sign in and open the table yourself; the app never sees your password.", 13, "#91A1B9");
+        void Reload()
+        {
+            var names = live.Profiles();
+            profiles.ItemsSource = names;
+            if (profiles.SelectedItem is null && names.Count > 0) profiles.SelectedIndex = 0;
+        }
+        async Task Run(Func<string, Task<string>> action)
+        {
+            if (profiles.SelectedItem is not string name) { message.Text = "Choose a profile first."; return; }
+            message.Text = "Working…";
+            try { message.Text = await action(name); } catch (Exception ex) { message.Text = "Live table error: " + ex.Message; }
+        }
+        var reload = Button("Reload profiles");
+        reload.Click += (_, _) => { Reload(); message.Text = $"Profiles are JSON files in {live.ProfileFolder}"; };
+        var open = Button("Open live browser");
+        open.Click += async (_, _) => await Run(live.Open);
+        var connect = Button("Connect live table");
+        connect.Name = "ConnectLive";
+        connect.Click += async (_, _) => await Run(live.Connect);
+        var disconnect = Button("Disconnect live table");
+        disconnect.Click += async (_, _) => { try { message.Text = await live.Disconnect(); } catch (Exception ex) { message.Text = ex.Message; } };
+        var inspect = Button("Inspect page");
+        inspect.Click += async (_, _) => { try { message.Text = await live.Inspect(); } catch (Exception ex) { message.Text = ex.Message; } };
+        var row = Row();
+        foreach (var control in new Control[] { profiles, reload, open, connect, disconnect, inspect }) row.Children.Add(control);
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(row);
+        panel.Children.Add(message);
+        panel.Children.Add(Text("Live tables use real money. Placements need your approval each time, never repeat after an error, and only act on the site named in the profile.", 13, "#E48787"));
+        Reload();
+        return WorkspaceUi.Card("LIVE TABLE (REAL BROWSER)", panel);
     }
 
     public void UpdateStrategy(StrategySessionEngine engine)
@@ -190,7 +228,7 @@ public sealed class AutomationView : StackPanel, IDisposable
             ? "#E48787"
             : snapshot.State == AutomationRunState.Ready ? "#7BD88F" : "#E9BC72");
         totals.Text = $"Accepted bets {snapshot.AcceptedBets} · Session stake {snapshot.SessionStake:0.00} · " +
-                      (snapshot.IsSimulation ? "Simulation" : "External adapter");
+                      (snapshot.IsSimulation ? "Simulation" : "LIVE TABLE");
         if (currentRecommendation is not null) recommendation.Text = currentRecommendation.Message;
 
         var connected = snapshot.State is not AutomationRunState.Disconnected and not AutomationRunState.Connecting;
