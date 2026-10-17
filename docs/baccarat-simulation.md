@@ -6,6 +6,53 @@ before the deal. The resulting next recommendation, calculated balance, ledger,
 roadmaps and pair observations use the same engine as manual result entry.
 No casino connection, wallet, real money or hosted server is involved.
 
+## Browser-connected training table
+
+1. Create a session and Apply settings on the desktop dashboard.
+2. Open Tools → Automation → **Open browser simulator**. The default browser opens
+   the page embedded in this app, on a random `127.0.0.1` port.
+3. In the desktop Automation page click **Connect simulation**, **Prepare initial
+   bet**, then **Approve pending bet**. The browser displays the accepted side,
+   stake, operation identifier and selected chips.
+4. In the browser click **Deal / settle simulated hand**. Cards are dealt by the
+   existing eight-deck simulator. The desktop session, balance, strategy and
+   roadmaps update together. Virtual/no-bet recommendations can be observed
+   without an approved wager.
+5. **Enable auto-bet** prepares each next eligible recommendation after a result;
+   every placement still requires explicit approval in the desktop app.
+6. Browser **Reconnect** refreshes table state only. It never places another
+   wager or replays a deal. If the desktop adapter disconnects, use **Recover
+   connection** and review the existing state before continuing.
+
+The local table service is authoritative: its placement acknowledgement is not
+an acknowledgement from an external casino or browser driver. Closing a browser
+tab does not erase a previously accepted simulated wager. Reopen it from the
+same session to see the state. Closing the desktop app stops its local listener;
+browser placement/approval state is transient and must be prepared again after
+restart, while recorded session results retain their existing persistence.
+
+Switching sessions, changing strategy/shoe, Undo and clearing a session invalidate
+stale browser round commands. Only one simulated wager is accepted per round.
+Changing these controls before settlement cancels that simulated round's table
+state. Use a dedicated session for the browser workflow rather than mixing manual
+result entry with pending simulated placements.
+
+### Local transport protections
+
+The listener binds only IPv4 loopback and uses a random per-instance capability
+token passed in the URL fragment and subsequent request headers. Tokens are not
+saved to workspace files. Do not share the browser URL: it grants access to that
+local training session. Host and Origin checks, restrictive CSP, no external
+resources, bodyless requests, 8 KiB header limits, eight concurrent connections,
+five-second I/O limits and round-key checks constrain the service. It is not a
+general web server, proxy, casino connector or configurable remote-control API.
+
+Automated checks exercise desktop→browser state, browser→desktop settlement,
+initial/auto-bet approval, chips, duplicate/stale commands, inactive sessions,
+unauthenticated/cross-origin requests and reconnect idempotency. A browser UI
+check also confirmed an accepted simulated wager, card settlement and the next
+approval-required state. Physical Safari/macOS acceptance remains separate.
+
 ## Rules and replay
 
 - Eight standard decks, dealt without replacement in Player/Banker/Player/Banker order.

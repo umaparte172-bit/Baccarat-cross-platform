@@ -19,6 +19,9 @@ public sealed class SimulatedAutomationTableAdapter : IAutomationTableAdapter
     public int FailedConnectionAttemptsRemaining { get; set; }
     public bool DisconnectBeforePlacement { get; set; }
     public IReadOnlyList<AutomationBetRequest> AcceptedRequests => acceptedRequests;
+    public bool LimitOneBetPerRound { get; set; }
+    public AutomationBetRequest? CurrentRoundBet { get; private set; }
+    public void BeginRound() { CurrentRoundBet = null; selection.Clear(); }
 
     private readonly List<AutomationBetRequest> acceptedRequests = [];
 
@@ -70,6 +73,8 @@ public sealed class SimulatedAutomationTableAdapter : IAutomationTableAdapter
     {
         EnsureConnected(cancellationToken);
         if (completed.TryGetValue(request.OperationId, out var existing)) return ValueTask.FromResult(existing);
+        if (LimitOneBetPerRound && CurrentRoundBet is not null)
+            return ValueTask.FromResult(new BetPlacementResult(BetPlacementStatus.Rejected, "This simulated round already has an accepted wager."));
         if (DisconnectBeforePlacement)
         {
             DisconnectBeforePlacement = false;
@@ -83,6 +88,7 @@ public sealed class SimulatedAutomationTableAdapter : IAutomationTableAdapter
             $"Simulation accepted {request.Stake:0.##} on {request.Side}.");
         completed[request.OperationId] = accepted;
         acceptedRequests.Add(request);
+        CurrentRoundBet = request;
         selection.Clear();
         return ValueTask.FromResult(accepted);
     }

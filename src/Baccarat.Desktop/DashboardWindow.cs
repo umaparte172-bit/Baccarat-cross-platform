@@ -109,7 +109,7 @@ public sealed partial class DashboardWindow : Window
         close.Click += (_, _) => toolsSidebar.IsVisible = false;
         page.Children.Insert(0, close);
         page.Children.Add(WorkspaceUi.Text("Strategies update this session's recommendations. Automation uses those recommendations. Viewer shows its records and status.", 12));
-        page.Children.Add(WorkspaceUi.Text("Live connection unavailable: the recovered account API serves a domain-parking page; casino protocol recovery is incomplete. No live bets are sent.", 12));
+        page.Children.Add(WorkspaceUi.Text("Automation can open a local browser training table. No money, casino account or hosted server is used.", 12));
         if (store is not null)
         {
             var save = WorkspaceUi.Action(needsRecovery ? "Save recovered workspace" : "Save workspace now");

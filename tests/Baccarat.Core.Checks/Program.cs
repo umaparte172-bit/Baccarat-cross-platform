@@ -16,6 +16,7 @@ using Baccarat.Infrastructure.Strategies;
 
 ClientStrategyChecks.Run();
 BaccaratSimulationChecks.Run();
+await LocalBrowserChecks.RunAsync();
 
 static void Check(bool value, string message) { if (!value) throw new Exception(message); }
 RoadmapChecks.Run();

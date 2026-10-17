@@ -33,7 +33,7 @@ public sealed class AutomationView : StackPanel, IDisposable
         controller.SnapshotChanged -= OnSnapshotChanged;
     }
 
-    public AutomationView(AutomationController controller)
+    public AutomationView(AutomationController controller, Action? openBrowser = null)
     {
         this.controller = controller ?? throw new ArgumentNullException(nameof(controller));
         Margin = new Thickness(0);
@@ -53,6 +53,12 @@ public sealed class AutomationView : StackPanel, IDisposable
         connectionActions.Children.Add(recover);
         connectionActions.Children.Add(pause);
         page.Children.Add(WorkspaceUi.Card("CONNECTION", connectionActions));
+        if (openBrowser is not null)
+        {
+            var browser = Button("Open browser simulator");
+            browser.Click += (_, _) => openBrowser();
+            connectionActions.Children.Add(browser);
+        }
 
         var bettingActions = Row();
         bettingActions.Children.Add(initialBet);
@@ -68,7 +74,7 @@ public sealed class AutomationView : StackPanel, IDisposable
             14,
             "#91A1B9"));
         page.Children.Add(Text(
-            "Live table automation remains unavailable until verified selectors, chip values, table-state checks and placement acknowledgements are supplied.",
+            "The browser simulator is a local training table only. It never connects to a casino or uses real money.",
             14,
             "#91A1B9"));
 
