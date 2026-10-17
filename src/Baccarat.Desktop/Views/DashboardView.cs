@@ -234,7 +234,7 @@ public sealed class DashboardView : UserControl
                 Outcome.Player => "#086CE8",
                 _ => "#119C50"
             });
-            StyleTableButton(button, outcome.ToString().ToUpperInvariant(), outcome == Outcome.Tie ? "8:1" : "",
+            StyleTableButton(button, outcome.ToString().ToUpperInvariant(), null,
                 outcome == Outcome.Banker ? "#E01A12" : outcome == Outcome.Player ? "#1B55C9" : "#17A51D",
                 outcome == Outcome.Banker ? "#6E0F0A" : outcome == Outcome.Player ? "#0B2566" : "#0A4F10",
                 outcome == Outcome.Tie ? new CornerRadius(46, 46, 3, 3) : new CornerRadius(3), MakeBadge(outcome));
@@ -246,9 +246,9 @@ public sealed class DashboardView : UserControl
             Add(results, button, i + 1);
         }
         var pp = DashboardUi.Button("P Pair", async () => { if (await TryDomAsync("player-pair")) return; if (Workspace.Selected is { } s) s.PlayerPairDraft = !s.PlayerPairDraft; Refresh(false); });
-        StyleTableButton(pp, "P PAIR", "11:1", "#1B55C9", "#0B2566", new CornerRadius(70, 3, 3, 70));
+        StyleTableButton(pp, "P PAIR", Live("P PAIR"), "#1B55C9", "#0B2566", new CornerRadius(70, 3, 3, 70));
         var bp = DashboardUi.Button("B Pair", async () => { if (await TryDomAsync("banker-pair")) return; if (Workspace.Selected is { } s) s.BankerPairDraft = !s.BankerPairDraft; Refresh(false); });
-        StyleTableButton(bp, "B PAIR", "15:1", "#E01A12", "#6E0F0A", new CornerRadius(3, 70, 70, 3));
+        StyleTableButton(bp, "B PAIR", Live("B PAIR"), "#E01A12", "#6E0F0A", new CornerRadius(3, 70, 70, 3));
         Add(results, pp, 0); Add(results, bp, 4);
         var pairs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         pairs.Children.Add(bankerPair);
@@ -289,6 +289,10 @@ public sealed class DashboardView : UserControl
     }
 
     private readonly Dictionary<Outcome, (TextBlock Percent, TextBlock Count)> badges = new();
+    private readonly Dictionary<string, TextBlock> liveLabels = new();
+
+    // Observed frequency label (no fixed odds): "count · share of shoe hands".
+    private TextBlock Live(string key) => liveLabels[key] = new TextBlock { Text = "0 · 0%" };
 
     // Share-of-shoe badge shown on each result button: percent ring plus hand count (no money is involved).
     private Control MakeBadge(Outcome outcome)
@@ -308,7 +312,7 @@ public sealed class DashboardView : UserControl
         return row;
     }
 
-    private static void StyleTableButton(Button button, string label, string payout, string top, string bottom, CornerRadius radius, Control? badge = null)
+    private static void StyleTableButton(Button button, string label, TextBlock? live, string top, string bottom, CornerRadius radius, Control? badge = null)
     {
         var pair = badge is null;
         if (pair) button.Height = 96;
@@ -325,11 +329,10 @@ public sealed class DashboardView : UserControl
                 FontSize = pair ? 11 : 14, FontWeight = FontWeight.Bold,
                 FontFamily = pair ? FontFamily.Default : new FontFamily("Georgia, Times New Roman, serif")
             };
-            var odds = new TextBlock
-            {
-                Text = payout, FontSize = 11, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = Brush.Parse(label == "TIE" ? "#6DF52A" : label == "B PAIR" ? "#FFD060" : "#62B8FF")
-            };
+            var odds = live ?? new TextBlock();
+            odds.FontSize = 11; odds.FontWeight = FontWeight.SemiBold; odds.HorizontalAlignment = HorizontalAlignment.Center;
+            odds.Foreground = Brush.Parse(label == "TIE" ? "#6DF52A" : label == "B PAIR" ? "#FFD060" : "#62B8FF");
+            if (odds.Parent is Panel oldOdds) oldOdds.Children.Remove(odds);
             if (pair)
             {
                 layers.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { name, odds } });
@@ -338,7 +341,7 @@ public sealed class DashboardView : UserControl
             {
                 var bottomRow = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 8), Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 6 };
                 bottomRow.Children.Add(name);
-                if (payout.Length > 0) bottomRow.Children.Add(new TextBlock { Text = payout, FontSize = 12, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center, Foreground = Brush.Parse("#6DF52A") });
+                if (live is not null) { odds.FontSize = 12; odds.VerticalAlignment = VerticalAlignment.Center; bottomRow.Children.Add(odds); }
                 layers.Children.Add(bottomRow);
                 if (badge!.Parent is Panel old) old.Children.Remove(badge);
                 badge.HorizontalAlignment = HorizontalAlignment.Left;
@@ -359,7 +362,7 @@ public sealed class DashboardView : UserControl
                 Child = layers
             };
         });
-        ToolTip.SetTip(button, "Record result / mark pair only. Odds are reference labels; side bets are not enabled. Badge = share of this shoe.");
+        ToolTip.SetTip(button, "Record result / mark pair only. Labels show how often this occurred in the current shoe (count · share of hands); nothing is a fixed payout. Side bets are not enabled.");
     }
 
     private async Task<bool> TryDomAsync(string action)
@@ -596,6 +599,14 @@ public sealed class DashboardView : UserControl
                     badge.Count.Text = count.ToString(CultureInfo.InvariantCulture);
                 }
             }
+            var shoeHands = s.ShoeHands.ToArray();
+            void SetLive(string key, int n)
+            {
+                if (liveLabels.TryGetValue(key, out var label))
+                    label.Text = $"{n} · {(shoeHands.Length == 0 ? 0 : (int)Math.Round(100d * n / shoeHands.Length))}%";
+            }
+            SetLive("P PAIR", shoeHands.Count(h => h.PlayerPair));
+            SetLive("B PAIR", shoeHands.Count(h => h.BankerPair));
             statistics.Children.Add(new Separator());
             var stats = DashboardStatistics.Calculate(s);
             statistics.Children.Add(DashboardUi.Text($"Streak   {stats.StreakSide?.ToString() ?? "—"} {stats.Streak}\nChop   {stats.Chop} (ties ignored)", 12, DashboardUi.Muted));
