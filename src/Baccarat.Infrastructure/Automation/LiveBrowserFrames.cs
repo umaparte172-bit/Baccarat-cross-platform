@@ -150,15 +150,25 @@ public sealed partial class LiveBrowserTableAdapter
     {
         await EnsurePageHostAsync();
         // Measure, let scrolling/layout settle, measure again: click only where the control has stopped moving.
-        async Task<JsonElement> MeasureAsync() => await EvaluateInTableAsync($$"""
-            const e = all({{Js(selector)}})[{{index}}];
-            if (!e) return null;
-            e.scrollIntoView({block: 'center', inline: 'center'});
-            const r = e.getBoundingClientRect();
-            const style = getComputedStyle(e);
-            if (r.width < 2 || r.height < 2 || style.visibility === 'hidden' || style.display === 'none' || e.disabled) return null;
-            return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-            """);
+        async Task<JsonElement> MeasureAsync()
+        {
+            var measured = await EvaluateInTableAsync($$"""
+                const e = all({{Js(selector)}})[{{index}}];
+                if (!e) return null;
+                e.scrollIntoView({block: 'center', inline: 'center'});
+                const r = e.getBoundingClientRect();
+                const style = getComputedStyle(e);
+                if (r.width < 2 || r.height < 2 || style.visibility === 'hidden' || style.display === 'none' || e.disabled) return null;
+                const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                const hit = doc.elementFromPoint(cx, cy);
+                if (!hit || !(e === hit || e.contains(hit))) return {covered: hit ? (hit.getAttribute('data-role') || hit.tagName.toLowerCase()) : 'nothing'};
+                return {x: cx, y: cy};
+                """);
+            // Never click through a pop-up or overlay (for example a "Low balance" message): that would hit the wrong control.
+            if (measured.ValueKind == JsonValueKind.Object && measured.TryGetProperty("covered", out var coveredBy))
+                throw new InvalidOperationException($"The control is covered by another element ({coveredBy.GetString()}), for example a pop-up; nothing was clicked.");
+            return measured;
+        }
         var rect = await MeasureAsync();
         for (var settle = 0; settle < 5 && rect.ValueKind != JsonValueKind.Null; settle++)
         {

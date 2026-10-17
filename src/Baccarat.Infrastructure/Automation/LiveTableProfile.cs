@@ -87,6 +87,8 @@ public sealed class LiveTableProfileStore
         // Calibrated from a real Evolution Speed Baccarat page (data-role attributes): reads results only, no betting yet.
         var evolution = System.IO.Path.Combine(Directory, "evolution-baccarat-results-only.json");
         if (!File.Exists(evolution)) File.WriteAllText(evolution, JsonSerializer.Serialize(EvolutionResultsOnly, LiveTableProfile.Json));
+        var betting = System.IO.Path.Combine(Directory, "evolution-baccarat-live-betting.json");
+        if (!File.Exists(betting)) File.WriteAllText(betting, JsonSerializer.Serialize(EvolutionBetting, LiveTableProfile.Json));
         var profiles = new List<LiveTableProfile>();
         foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").Order())
         {
@@ -110,6 +112,24 @@ public sealed class LiveTableProfileStore
         ResultSelector = "[data-role=\"Bead-road\"] [data-role=\"roadItem\"]",
         NewestResult = "last",
         ResultRules = [new("=p", Outcome.Player), new("=b", Outcome.Banker), new("=t", Outcome.Tie)]
+    };
+
+    // Calibrated from an inspection of Evolution Speed Baccarat on a live table (data-role attributes).
+    // The betting-open indicator is the footer subtitle text; it was empty in the captured round, so it is unverified:
+    // until it reads "PLACE YOUR BETS" the adapter refuses to place anything.
+    public static LiveTableProfile EvolutionBetting { get; } = EvolutionResultsOnly with
+    {
+        Name = "Evolution baccarat (live betting)",
+        StatusSelector = "[data-role=\"footer-subtitles\"]",
+        OpenText = "PLACE YOUR BETS",
+        ClosedText = ["WAIT FOR NEXT GAME", "NO MORE BETS", "BETS CLOSED", "PLEASE WAIT"],
+        ChipSelector = "[data-role=\"expanded-chip-stack-wrapper\"] [data-role=\"chip\"]",
+        ChipValueSource = "data-value",
+        PlayerSelector = "[data-role=\"bet-spot-Player\"]",
+        BankerSelector = "[data-role=\"bet-spot-Banker\"]",
+        TieSelector = "[data-role=\"bet-spot-Tie\"]",
+        BetTotalSelector = "[data-role=\"total-bet-label-value\"]",
+        BalanceSelector = "[data-role=\"balance-label-value\"]"
     };
 
     // Deliberately unconfigured: selectors must come from inspecting the real table page.
