@@ -44,6 +44,7 @@ public sealed partial class DashboardWindow : Window
         Dashboard.WorkspaceChanged += RefreshTools;
         Dashboard.WorkspaceChanged += QueueSave;
         Dashboard.DeleteRequested += ConfirmDelete;
+        Dashboard.ClearRequested += ConfirmClear;
         saveTimer.Tick += async (_, _) => await SaveWorkspaceAsync();
         Closing += OnClosing;
         workspaceContent.Content = Dashboard;
@@ -56,6 +57,7 @@ public sealed partial class DashboardWindow : Window
             Dashboard.WorkspaceChanged -= RefreshTools;
             Dashboard.WorkspaceChanged -= QueueSave;
             Dashboard.DeleteRequested -= ConfirmDelete;
+            Dashboard.ClearRequested -= ConfirmClear;
             saveTimer.Stop();
             store?.Dispose();
             foreach (var context in tools.Values) context.Dispose();

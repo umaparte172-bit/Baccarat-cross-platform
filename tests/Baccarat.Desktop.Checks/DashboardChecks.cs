@@ -35,6 +35,15 @@ internal static class DashboardChecks
             Layout();
             checkAlignment(window);
         }
+        void MenuClick(string name)
+        {
+            var item = window.GetVisualDescendants().OfType<Border>()
+                .Where(b => b.ContextMenu is not null && ReferenceEquals(b.DataContext, workspace.Selected))
+                .SelectMany(b => b.ContextMenu!.Items.OfType<MenuItem>()).First(i => i.Name == name);
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Layout();
+            checkAlignment(window);
+        }
         void Capture(string name)
         {
             if (screenshotDirectory is null) return;
@@ -46,7 +55,6 @@ internal static class DashboardChecks
         }
 
         Assert(workspace.Selected is null && Text("No Session"), "Default dashboard must start empty");
-        Assert(!Named<Button>("DeleteSession").IsEnabled, "Delete session must be disabled without a selection");
         Assert(!window.GetVisualDescendants().OfType<AccountView>().Any(), "Default dashboard must not require sign-in");
         Capture("dashboard-empty");
         Click("New Session");
@@ -205,11 +213,11 @@ internal static class DashboardChecks
         Click("Clear selected session");
         Assert(second.Hands.Count == 0 && first.Hands.Count == 2, "Confirmed clear must affect only the selected session");
         Assert(window.Title == "Baccarat Workspace" && Text("Session 0 hands"), "Clear must return to the dashboard with visibly empty results");
-        Click("Delete session…");
+        MenuClick("MenuDeleteSession");
         Assert(Text("cannot be undone"), "Delete must require explicit confirmation");
         Click("Cancel");
         Assert(workspace.Sessions.Contains(second), "Cancelling delete must preserve the selected session");
-        Click("Delete session…");
+        MenuClick("MenuDeleteSession");
         Click("Delete selected session");
         Assert(workspace.Sessions.Count == 1 && !workspace.Sessions.Contains(second) && workspace.Selected == first,
             "Confirmed delete must remove only the selected session and select its neighbor");

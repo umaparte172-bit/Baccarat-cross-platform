@@ -18,6 +18,7 @@ public sealed class DashboardView : UserControl
     public DashboardWorkspace Workspace { get; }
     public event Action? WorkspaceChanged;
     public event Action? DeleteRequested;
+    public event Action? ClearRequested;
     public Func<string, Task<bool>>? DomAction { get; set; }
     public void RefreshSharedState() => Refresh(true);
     public void SetStorageStatus(string status) => notice.Text = status;
@@ -51,12 +52,13 @@ public sealed class DashboardView : UserControl
     private readonly Button undo;
     private readonly Button export;
     private readonly Button beginDraft;
-    private readonly Button deleteSession;
     private Button newShoe = null!;
     private Button dealSimulation = null!;
     private readonly TextBlock simulatedCards = DashboardUi.Text("", 13);
     private readonly List<Button> resultButtons = new();
     private bool refreshing;
+    private bool compactLayout, narrowWindow;
+    private Action<bool>? ApplyLayoutMode;
 
     public DashboardView(Action openExistingTools, DashboardWorkspace? workspace = null)
     {
@@ -73,9 +75,25 @@ public sealed class DashboardView : UserControl
         sidebarFoot.Margin = new Thickness(0, 12, 0, 0);
         DockPanel.SetDock(sidebarFoot, Dock.Bottom);
         sidebarContent.Children.Add(sidebarFoot);
-        sessionList.Margin = new Thickness(0, 12, 0, 0);
+        sessionList.Margin = new Thickness(0, 8, 0, 0);
+        ToolTip.SetTip(sessionList, "Right-click a session to clear or delete it.");
         sessionList.ItemTemplate = new FuncDataTemplate<DashboardSession>((item, _) =>
-            DashboardUi.Text(item?.SidebarLabel ?? "", 12));
+        {
+            var row = new Border { Background = Brushes.Transparent, Child = DashboardUi.Text(item?.SidebarLabel ?? "", 12) };
+            var delete = new MenuItem { Header = "Delete session…", Name = "MenuDeleteSession" };
+            delete.Click += (_, _) => { SelectForMenu(item); DeleteRequested?.Invoke(); };
+            var clear = new MenuItem { Header = "Clear session…", Name = "MenuClearSession" };
+            clear.Click += (_, _) => { SelectForMenu(item); ClearRequested?.Invoke(); };
+            var menu = new ContextMenu { Items = { clear, delete } };
+            menu.Opening += (_, _) => SelectForMenu(item);
+            row.ContextMenu = menu;
+            return row;
+        });
+        var newSession = DashboardUi.Button("+ New session", CreateSession);
+        newSession.HorizontalAlignment = HorizontalAlignment.Stretch;
+        newSession.Margin = new Thickness(0, 12, 0, 0);
+        DockPanel.SetDock(newSession, Dock.Top);
+        sidebarContent.Children.Add(newSession);
         sessionList.SelectionChanged += (_, _) =>
         {
             if (!refreshing && sessionList.SelectedItem is DashboardSession selected)
@@ -99,20 +117,16 @@ public sealed class DashboardView : UserControl
         var main = new DockPanel();
         Grid.SetColumn(main, 1);
         root.Children.Add(main);
-        var toolbar = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,*,Auto"), ColumnSpacing = 10, Margin = new Thickness(16, 12) };
+        var toolbar = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 10, Margin = new Thickness(16, 12) };
         var toggle = DashboardUi.Button("☰", () => sidebar.IsVisible = !sidebar.IsVisible);
         toggle.Name = "ToggleSidebar";
         Avalonia.Automation.AutomationProperties.SetName(toggle, "Show or hide sessions");
         ToolTip.SetTip(toggle, "Show or hide session sidebar");
         toolbar.Children.Add(toggle);
-        Add(toolbar, DashboardUi.Button("+ New session", CreateSession), 1);
-        deleteSession = DashboardUi.Button("Delete session…", () => DeleteRequested?.Invoke());
-        deleteSession.Name = "DeleteSession";
-        Add(toolbar, deleteSession, 2);
-        Add(toolbar, DashboardUi.Stack(title, subtitle), 3);
+        Add(toolbar, DashboardUi.Stack(title, subtitle), 1);
         var toolsButton = DashboardUi.Button("Tools", openExistingTools);
         ToolTip.SetTip(toolsButton, "Use strategy, automation, viewer and account tools for this session in the same window.");
-        Add(toolbar, toolsButton, 4);
+        Add(toolbar, toolsButton, 2);
         DockPanel.SetDock(toolbar, Dock.Top);
         main.Children.Add(toolbar);
         notice.Margin = new Thickness(16, 8);
@@ -140,9 +154,18 @@ public sealed class DashboardView : UserControl
         // Fill the viewport so everything is visible at once; scroll only when the window is too small.
         void FitBody()
         {
-            sessionBody.Width = Math.Max(820, main.Bounds.Width - 32);
-            sessionBody.Height = Math.Max(600, body.Bounds.Height - 12);
+            var compact = main.Bounds.Width > 0 && main.Bounds.Width < 900;
+            if (compact != compactLayout) { compactLayout = compact; ApplyLayoutMode?.Invoke(compact); }
+            sessionBody.MinWidth = compact ? 0 : 820;
+            sessionBody.Width = Math.Max(compact ? 360 : 820, main.Bounds.Width - 32);
+            // Compact mode stacks the panels and lets the page scroll; wide mode fills the viewport.
+            sessionBody.Height = compact ? double.NaN : Math.Max(600, body.Bounds.Height - 12);
         }
+        root.SizeChanged += (_, _) =>
+        {
+            var narrow = root.Bounds.Width < 1000;
+            if (narrow != narrowWindow) { narrowWindow = narrow; sidebar.IsVisible = !narrow; }
+        };
         main.SizeChanged += (_, _) => FitBody();
         body.SizeChanged += (_, _) => FitBody();
         var left = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 12 };
@@ -165,12 +188,28 @@ public sealed class DashboardView : UserControl
         var upper = new Grid { ColumnDefinitions = new ColumnDefinitions("*,170"), ColumnSpacing = 12 };
         upper.Children.Add(BuildStrategy());
         statistics.Spacing = 6;
-        Add(upper, DashboardUi.Card("Statistics", statistics), 1);
+        var statsCard = DashboardUi.Card("Statistics", statistics);
+        Add(upper, statsCard, 1);
         right.Children.Add(upper);
         Grid.SetRow(roadmaps, 1); right.Children.Add(roadmaps);
         var layout = new Grid { ColumnDefinitions = new ColumnDefinitions("350,*"), ColumnSpacing = 12 };
         layout.Children.Add(left);
         Add(layout, right, 1);
+        ApplyLayoutMode = compact =>
+        {
+            layout.ColumnDefinitions = new ColumnDefinitions(compact ? "*" : "350,*");
+            layout.RowDefinitions = new RowDefinitions(compact ? "Auto,Auto" : "*");
+            Grid.SetColumn(right, compact ? 0 : 1);
+            Grid.SetRow(right, compact ? 1 : 0);
+            layout.RowSpacing = compact ? 12 : 0;
+            historyScroll.MaxHeight = compact ? 260 : double.PositiveInfinity;
+            right.RowDefinitions = new RowDefinitions(compact ? "Auto,Auto" : "Auto,*");
+            upper.ColumnDefinitions = new ColumnDefinitions(compact ? "*" : "*,170");
+            upper.RowDefinitions = new RowDefinitions(compact ? "Auto,Auto" : "Auto");
+            upper.RowSpacing = compact ? 12 : 0;
+            Grid.SetColumn(statsCard, compact ? 0 : 1);
+            Grid.SetRow(statsCard, compact ? 1 : 0);
+        };
         sessionBody.Children.Add(layout);
         Content = root;
         Refresh(true);
@@ -364,6 +403,13 @@ public sealed class DashboardView : UserControl
         return row;
     }
 
+    private void SelectForMenu(DashboardSession? item)
+    {
+        if (item is null || ReferenceEquals(Workspace.Selected, item) || !Workspace.Sessions.Contains(item)) return;
+        Workspace.Select(item);
+        Refresh(true);
+    }
+
     private void CreateSession()
     {
         if (!Workspace.CreateSession()) { notice.Text = "Session limit reached (100). Export records before closing."; return; }
@@ -431,7 +477,6 @@ public sealed class DashboardView : UserControl
             sessionList.ItemsSource = null;
             sessionList.ItemsSource = Workspace.Sessions.ToArray();
             sessionList.SelectedItem = Workspace.Selected;
-            deleteSession.IsEnabled = Workspace.Selected is not null;
             if (Workspace.Selected is not { } s) { body.Content = empty; return; }
             if (body.Content is not ScrollViewer)
                 body.Content = new ScrollViewer { Content = sessionBody, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
