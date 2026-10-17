@@ -58,7 +58,56 @@ internal static class ClientStrategyChecks
         Check(paused.Profit == cash && Token(paused.Recommendation) == "P1", "Two virtual wins resume at one unit without changing cash");
         Check(StrategySessionEngine.RestoreArchive(paused.ExportArchive()).Recommendation == paused.Recommendation, "Virtual replay");
         PdfReference(pattern);
+        PatternBoundary();
         Console.WriteLine("PASS: all 21 supplied client cases, IHG 14-hand reference, next sides/stakes, balances, no-bet, labels, Undo/replay and amount bound");
+    }
+
+    private static void PatternBoundary()
+    {
+        // Example 3: shoe 145 hand 59 through shoe 146 hand 2. The last stake
+        // is 81 units and its loss completes the seventh isolated win.
+        const string boundary = "BBPBBPBBBPBBBPBB";
+        const string virtualResults = "BPPPBPPBBPBBPPPPBPB"; // shoe 146 hands 3–21
+        foreach (var unit in new[] { 1m, 2.5m })
+            foreach (var runLimit in new[] { 45m, 81m })
+            {
+                var definition = VideoStrategyFactory.Client("PATTERN", BetSide.Player, [unit], runLimit);
+                var engine = new StrategySessionEngine(definition);
+                foreach (var c in boundary[..^1]) engine.Record(OutcomeOf(c));
+                Check(engine.Recommendation.Stake == 81 * unit, "Boundary must be reached by the settled 81-unit stake");
+                var before = engine.Recommendation;
+                engine.Record(OutcomeOf(boundary[^1]));
+                Check(engine.StopReason is null && engine.Recommendation.State == StrategyEngineState.Paused &&
+                    engine.Recommendation.Stake is null && engine.Profit == -160.35m * unit,
+                    "Approved rule: settle once and immediately enter virtual play");
+                var restored = StrategySessionEngine.RestoreArchive(engine.ExportArchive());
+                Check(restored.Recommendation == engine.Recommendation && restored.Undo() && restored.Recommendation == before,
+                    "Boundary save/restart and Undo must preserve the transition");
+                restored.Record(OutcomeOf(boundary[^1]));
+                Check(restored.Recommendation == engine.Recommendation, "Boundary replay after Undo");
+                foreach (var c in virtualResults)
+                {
+                    Check(engine.Recommendation.State == StrategyEngineState.Paused, "All hands 3–21 must remain virtual before settlement");
+                    var beforeTie = engine.Recommendation;
+                    Check(!engine.Record(Outcome.Tie).WasBet && engine.Recommendation == beforeTie, "Virtual ties preserve the win counter");
+                    var round = engine.Record(OutcomeOf(c));
+                    Check(!round.WasBet && round.ProfitChange == 0 && engine.Profit == -160.35m * unit, "Virtual play must not change cash");
+                    engine = StrategySessionEngine.RestoreArchive(engine.ExportArchive());
+                }
+                Check(engine.Recommendation is { State: StrategyEngineState.Ready, Side: BetSide.Player } && engine.Recommendation.Stake == unit,
+                    "Resume on hand 22 at one unit after two consecutive virtual wins");
+                engine.Record(Outcome.Player);
+                Check(engine.Profit == -159.35m * unit && engine.Recommendation.Stake == unit,
+                    "Resumed run starts fresh; closed run debt must not increase the stake");
+            }
+
+        var legacy = new StrategySessionEngine(VideoStrategyFactory.Client("PATTERN", BetSide.Player, [1]) with
+        { RuleCondition = VideoStrategyFactory.ClientTag + "PATTERN" });
+        foreach (var c in boundary) legacy.Record(OutcomeOf(c));
+        Check(legacy.Recommendation.State == StrategyEngineState.Stopped &&
+            StrategySessionEngine.RestoreArchive(legacy.ExportArchive()).Recommendation == legacy.Recommendation,
+            "Older saved runs retain their v1 accounting and stop behavior");
+        Console.WriteLine("PASS: approved PATTERN simultaneous limits, immediate pause, virtual ties, one-unit resume, scaling, exact limit, Undo and versioned replay");
     }
 
     private static string Token(BetRecommendation next) => next.State == StrategyEngineState.Paused ? "N" :

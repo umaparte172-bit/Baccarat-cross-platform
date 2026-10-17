@@ -11,7 +11,7 @@
 - [x] Implement all eight dashboard strategies against the 21 supplied cases.
 - [x] Verify all 216 rows of IHG Example 1 using the private reference fixture.
 - [x] Verify defaults, saved sessions, cross-shoe progression and Undo.
-- [ ] Obtain confirmation for the conflicting simultaneous IHG run-limit/pause boundary.
+- [x] Resolve simultaneous IHG run-limit/pause boundary: user approved immediate virtual pause on 2026-10-18; v2 PATTERN implements and tests it while preserving v1 replay.
 
 See [current strategy report](docs/strategy-completion-2026-10-17.md) for scope;
 older manual-only PATTERN status below is historical.

@@ -105,6 +105,7 @@ eight strategies, plus the visible deal button and card display.
 
 All 21 supplied strategy cases remain in `ClientStrategyChecks`. The independent
 216-row IHG reference remains an optional local fixture, since the original PDF
-is not redistributed. The contradictory simultaneous PATTERN run-limit/pause
-boundary still stops explicitly. No claim is made of exact original-app behavior
+is not redistributed. New PATTERN runs follow the user-approved immediate virtual
+pause at simultaneous run-limit/pause boundaries (see the strategy completion report);
+old v1 runs retain their stop for historical replay. No claim is made of exact original-app behavior
 outside the supplied evidence or of guaranteed profitability.

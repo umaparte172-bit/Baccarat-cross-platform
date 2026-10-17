@@ -11,8 +11,12 @@ public sealed partial class StrategySessionEngine
 
     private void InitializeClientRules()
     {
-        if (definition.RuleCondition?.StartsWith(VideoStrategyFactory.ClientTag, StringComparison.Ordinal) != true) return;
-        clientMode = definition.RuleCondition[VideoStrategyFactory.ClientTag.Length..];
+        if (definition.RuleCondition == VideoStrategyFactory.PatternWrittenRuleTag) clientMode = "PATTERN";
+        else
+        {
+            if (definition.RuleCondition?.StartsWith(VideoStrategyFactory.ClientTag, StringComparison.Ordinal) != true) return;
+            clientMode = definition.RuleCondition[VideoStrategyFactory.ClientTag.Length..];
+        }
         if (clientMode is not ("Grinding" or "Odd Even" or "ODD Diff" or "ODD Looser" or "ODD is God" or "PATTERN") ||
             definition.Initial.Selector is not ("PLAYER" or "BANKER") ||
             definition.AfterWin.Selector != "CLIENT" || definition.AfterLoss.Selector != "CLIENT" ||
@@ -118,8 +122,10 @@ public sealed partial class StrategySessionEngine
             if (!won && previousWin) singles++;
             var highBet = stakeUnits >= definition.AfterWin.Values[0];
             var pause = singles >= definition.AfterLoss.Values[0];
-            if (highBet && pause)
-                StopReason = "IHG simultaneous run-limit/pause boundary conflicts in the source PDF. Review before a new run.";
+            var immediatePause = highBet && pause && definition.RuleCondition == VideoStrategyFactory.PatternWrittenRuleTag;
+            // Preserve v1 replay; newly applied PATTERN runs use the approved written rule.
+            if (highBet && pause && !immediatePause)
+                StopReason = "Legacy PATTERN run reached simultaneous limits. Return to strategy drafts and Apply settings to start a new run with the approved immediate-pause rule.";
             if (run > 0 || highBet)
             {
                 run = 0; singles = 0; previousWin = false; currentStake = unit;
@@ -130,6 +136,7 @@ public sealed partial class StrategySessionEngine
                 currentStake = won ? (decimal.Ceiling(Math.Max(0, -run)) + 1) * unit : unit;
                 if (pause) { virtualMode = true; virtualWins = 0; }
             }
+            if (immediatePause) { virtualMode = true; virtualWins = 0; }
         }
 
         var history = state.History + (winner == BetSide.Player ? "P" : "B");

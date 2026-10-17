@@ -1,5 +1,10 @@
 # Strategy 9: IHG evidence and outstanding decisions
 
+Update (2026-10-18): the user approved **immediate virtual pause** for simultaneous
+run-limit and isolated-win-limit events, following the written rule on page 12.
+New PATTERN runs implement that decision; the historical conflict below remains
+documented as source evidence. See [the implemented decision and migration notes](strategy-completion-2026-10-17.md#simultaneous-limits--resolved-for-this-application-on-2026-10-18).
+
 Update (2026-10-17): subsequent client cases titled PATTERN (IHG) and the instruction
 to use this PDF now govern dashboard PATTERN. See [strategy completion](strategy-completion-2026-10-17.md).
 The review below preserves earlier evidence and the simultaneous-limit conflict.
@@ -100,11 +105,12 @@ The supplied PDF, raw client files and full tables are not committed.
 
 ## Decisions still needed from the client
 
-1. **Simultaneous limits.** Page 12 says virtual play begins after shoe 146,
+1. **Simultaneous limits (resolved by user decision on 2026-10-18).** Page 12 says virtual play begins after shoe 146,
    hand 2, where the high-bet threshold and seventh single win coincide. The page
    11 table instead places real one-unit bets on hands 3 and 4, and starts virtual
    play on hand 5. On 2026-10-15 the user said the client must confirm the original
-   application's behavior. Do not choose either interpretation silently.
+   application's behavior. On 2026-10-18 the user chose the written rule for this
+   application: pause immediately, then resume after two consecutive virtual wins.
 2. **Ties.** The PDF contains no tie rows or explicit tie rule. Confirm whether
    ties push the stake and leave selection history, streak counters, pause state
    and next stake unchanged. The user said this needs client confirmation.

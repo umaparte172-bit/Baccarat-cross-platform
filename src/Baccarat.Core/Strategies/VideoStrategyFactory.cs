@@ -8,15 +8,16 @@ public static class VideoStrategyFactory
     public const string PatternManualTag = "video:pattern-manual:v1";
     public const string SequenceTag = "video:sequence:v1:";
     public const string ClientTag = "client-cases:v1:";
+    public const string PatternWrittenRuleTag = "client-cases:v2:PATTERN";
 
     public static bool IsVideoMode(StrategyDefinition? definition) =>
-        definition?.RuleCondition is MartingaleTag or PatternManualTag ||
+        definition?.RuleCondition is MartingaleTag or PatternManualTag or PatternWrittenRuleTag ||
         definition?.RuleCondition?.StartsWith(SequenceTag, StringComparison.Ordinal) == true ||
         definition?.RuleCondition?.StartsWith(ClientTag, StringComparison.Ordinal) == true;
 
     public static StrategyDefinition Client(string mode, BetSide first, IReadOnlyList<decimal> stakes,
         decimal runLimit = 45, int singleWins = 7) => new(
-        mode, ClientTag + mode,
+        mode, mode == "PATTERN" ? PatternWrittenRuleTag : ClientTag + mode,
         new(first.ToString().ToUpperInvariant(), AmountRuleKind.Set, stakes),
         new("CLIENT", AmountRuleKind.ResetSequence, [runLimit]),
         new("CLIENT", AmountRuleKind.NextSequence, [singleWins]),
