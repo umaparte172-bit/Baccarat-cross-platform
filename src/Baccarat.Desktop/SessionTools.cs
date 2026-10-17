@@ -296,7 +296,6 @@ internal sealed class SessionTools : IDisposable
         try
         {
             var profile = FindProfile(profileName);
-            if (!profile.CanRead) return "This profile has no result selectors yet. Use Inspect page, then edit the profile in the profiles folder.";
             watching?.Cancel();
             if (live is null || live.Name != "Live table · " + profile.Name) live = new LiveBrowserTableAdapter(profile, LiveOptions);
             await Controller.DisconnectAsync();
@@ -329,6 +328,13 @@ internal sealed class SessionTools : IDisposable
                 if (connected.Outcome != AutomationActionOutcome.Accepted) switcher.Use(adapter);
                 return connected;
             });
+            if (result.Outcome == AutomationActionOutcome.Accepted && !profile.CanRead)
+            {
+                // Detection works on any page; reading results needs selectors, so save the page structure to calibrate them.
+                Say($"Table detected on {adapterToUse.DetectedHost}. This profile has no result selectors yet; saving the page structure…");
+                Say(await Dispatcher.UIThread.InvokeAsync(InspectLiveAsync) + " Send that file (or edit the profile) to finish calibration.");
+                return;
+            }
             Say(result.Outcome != AutomationActionOutcome.Accepted ? result.Message : profile.CanBet
                 ? $"Connected to the table on {adapterToUse.DetectedHost}. Results are recorded automatically; every bet still needs your approval."
                 : $"Connected to {adapterToUse.DetectedHost} for reading results only (profile cannot place bets yet).");
@@ -338,7 +344,7 @@ internal sealed class SessionTools : IDisposable
         { Say("Live table watch stopped: " + ex.Message); }
     }
 
-    private async Task<string> DisconnectLiveAsync()
+    internal async Task<string> DisconnectLiveAsync()
     {
         watching?.Cancel();
         await Controller.DisconnectAsync();

@@ -141,6 +141,12 @@ internal static class LiveTableChecks
         Check(context.Controller.Snapshot.State == AutomationRunState.AwaitingApproval, "Live bets must wait for approval");
         Pump(context.Controller.ApprovePendingAsync().AsTask());
         Check(context.Controller.Snapshot.AcceptedBets == 1, "Approved bet must be placed on the live table: " + context.Controller.Snapshot.Message);
+        // A profile with no selectors must still detect the open table and save its structure for calibration.
+        Pump(context.DisconnectLiveAsync());
+        File.WriteAllText(Path.Combine(profileDirectory, "bare.json"), System.Text.Json.JsonSerializer.Serialize(new LiveTableProfile { Name = "Bare" }));
+        var bare = context.ConnectLiveAsync("Bare"); Pump(bare);
+        Check(bare.Result.StartsWith("Watching"), "Bare profile must start watching: " + bare.Result);
+        Check(Until(() => Directory.GetFiles(profileDirectory, "inspection-*.json").Length == 1), "Bare profile must save an inspection report once the table is detected");
         Pump(context.CloseLiveBrowserAsync());
         Console.WriteLine("PASS: live table through the app: profile, connect, results recorded, approval-gated placement");
     }
