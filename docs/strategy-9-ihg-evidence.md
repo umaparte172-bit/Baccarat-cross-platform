@@ -1,5 +1,9 @@
 # Strategy 9: IHG evidence and outstanding decisions
 
+Update (2026-10-17): subsequent client cases titled PATTERN (IHG) and the instruction
+to use this PDF now govern dashboard PATTERN. See [strategy completion](strategy-completion-2026-10-17.md).
+The review below preserves earlier evidence and the simultaneous-limit conflict.
+
 Reviewed 2026-10-15. The user explicitly confirmed that Strategy 9 means IHG
 (Izak's Holy Grail). This is an evidence review, not a claim that IHG is already
 implemented or that the original application has been verified against it.

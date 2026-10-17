@@ -298,7 +298,7 @@ public sealed class DashboardView : UserControl
     {
         next.Text = s.Engine?.Recommendation.Message ?? "Not calculated";
         nextDescription.Text = s.Engine is null ? $"{s.Strategy.Name} · Apply supported settings or load a strategy in Tools." :
-            s.IsVideoMode ? $"{s.Engine.StrategyName} · Video-reference run · {s.Engine.Recommendation.State}. Use Tools for manual decisions." :
+            s.IsVideoMode ? $"{s.Engine.StrategyName} · Reference-rule run · {s.Engine.Recommendation.State}." :
             $"{s.Engine.StrategyName} · Imported strategy · {s.Engine.Recommendation.State}. Use Tools for manual decisions.";
         balance.Text = s.Balance.ToString("N2", CultureInfo.CurrentCulture);
         profit.Text = $"Session P/L  {s.Profit:N2}";
@@ -358,7 +358,7 @@ public sealed class DashboardView : UserControl
                 settingsStatus.Foreground = DashboardUi.Muted;
                 settingsStatus.Text = imported ? "Imported rules are active. Return to drafts to configure a new run." :
                     s.HasUnappliedSettings ? "Unapplied settings draft" :
-                    s.IsVideoMode ? "Video-reference run active" : "Draft settings · Apply to start a supported run";
+                    s.IsVideoMode ? "Reference-rule run active" : "Draft settings · Apply to start a supported run";
             }
             UpdateSummary(s);
             roadmaps.Update(RoadmapCalculator.Calculate(s.ShoeHands.Select(h =>

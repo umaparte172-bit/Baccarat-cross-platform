@@ -1,5 +1,15 @@
 # Migration to-do list
 
+## Strategy acceptance update (2026-10-17)
+
+- [x] Implement all eight dashboard strategies against the 21 supplied cases.
+- [x] Verify all 216 rows of IHG Example 1 using the private reference fixture.
+- [x] Verify defaults, saved sessions, cross-shoe progression and Undo.
+- [ ] Obtain confirmation for the conflicting simultaneous IHG run-limit/pause boundary.
+
+See [current strategy report](docs/strategy-completion-2026-10-17.md) for scope;
+older manual-only PATTERN status below is historical.
+
 Work proceeds in dependency order. Completion means the acceptance criteria have been checked, not merely that a file exists.
 
 ## Current video-led plan (2026-10-16)

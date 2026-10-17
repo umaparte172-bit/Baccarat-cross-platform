@@ -17,8 +17,8 @@ public sealed partial class DashboardSession
     {
         new DashboardStrategy("PATTERN", new DashboardField[] {
             new("first", "First bet on", "P or B", "side"),
-            new("limit", "Run ends at bet (units)", "Not verified"),
-            new("wins", "Single wins before pause", "Not verified", "integer") }),
+            new("limit", "Run ends at bet (units)", "45"),
+            new("wins", "Single wins before pause", "7", "integer") }),
         new DashboardStrategy("Martingale", new DashboardField[] {
             new("first", "First bet on", "P or B", "side"),
             new("start", "Starting stake (units)", "1"),
@@ -143,7 +143,7 @@ public sealed partial class DashboardSession
         StrategyDefinition? video = null;
         string DefaultField(string key, string fallback) => string.IsNullOrWhiteSpace(GetField(key)) ? fallback : GetField(key).Trim();
         decimal Amount(string key, string fallback) => decimal.Parse(DefaultField(key, fallback), CultureInfo.InvariantCulture);
-        var first = Strategy.Fields.Any(f => f.Key == "first") ? GetField("first") : "";
+        var first = Strategy.Fields.Any(f => f.Key == "first") ? GetField("first").Trim() : "";
         BetSide? firstSide = first == "P" ? BetSide.Player : first == "B" ? BetSide.Banker : null;
         if (Strategy.Name == "Martingale")
         {

@@ -157,8 +157,18 @@ public sealed partial class StrategySessionEngine
                 pattern = history[^1] == history[^2] ? "Streak" : "Chop";
             }
         }
-        clientState = state with { Side = nextSide, Decisions = state.Decisions + 1, RunProfit = run,
-            History = history, TwoRemaining = remaining, Pattern = pattern, PreviousWin = previousWin,
-            SingleWins = singles, Virtual = virtualMode, VirtualWins = virtualWins };
+        clientState = state with
+        {
+            Side = nextSide,
+            Decisions = state.Decisions + 1,
+            RunProfit = run,
+            History = history,
+            TwoRemaining = remaining,
+            Pattern = pattern,
+            PreviousWin = previousWin,
+            SingleWins = singles,
+            Virtual = virtualMode,
+            VirtualWins = virtualWins
+        };
     }
 }

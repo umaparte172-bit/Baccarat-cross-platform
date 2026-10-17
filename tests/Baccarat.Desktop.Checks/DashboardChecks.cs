@@ -351,7 +351,26 @@ internal static class DashboardChecks
             Assert(configured.Strategy.Fields.All(f => configured.GetField(f.Key) == ""), "Fresh settings must be empty");
             Assert(configured.ApplySettings(out _) && configured.Engine is not null, strategyName + " must start with empty defaults");
             Assert(configured.CanRecord, strategyName + " must allow result entry, including initial no-bet observations");
+            foreach (var outcome in new[] { Outcome.Banker, Outcome.Player, Outcome.Tie })
+                Assert(configured.Record(outcome), strategyName + " must record outcomes");
+            var beforeShoe = configured.Engine!.Recommendation;
+            Assert(configured.NewShoe() && configured.Engine.Recommendation == beforeShoe,
+                strategyName + " must preserve progression across shoes");
+            var restored = DashboardWorkspace.Deserialize(defaults.Serialize()).Selected!;
+            Assert(restored.Engine!.Recommendation == beforeShoe && restored.Balance == configured.Balance,
+                strategyName + " must restore progression and balance");
+            Assert(restored.ToCsv() == configured.ToCsv(), strategyName + " must restore the complete ledger");
+            configured.Record(Outcome.Banker);
+            configured.Undo();
+            Assert(configured.Engine.Recommendation == beforeShoe, strategyName + " Undo must restore next hand");
         }
+        var spaced = new DashboardWorkspace();
+        spaced.CreateSession();
+        spaced.Selected!.SelectStrategy("Martingale");
+        spaced.Selected.SetField("first", " B ");
+        spaced.Selected.BaseUnitDraft = "2";
+        Assert(spaced.Selected.ApplySettings(out _) && spaced.Selected.Engine!.Recommendation.Side == BetSide.Banker &&
+            spaced.Selected.Engine.Recommendation.Stake == 2, "Trimmed side and base-unit scaling must reach the engine");
         Console.WriteLine("PASS: single-window Tools, shared records/engine/undo, viewer isolation, approval cancellation, guarded PATTERN, clear, account access and dashboard checks");
     }
 

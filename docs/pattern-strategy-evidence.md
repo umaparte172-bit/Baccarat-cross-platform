@@ -1,5 +1,10 @@
 # PATTERN: highest-priority strategy
 
+Update (2026-10-17): the newer client cases explicitly titled PATTERN (IHG),
+and the instruction to consult the PDF, now govern dashboard PATTERN.
+See [current implementation and boundaries](strategy-completion-2026-10-17.md).
+The earlier interpretation below is retained as historical evidence.
+
 Updated 2026-10-15 following the user's clarification: PATTERN is the most
 important strategy. IHG is supporting description and is separate from PATTERN.
 The IHG document's examples do not establish PATTERN's calculations. Earlier
