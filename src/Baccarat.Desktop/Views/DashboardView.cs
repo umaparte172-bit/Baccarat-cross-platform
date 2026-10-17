@@ -223,7 +223,7 @@ public sealed class DashboardView : UserControl
 
     private Control BuildEntry()
     {
-        var results = new Grid { ColumnDefinitions = new ColumnDefinitions("0.8*,1.5*,1*,1.3*,0.8*"), ColumnSpacing = 2, Height = 92 };
+        var results = new Grid { ColumnDefinitions = new ColumnDefinitions("0.7*,1.5*,1.05*,1.5*,0.7*"), ColumnSpacing = 3, Height = 112 };
         var outcomes = new[] { Outcome.Player, Outcome.Tie, Outcome.Banker };
         for (var i = 0; i < outcomes.Length; i++)
         {
@@ -234,11 +234,11 @@ public sealed class DashboardView : UserControl
                 Outcome.Player => "#086CE8",
                 _ => "#119C50"
             });
-            StyleTableButton(button, outcome.ToString().ToUpperInvariant(), outcome == Outcome.Tie ? "" : outcome == Outcome.Banker ? "" : "",
-                outcome == Outcome.Banker ? "#CA1008" : outcome == Outcome.Player ? "#164BB7" : "#159810",
-                outcome == Outcome.Banker ? "#69170F" : outcome == Outcome.Player ? "#102C48" : "#10480D",
-                outcome == Outcome.Tie ? new CornerRadius(40, 40, 3, 3) : new CornerRadius(3));
-            button.Height = outcome == Outcome.Tie ? 82 : 90;
+            StyleTableButton(button, outcome.ToString().ToUpperInvariant(), outcome == Outcome.Tie ? "8:1" : "",
+                outcome == Outcome.Banker ? "#E01A12" : outcome == Outcome.Player ? "#1B55C9" : "#17A51D",
+                outcome == Outcome.Banker ? "#6E0F0A" : outcome == Outcome.Player ? "#0B2566" : "#0A4F10",
+                outcome == Outcome.Tie ? new CornerRadius(46, 46, 3, 3) : new CornerRadius(3), MakeBadge(outcome));
+            button.Height = outcome == Outcome.Tie ? 112 : 96;
             button.VerticalAlignment = VerticalAlignment.Bottom;
             button.HorizontalAlignment = HorizontalAlignment.Stretch;
             button.Name = $"Record{outcome}";
@@ -246,9 +246,9 @@ public sealed class DashboardView : UserControl
             Add(results, button, i + 1);
         }
         var pp = DashboardUi.Button("P Pair", async () => { if (await TryDomAsync("player-pair")) return; if (Workspace.Selected is { } s) s.PlayerPairDraft = !s.PlayerPairDraft; Refresh(false); });
-        StyleTableButton(pp, "P PAIR", "", "#164BB7", "#102C48", new CornerRadius(70, 3, 3, 70));
+        StyleTableButton(pp, "P PAIR", "11:1", "#1B55C9", "#0B2566", new CornerRadius(70, 3, 3, 70));
         var bp = DashboardUi.Button("B Pair", async () => { if (await TryDomAsync("banker-pair")) return; if (Workspace.Selected is { } s) s.BankerPairDraft = !s.BankerPairDraft; Refresh(false); });
-        StyleTableButton(bp, "B PAIR", "", "#CA1008", "#69170F", new CornerRadius(3, 70, 70, 3));
+        StyleTableButton(bp, "B PAIR", "15:1", "#E01A12", "#6E0F0A", new CornerRadius(3, 70, 70, 3));
         Add(results, pp, 0); Add(results, bp, 4);
         var pairs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         pairs.Children.Add(bankerPair);
@@ -276,10 +276,10 @@ public sealed class DashboardView : UserControl
             {
                 StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
                 EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
-                GradientStops = new GradientStops { new GradientStop(Color.Parse("#ffffff"), 0), new GradientStop(Color.Parse("#ad8230"), 1) }
+                GradientStops = new GradientStops { new GradientStop(Color.Parse("#9A6F1E"), 0), new GradientStop(Color.Parse("#4A3209"), 0.5), new GradientStop(Color.Parse("#2B1D06"), 1) }
             },
             CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(6, 8, 6, 4),
+            Padding = new Thickness(8, 10, 8, 8),
             Child = results
         };
         var note = DashboardUi.Text("TRAINING ONLY · Eight decks · No money or server. Manual results occupy shoe positions; Undo replays the same deal; New Shoe resets shoe counts. Pairs are observations, not bets.", 11, DashboardUi.Muted);
@@ -288,38 +288,78 @@ public sealed class DashboardView : UserControl
         return entry;
     }
 
-    private static void StyleTableButton(Button button, string label, string payout, string top, string bottom, CornerRadius radius)
+    private readonly Dictionary<Outcome, (TextBlock Percent, TextBlock Count)> badges = new();
+
+    // Share-of-shoe badge shown on each result button: percent ring plus hand count (no money is involved).
+    private Control MakeBadge(Outcome outcome)
     {
+        var percent = new TextBlock { FontSize = 10, FontWeight = FontWeight.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var count = new TextBlock { FontSize = 11, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        badges[outcome] = (percent, count);
+        var ring = new Border
+        {
+            Width = 30, Height = 30, CornerRadius = new CornerRadius(15), BorderThickness = new Thickness(3),
+            BorderBrush = Brush.Parse(outcome == Outcome.Banker ? "#FF6B63" : outcome == Outcome.Player ? "#4F8BFF" : "#4CE04F"),
+            Background = new SolidColorBrush(Color.Parse("#66000000")), Child = percent
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(6, 6, 0, 0), IsHitTestVisible = false };
+        row.Children.Add(ring);
+        row.Children.Add(count);
+        return row;
+    }
+
+    private static void StyleTableButton(Button button, string label, string payout, string top, string bottom, CornerRadius radius, Control? badge = null)
+    {
+        var pair = badge is null;
+        if (pair) button.Height = 96;
         button.Padding = new Thickness(0);
-        button.Height = 90;
         button.VerticalAlignment = VerticalAlignment.Bottom;
         button.HorizontalAlignment = HorizontalAlignment.Stretch;
-        button.Template = new FuncControlTemplate<Button>((_, _) => new Border
+        button.Template = new FuncControlTemplate<Button>((_, _) =>
         {
-            CornerRadius = radius,
-            BorderThickness = new Thickness(1),
-            BorderBrush = Brush.Parse(top),
-            Background = new LinearGradientBrush
+            var layers = new Grid();
+            layers.Children.Add(new Avalonia.Controls.Presenters.ContentPresenter { Name = "PART_ContentPresenter", HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center });
+            var name = new TextBlock
             {
-                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-                EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
-                GradientStops = new GradientStops { new GradientStop(Color.Parse(top), 0), new GradientStop(Color.Parse(bottom), 1) }
-            },
-            Child = new Avalonia.Controls.Presenters.ContentPresenter
+                Text = label, Foreground = pair ? Brushes.White : Brush.Parse("#E4E0D8"), HorizontalAlignment = HorizontalAlignment.Center,
+                FontSize = pair ? 11 : 14, FontWeight = FontWeight.Bold,
+                FontFamily = pair ? FontFamily.Default : new FontFamily("Georgia, Times New Roman, serif")
+            };
+            var odds = new TextBlock
             {
-                Name = "PART_ContentPresenter",
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Content = new StackPanel
-                {
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Children = { new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeight.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center },
-                    new TextBlock { Text = payout, FontSize = 10, Foreground = Brushes.LightSkyBlue, HorizontalAlignment = HorizontalAlignment.Center } }
-                }
+                Text = payout, FontSize = 11, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = Brush.Parse(label == "TIE" ? "#6DF52A" : label == "B PAIR" ? "#FFD060" : "#62B8FF")
+            };
+            if (pair)
+            {
+                layers.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { name, odds } });
             }
+            else
+            {
+                var bottomRow = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 8), Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 6 };
+                bottomRow.Children.Add(name);
+                if (payout.Length > 0) bottomRow.Children.Add(new TextBlock { Text = payout, FontSize = 12, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center, Foreground = Brush.Parse("#6DF52A") });
+                layers.Children.Add(bottomRow);
+                if (badge!.Parent is Panel old) old.Children.Remove(badge);
+                badge.HorizontalAlignment = HorizontalAlignment.Left;
+                badge.VerticalAlignment = VerticalAlignment.Top;
+                layers.Children.Add(badge);
+            }
+            return new Border
+            {
+                CornerRadius = radius,
+                BorderThickness = new Thickness(1),
+                BorderBrush = Brush.Parse(top),
+                Background = new LinearGradientBrush
+                {
+                    StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                    EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+                    GradientStops = new GradientStops { new GradientStop(Color.Parse(top), 0), new GradientStop(Color.Parse(bottom), 1) }
+                },
+                Child = layers
+            };
         });
-        ToolTip.SetTip(button, "Record result / mark pair only. Payout is a reference label; side bets are not enabled.");
+        ToolTip.SetTip(button, "Record result / mark pair only. Odds are reference labels; side bets are not enabled. Badge = share of this shoe.");
     }
 
     private async Task<bool> TryDomAsync(string action)
@@ -550,6 +590,11 @@ public sealed class DashboardView : UserControl
                 var count = s.ShoeHands.Count(h => h.Round.Outcome == outcome);
                 var percent = s.ShoeHandCount == 0 ? 0 : 100d * count / s.ShoeHandCount;
                 statistics.Children.Add(DashboardUi.Text($"{outcome}   {count}   {percent:F1}%", 13, DashboardUi.OutcomeColor(outcome)));
+                if (badges.TryGetValue(outcome, out var badge))
+                {
+                    badge.Percent.Text = $"{Math.Round(percent):0}%";
+                    badge.Count.Text = count.ToString(CultureInfo.InvariantCulture);
+                }
             }
             statistics.Children.Add(new Separator());
             var stats = DashboardStatistics.Calculate(s);
