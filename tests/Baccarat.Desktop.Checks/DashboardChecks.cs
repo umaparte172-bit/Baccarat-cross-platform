@@ -351,6 +351,14 @@ internal static class DashboardChecks
             Assert(configured.Strategy.Fields.All(f => configured.GetField(f.Key) == ""), "Fresh settings must be empty");
             Assert(configured.ApplySettings(out _) && configured.Engine is not null, strategyName + " must start with empty defaults");
             Assert(configured.CanRecord, strategyName + " must allow result entry, including initial no-bet observations");
+            var simulated = configured.DealSimulation();
+            Assert(simulated is not null && configured.Hands.Count == 1, strategyName + " simulated deal must settle once");
+            var savedSimulation = DashboardWorkspace.Deserialize(defaults.Serialize()).Selected!;
+            savedSimulation.Undo();
+            var replayedSimulation = savedSimulation.DealSimulation();
+            Assert(replayedSimulation?.Description == simulated!.Description && savedSimulation.Balance == configured.Balance,
+                strategyName + " restart/Undo must reproduce the same simulated cards and balance");
+            configured.Undo();
             foreach (var outcome in new[] { Outcome.Banker, Outcome.Player, Outcome.Tie })
                 Assert(configured.Record(outcome), strategyName + " must record outcomes");
             var beforeShoe = configured.Engine!.Recommendation;
@@ -372,6 +380,30 @@ internal static class DashboardChecks
         Assert(spaced.Selected.ApplySettings(out _) && spaced.Selected.Engine!.Recommendation.Side == BetSide.Banker &&
             spaced.Selected.Engine.Recommendation.Stake == 2, "Trimmed side and base-unit scaling must reach the engine");
         Console.WriteLine("PASS: single-window Tools, shared records/engine/undo, viewer isolation, approval cancellation, guarded PATTERN, clear, account access and dashboard checks");
+        var simulationWindow = new DashboardWindow(persistenceEnabled: false);
+        simulationWindow.Show();
+        var simulationView = simulationWindow.Dashboard;
+        simulationView.Workspace.CreateSession();
+        simulationView.Workspace.Selected!.SelectStrategy("Martingale");
+        simulationView.Workspace.Selected.ApplySettings(out _);
+        simulationView.RefreshSharedState();
+        simulationWindow.UpdateLayout();
+        var dealButton = simulationWindow.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "DealSimulation");
+        Assert(dealButton.IsEnabled, "Simulation button must enable after applying settings");
+        dealButton.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        simulationWindow.UpdateLayout();
+        Assert(simulationView.Workspace.Selected.Hands.Count == 1 &&
+            simulationWindow.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains("Player:", StringComparison.Ordinal) == true),
+            "Simulation button must show cards and record exactly one settled hand");
+        checkAlignment(simulationWindow);
+        if (screenshotDirectory is not null)
+        {
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(2);
+            using var frame = simulationWindow.CaptureRenderedFrame() ?? throw new Exception("Missing simulation frame");
+            frame.Save(Path.Combine(screenshotDirectory, "baccarat-simulation.png"));
+        }
+        simulationWindow.Close();
+        Console.WriteLine("PASS: simulation UI deal, displayed cards and shared strategy settlement");
     }
 
     private static void Assert(bool condition, string message)

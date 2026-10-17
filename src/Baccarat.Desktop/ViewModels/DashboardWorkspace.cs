@@ -209,6 +209,16 @@ public sealed partial class DashboardSession
         return true;
     }
 
+    public Baccarat.Core.Simulation.SimulatedHand? DealSimulation()
+    {
+        if (!CanRecord || Engine is null) return null;
+        var hand = Baccarat.Core.Simulation.BaccaratDealer.HandAt(Id, CurrentShoe, ShoeHandCount);
+        if (hand is null) return null;
+        BankerPairDraft = hand.BankerPair;
+        PlayerPairDraft = hand.PlayerPair;
+        return Record(hand.Outcome) ? hand : null;
+    }
+
     public bool Undo()
     {
         if (CurrentShoe > 1 && ShoeHandCount == 0)

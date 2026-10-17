@@ -50,6 +50,8 @@ public sealed class DashboardView : UserControl
     private readonly Button export;
     private readonly Button beginDraft;
     private Button newShoe = null!;
+    private Button dealSimulation = null!;
+    private readonly TextBlock simulatedCards = DashboardUi.Text("", 13);
     private readonly List<Button> resultButtons = new();
     private bool refreshing;
 
@@ -180,7 +182,16 @@ public sealed class DashboardView : UserControl
             button.Margin = new Thickness(0, 0, 6, 6);
             actions.Children.Add(button);
         }
+        dealSimulation = DashboardUi.Button("Deal simulated hand", () =>
+        {
+            var hand = Workspace.Selected?.DealSimulation();
+            Refresh(false);
+            simulatedCards.Text = hand?.Description ?? "Apply a strategy first, or start a New Shoe if this shoe is exhausted.";
+        });
+        dealSimulation.Name = "DealSimulation";
         return DashboardUi.Card("Enter result", DashboardUi.Stack(results, pairs, actions, handCount,
+            dealSimulation, simulatedCards,
+            DashboardUi.Text("TRAINING ONLY · Eight decks · No money or server. Apply settings, then deal. Manual results occupy shoe positions too. Undo replays the same deal.", 11, DashboardUi.Muted),
             DashboardUi.Text("New Shoe resets shoe counts; balance and strategy carry forward. Undo reverses an empty new shoe. Pairs are observations, not bets.", 11, DashboardUi.Muted)));
     }
 
@@ -325,6 +336,8 @@ public sealed class DashboardView : UserControl
             export.IsEnabled = s.Hands.Count > 0;
             newShoe.IsEnabled = s.CanStartShoe;
             foreach (var button in resultButtons) button.IsEnabled = s.CanRecord;
+            dealSimulation.IsEnabled = s.CanRecord && s.Engine is not null;
+            simulatedCards.Text = "";
             if (settings)
             {
                 var imported = s.Engine is not null && !s.IsVideoMode;
