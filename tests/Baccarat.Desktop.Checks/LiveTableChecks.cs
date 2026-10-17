@@ -10,7 +10,8 @@ using Baccarat.Infrastructure.Automation;
 // a table inside an iframe, status banner, chips, bet spots, bet total, result history) in a real browser.
 internal static class LiveTableChecks
 {
-    private const string Outer = "<!doctype html><title>Mock lobby</title><iframe id=f src=\"/table\" style=\"width:700px;height:500px;border:0\"></iframe>";
+    private static string Outer => $"<!doctype html><title>Mock lobby</title><div style=\"height:60px\">lobby</div><iframe id=f src=\"http://localhost:{mockPort}/mid\" style=\"width:760px;height:560px;border:0;margin-left:20px\"></iframe>";
+    private static string Mid => $"<!doctype html><title>Provider</title><div style=\"height:40px\">provider</div><iframe src=\"http://127.0.0.1:{mockPort}/table\" style=\"width:700px;height:500px;border:0;margin:10px\"></iframe>";
     private const string Table = """
         <!doctype html><title>Mock table</title>
         <style>body{margin:0;font:14px sans-serif}button,.spot{display:inline-block;margin:6px;padding:14px;border:1px solid #444;cursor:pointer}.sel{background:#fd0}</style>
@@ -42,6 +43,7 @@ internal static class LiveTableChecks
         mockPort = 18080 + Random.Shared.Next(0, 800);
         mock = new HttpListener();
         mock.Prefixes.Add($"http://127.0.0.1:{mockPort}/");
+        mock.Prefixes.Add($"http://localhost:{mockPort}/");
         mock.Start();
         var listener = mock;
         _ = Task.Run(async () =>
@@ -51,7 +53,7 @@ internal static class LiveTableChecks
                 HttpListenerContext ctx;
                 try { ctx = await listener.GetContextAsync(); } catch { return; }
                 var path = ctx.Request.Url!.AbsolutePath;
-                string body = path == "/table" ? Table : path == "/cmd" ? Drain() : Outer;
+                string body = path == "/table" ? Table : path == "/mid" ? Mid : path == "/cmd" ? Drain() : Outer;
                 var bytes = Encoding.UTF8.GetBytes(body);
                 ctx.Response.ContentType = path == "/cmd" ? "text/plain" : "text/html";
                 await ctx.Response.OutputStream.WriteAsync(bytes);

@@ -20,6 +20,8 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
     private readonly Dictionary<Guid, BetPlacementResult> completed = [];
     private readonly List<decimal> selection = [];
     private readonly Dictionary<string, string> frames = []; // child session -> frame url
+    private readonly Dictionary<string, string> parents = []; // child session -> parent session
+    public event Action<string>? Progress;
     private CdpConnection? cdp;
     private Process? launched;
     private string? pageSession;
@@ -131,19 +133,28 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
     private async Task<bool> ScanAsync(CancellationToken token)
     {
         var targets = await cdp!.SendAsync("Target.getTargets");
+        var seen = new List<string>();
+        var frameReport = new List<string>();
         foreach (var target in targets.GetProperty("targetInfos").EnumerateArray())
         {
             if (target.GetProperty("type").GetString() != "page") continue;
             var url = target.GetProperty("url").GetString();
             if (!Eligible(url)) continue;
             string? session = null;
+            seen.Add(new Uri(url!).Host);
             try
             {
                 var attached = await cdp.SendAsync("Target.attachToTarget", new { targetId = target.GetProperty("targetId").GetString(), flatten = true });
                 session = attached.GetProperty("sessionId").GetString()!;
-                lock (frames) frames.Clear();
+                lock (frames) { frames.Clear(); parents.Clear(); }
                 await cdp.SendAsync("Target.setAutoAttach", new { autoAttach = true, waitForDebuggerOnStart = false, flatten = true }, session);
-                await Task.Delay(400, token);
+                for (var settle = -1; ;)
+                {
+                    await Task.Delay(400, token);
+                    int count; lock (frames) count = frames.Count;
+                    if (count == settle) break;
+                    settle = count;
+                }
                 if (await DetectAsync(session) is { } found)
                 {
                     await cdp.SendAsync("Runtime.enable", null, session);
@@ -154,11 +165,15 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
                 }
             }
             catch (Exception ex) when (ex is CdpException or InvalidOperationException) { }
+            lock (frames) frameReport.AddRange(frames.Values.Select(u => Uri.TryCreate(u, UriKind.Absolute, out var fu) ? fu.Host : "?").Where(h => h.Length > 0));
             if (session is not null && pageSession != session)
             {
                 try { await cdp.SendAsync("Target.detachFromTarget", new { sessionId = session }); } catch (Exception ex) when (ex is CdpException or IOException) { }
             }
         }
+        Progress?.Invoke(seen.Count == 0
+            ? "Watching… no web page is open in the live browser yet."
+            : $"Watching… {seen.Count} tab(s) checked ({string.Join(", ", seen.Distinct())}); {frameReport.Count} embedded frame(s) ({string.Join(", ", frameReport.Distinct().Take(6))}); no table text found yet.");
         return false;
     }
 
@@ -168,7 +183,7 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         var texts = JsonSerializer.Serialize(profile.DetectText);
         var test = $$"""
             const need = {{texts}}, sel = {{Js(profile.DetectSelector)}};
-            const check = (d) => { try { const t = (d.body ? d.body.innerText : '').toUpperCase();
+            const check = (d) => { try { const t = (d.body ? (d.body.innerText || '') + ' ' + (d.body.textContent || '') : '').toUpperCase();
               if (!need.every(x => t.includes(x.toUpperCase()))) return false;
               if (!sel) return true;
               if (sel.startsWith('xpath:')) return d.evaluate(sel.slice(6), d, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength > 0;
@@ -224,11 +239,22 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         if (method == "Target.attachedToTarget")
         {
             var info = args.GetProperty("targetInfo");
+            var child = args.GetProperty("sessionId").GetString()!;
             if (info.GetProperty("type").GetString() == "iframe")
-                lock (frames) frames[args.GetProperty("sessionId").GetString()!] = info.GetProperty("url").GetString() ?? "";
+            {
+                lock (frames) { frames[child] = info.GetProperty("url").GetString() ?? ""; if (session is not null) parents[child] = session; }
+                // Providers nest frames (site -> provider -> game); every level needs its own auto-attach.
+                _ = AttachNestedAsync(child);
+            }
         }
         else if (method == "Target.detachedFromTarget")
-            lock (frames) frames.Remove(args.GetProperty("sessionId").GetString()!);
+            lock (frames) { var gone = args.GetProperty("sessionId").GetString()!; frames.Remove(gone); parents.Remove(gone); }
+    }
+
+    private async Task AttachNestedAsync(string child)
+    {
+        try { await cdp!.SendAsync("Target.setAutoAttach", new { autoAttach = true, waitForDebuggerOnStart = false, flatten = true }, child); }
+        catch (Exception ex) when (ex is CdpException or IOException or NullReferenceException) { }
     }
 
     public async ValueTask DisconnectAsync(CancellationToken cancellationToken = default) => await DisconnectCoreAsync();
@@ -484,7 +510,12 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
             """);
         if (rect.ValueKind == JsonValueKind.Null) throw new InvalidOperationException("A table control was not found or is not clickable.");
         double x = rect.GetProperty("x").GetDouble(), y = rect.GetProperty("y").GetDouble();
-        if (frameArg is not null || childUrl is not null)
+        if (childUrl is not null)
+        {
+            var (ox, oy) = await ChainOffsetAsync(session);
+            x += ox; y += oy;
+        }
+        else if (frameArg is not null)
         {
             // Mouse input is dispatched in top-level page coordinates; add the frame's offset.
             var key = frameArg ?? childUrl ?? frameKey!;
@@ -498,6 +529,32 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         foreach (var type in new[] { "mouseMoved", "mousePressed", "mouseReleased" })
             await cdp!.SendAsync("Input.dispatchMouseEvent", new { type, x, y, button = "left", clickCount = type == "mouseMoved" ? 0 : 1 }, pageSession);
         await Task.Delay(Math.Clamp(profile.ClickDelayMilliseconds, 20, 2000));
+    }
+
+    // Offset of a (possibly nested) frame inside the top-level page: sum each ancestor's iframe position.
+    private async Task<(double X, double Y)> ChainOffsetAsync(string child)
+    {
+        double x = 0, y = 0;
+        var current = child;
+        for (var depth = 0; current != pageSession && depth < 8; depth++)
+        {
+            string parent, url;
+            lock (frames)
+            {
+                if (!parents.TryGetValue(current, out parent!) || !frames.TryGetValue(current, out url!))
+                    throw new InvalidOperationException("The table frame position is unknown.");
+            }
+            var rect = await cdp!.EvaluateAsync($$"""
+                (() => { const u = {{Js(url)}}.split('#')[0]; const list = [...document.querySelectorAll('iframe')];
+                  const f = list.find(i => i.src === {{Js(url)}}) || list.find(i => i.src && (u.startsWith(i.src.split('#')[0]) || i.src.split('#')[0].startsWith(u))) || (list.length === 1 ? list[0] : null);
+                  if (!f) return null; const r = f.getBoundingClientRect(); return {x: r.left, y: r.top}; })()
+                """, parent);
+            if (rect.ValueKind == JsonValueKind.Null) throw new InvalidOperationException("The table frame is not visible.");
+            x += rect.GetProperty("x").GetDouble();
+            y += rect.GetProperty("y").GetDouble();
+            current = parent;
+        }
+        return (x, y);
     }
 
     private void EnsureConnected(CancellationToken token)

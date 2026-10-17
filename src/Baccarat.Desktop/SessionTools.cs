@@ -317,7 +317,11 @@ internal sealed class SessionTools : IDisposable
         void Say(string text) => Dispatcher.UIThread.Post(() => LiveStatus?.Invoke(text));
         try
         {
-            await adapterToUse.WaitForTableAsync(token);
+            string? lastProgress = null;
+            void OnProgress(string text) { if (text != lastProgress) { lastProgress = text; Say(text); } }
+            adapterToUse.Progress += OnProgress;
+            try { await adapterToUse.WaitForTableAsync(token); }
+            finally { adapterToUse.Progress -= OnProgress; }
             if (disposed || token.IsCancellationRequested) return;
             Say($"Table detected on {adapterToUse.DetectedHost}. Connecting…");
             var result = await Dispatcher.UIThread.InvokeAsync(async () =>
