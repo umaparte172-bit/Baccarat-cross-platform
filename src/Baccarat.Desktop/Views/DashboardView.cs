@@ -27,7 +27,7 @@ public sealed class DashboardView : UserControl
     private readonly TextBlock subtitle = DashboardUi.Text("Create a session to begin", 12, DashboardUi.Muted);
     private readonly TextBlock notice = DashboardUi.Text("Local workspace · Sessions are in memory only. Export results before closing.", 12, DashboardUi.Muted);
     private readonly ContentControl body = new();
-    private readonly StackPanel sessionBody;
+    private readonly Grid sessionBody;
     private readonly StackPanel empty;
     private readonly ComboBox strategy = new() { Name = "StrategySelector", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBox unit = DashboardUi.Input("BaseUnit", "1");
@@ -136,7 +136,7 @@ public sealed class DashboardView : UserControl
             Workspace.Selected?.BeginDraftRun();
             Refresh(true);
         });
-        sessionBody = new StackPanel { Name = "DashboardContent", Margin = new Thickness(16, 0, 16, 12), MinWidth = 820 };
+        sessionBody = new Grid { Name = "DashboardContent", Margin = new Thickness(16, 0, 16, 12), MinWidth = 820 };
         // Fill the viewport so everything is visible at once; scroll only when the window is too small.
         void FitBody()
         {
