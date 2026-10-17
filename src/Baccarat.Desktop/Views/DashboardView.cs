@@ -276,7 +276,7 @@ public sealed class DashboardView : UserControl
             {
                 StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
                 EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
-                GradientStops = new GradientStops { new GradientStop(Color.Parse("#9A6F1E"), 0), new GradientStop(Color.Parse("#4A3209"), 0.5), new GradientStop(Color.Parse("#2B1D06"), 1) }
+                GradientStops = new GradientStops { new GradientStop(Color.Parse("#ffffff"), 0), new GradientStop(Color.Parse("#aca497"), 0.5), new GradientStop(Color.Parse("#2B1D06"), 1) }
             },
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(8, 10, 8, 8),

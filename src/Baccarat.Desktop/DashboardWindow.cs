@@ -26,6 +26,12 @@ public sealed partial class DashboardWindow : Window
         BorderThickness = new Thickness(1),
         IsVisible = false
     };
+    private readonly Border modalHost = new()
+    {
+        Name = "ModalHost",
+        Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#99000000")),
+        IsVisible = false
+    };
     public DashboardView Dashboard { get; }
     public DashboardWindow(ApplicationServices? services = null, bool persistenceEnabled = true, string? workspacePath = null)
     {
@@ -50,6 +56,7 @@ public sealed partial class DashboardWindow : Window
         workspaceContent.Content = Dashboard;
         layout.Children.Add(workspaceContent);
         layout.Children.Add(toolsSidebar);
+        layout.Children.Add(modalHost);
         Content = layout;
         Closed += (_, _) =>
         {
@@ -129,7 +136,6 @@ public sealed partial class DashboardWindow : Window
             ("Strategies", () => ShowTool("Strategies", current!.Strategies)),
             ("Automation", () => ShowTool("Automation", current!.Automation)),
             ("Viewer", () => ShowTool("Viewer", current!.Viewer)),
-            ("Clear session…", ConfirmClear),
             ("Sing In / Up", ShowAccount)
         })
         {
@@ -143,52 +149,86 @@ public sealed partial class DashboardWindow : Window
         toolsSidebar.IsVisible = true;
     }
 
+    // Modal dialog drawn over the dashboard (same window): Escape or clicking outside cancels.
+    private void ShowModal(string eyebrow, string title, string message, string confirmLabel, Func<Button, Task> confirm)
+    {
+        var page = WorkspaceUi.Page(eyebrow, title, message);
+        page.Margin = new Thickness(24);
+        var ok = WorkspaceUi.Action(confirmLabel);
+        ok.Click += async (_, _) => await confirm(ok);
+        var cancel = WorkspaceUi.Action("Cancel");
+        cancel.Click += (_, _) => CloseModal();
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Right };
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(ok);
+        page.Children.Add(buttons);
+        var dialog = new Border
+        {
+            Background = DashboardUi.Surface,
+            BorderBrush = DashboardUi.Line,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            MaxWidth = 460,
+            MinWidth = 300,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = page
+        };
+        dialog.PointerPressed += (_, e) => e.Handled = true;
+        modalHost.PointerPressed += (_, _) => CloseModal();
+        modalHost.Child = dialog;
+        modalHost.IsVisible = true;
+        cancel.Focus();
+    }
+
+    private void CloseModal()
+    {
+        modalHost.IsVisible = false;
+        modalHost.Child = null;
+    }
+
+    protected override void OnKeyDown(Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Escape && modalHost.IsVisible) { CloseModal(); e.Handled = true; return; }
+        base.OnKeyDown(e);
+    }
+
     private void ConfirmClear()
     {
         if (Dashboard.Workspace.Selected is not { } selected) return;
-        var page = WorkspaceUi.Page("CONFIRM CLEAR", "Clear this session?",
-            "This removes recorded results, pairs and calculated profits from this session. Export first if you want to keep them.");
-        var confirm = WorkspaceUi.Action("Clear selected session");
-        confirm.Click += async (_, _) =>
-        {
-            try
+        ShowModal("CONFIRM CLEAR", "Clear this session?",
+            "This removes recorded results, pairs and calculated profits from this session. Export first if you want to keep them.",
+            "Clear selected session", async confirm =>
             {
-                if (!tools.TryGetValue(selected.Id, out var context) || !await context.TryDomActionAsync("clear-confirmed"))
-                    selected.Clear();
-            }
-            catch
-            {
-                confirm.Content = "Browser unavailable — reopen simulator";
-                return;
-            }
-            Dashboard.RefreshSharedState();
-            ShowDashboard();
-        };
-        var cancel = WorkspaceUi.Action("Cancel");
-        cancel.Click += (_, _) => { ShowDashboard(); ShowTools(); };
-        page.Children.Add(confirm);
-        page.Children.Add(cancel);
-        ShowTool("Clear session", page);
+                try
+                {
+                    if (!tools.TryGetValue(selected.Id, out var context) || !await context.TryDomActionAsync("clear-confirmed"))
+                        selected.Clear();
+                }
+                catch
+                {
+                    confirm.Content = "Browser unavailable — reopen simulator";
+                    return;
+                }
+                CloseModal();
+                Dashboard.RefreshSharedState();
+            });
     }
 
     private void ConfirmDelete()
     {
         if (Dashboard.Workspace.Selected is not { } selected) return;
-        var page = WorkspaceUi.Page("CONFIRM DELETE", "Delete this session?",
-            $"{selected.Title} and all of its recorded hands will be removed from this workspace. This cannot be undone.");
-        var confirm = WorkspaceUi.Action("Delete selected session");
-        confirm.Click += (_, _) =>
-        {
-            if (tools.Remove(selected.Id, out var context)) context.Dispose();
-            if (activeSession == selected.Id) activeSession = null;
-            Dashboard.DeleteSelectedSession();
-            ShowDashboard();
-        };
-        var cancel = WorkspaceUi.Action("Cancel");
-        cancel.Click += (_, _) => { ShowDashboard(); ShowTools(); };
-        page.Children.Add(confirm);
-        page.Children.Add(cancel);
-        ShowTool("Delete session", page);
+        ShowModal("CONFIRM DELETE", "Delete this session?",
+            $"{selected.Title} and all of its recorded hands will be removed from this workspace. This cannot be undone.",
+            "Delete selected session", _ =>
+            {
+                if (tools.Remove(selected.Id, out var context)) context.Dispose();
+                if (activeSession == selected.Id) activeSession = null;
+                Dashboard.DeleteSelectedSession();
+                CloseModal();
+                return Task.CompletedTask;
+            });
     }
 
     private void ShowTool(string name, Control view, bool showBack = true)
