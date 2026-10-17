@@ -55,3 +55,16 @@ next to the profiles to calibrate selectors.
 ## Dashboard buttons while connected
 With a live table connected, **Player/Banker** in Enter result ask to place that bet on the real table (stake = strategy stake,
 or one base unit), confirm in a dialog, then go through the same stake limits; Tie/pair buttons are ignored (read from the table).
+
+## Canvas tables (no buttons or text in the page)
+Some tables draw everything on one `<canvas>`. The app supports them without a DOM to read:
+- **Detection:** `DetectSelector: "canvas"` with no `DetectText`.
+- **Clicks:** `point:<css>@x,y` selectors target a spot as fractions of the canvas box (e.g. `point:canvas@0.45,0.926`);
+  chips that cannot be read are listed in `StaticChips` with their value and click point. The overlay check still applies.
+- **State from the table's WebSocket:** traffic is captured (Inspect page saves the last 200 messages), Socket.io frames are
+  normalised to `EVENT {json}`, and profile regexes decide the betting window (`SocketOpenPattern`/`SocketClosedPattern`),
+  results (`SocketResultRules`, pair patterns) and placement confirmation (`SocketBetAckPattern` + `SocketBetAmountPattern`).
+  A canvas bet is only reported *Accepted* when the table's own confirmation shows the exact stake on that side.
+- **Calibrated profile:** *Multiplier Baccarat (demo canvas)* for the free play-money table at
+  `games.ntcc.massivegaming.io/mb-table/?operator=demo` (winner codes seen: 0 Player, 3 Banker, 2 Tie). Verified end to end
+  on that demo: results read, two 6-unit bets placed and confirmed by the table.

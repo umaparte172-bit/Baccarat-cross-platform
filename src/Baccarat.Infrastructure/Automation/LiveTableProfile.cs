@@ -6,6 +6,10 @@ namespace Baccarat.Infrastructure.Automation;
 
 public sealed record LiveOutcomeRule(string Contains, Outcome Outcome);
 public sealed record LivePairRule(string Contains, bool Banker);
+// A message from a canvas table's WebSocket that carries a finished round (regular expression over the message text).
+public sealed record LiveSocketRule(string Pattern, Outcome Outcome, bool BankerPair = false, bool PlayerPair = false);
+// A chip that cannot be read from the page (canvas tables): its value and where to click it, e.g. "point:canvas@0.40,0.90".
+public sealed record LiveChip(decimal Value, string Click);
 
 // Selector syntax: CSS by default, or "xpath:<expression>". Describes how to read and operate one table page.
 // Nothing is guessed: an empty selector means the capability is not configured and the adapter refuses to use it.
@@ -26,6 +30,20 @@ public sealed record LiveTableProfile
     public string OpenText { get; init; } = "PLACE YOUR BETS";
     public string[] ClosedText { get; init; } = ["WAIT FOR NEXT GAME", "NO MORE BETS"];
     public string ChipSelector { get; init; } = "";
+    public LiveChip[] StaticChips { get; init; } = [];
+    public LiveSocketRule[] SocketResultRules { get; init; } = [];
+    // Socket.io style traffic is normalised to "EVENT_NAME {json payload}" before these regular expressions run.
+    public string SocketPlayerPairPattern { get; init; } = "";
+    public string SocketBankerPairPattern { get; init; } = "";
+    // Betting window from messages: open while the last matching message is an "open" one.
+    public string SocketOpenPattern { get; init; } = "";
+    public string SocketClosedPattern { get; init; } = "";
+    // Placement confirmation from messages: the gate pattern must match, and the amount pattern (named groups
+    // "side" and "amount") lists what the table accepted. Nothing is reported Accepted without it (or a bet-total selector).
+    public string SocketBetAckPattern { get; init; } = "";
+    public string SocketBetAmountPattern { get; init; } = "";
+    // Clicked once after connecting (for example a "touch anywhere to start" screen on a canvas).
+    public string StartClick { get; init; } = "";
     // "text" or the name of an attribute holding the chip value, e.g. data-value.
     public string ChipValueSource { get; init; } = "text";
     public string PlayerSelector { get; init; } = "";
@@ -42,9 +60,10 @@ public sealed record LiveTableProfile
     public int PollMilliseconds { get; init; } = 500;
     public int ClickDelayMilliseconds { get; init; } = 120;
 
-    public bool CanRead => ResultSelector.Length > 0 && ResultRules.Length > 0;
-    public bool CanBet => ChipSelector.Length > 0 && PlayerSelector.Length > 0 && BankerSelector.Length > 0 &&
-        StatusSelector.Length > 0 && BetTotalSelector.Length > 0;
+    public bool CanRead => (ResultSelector.Length > 0 && ResultRules.Length > 0) || SocketResultRules.Length > 0;
+    public bool CanBet => (ChipSelector.Length > 0 || StaticChips.Length > 0) && PlayerSelector.Length > 0 && BankerSelector.Length > 0 &&
+        (StatusSelector.Length > 0 || SocketOpenPattern.Length > 0) &&
+        (BetTotalSelector.Length > 0 || (SocketBetAckPattern.Length > 0 && SocketBetAmountPattern.Length > 0));
 
     public void Validate()
     {
@@ -89,6 +108,8 @@ public sealed class LiveTableProfileStore
         if (!File.Exists(evolution)) File.WriteAllText(evolution, JsonSerializer.Serialize(EvolutionResultsOnly, LiveTableProfile.Json));
         var betting = System.IO.Path.Combine(Directory, "evolution-baccarat-live-betting.json");
         if (!File.Exists(betting)) File.WriteAllText(betting, JsonSerializer.Serialize(EvolutionBetting, LiveTableProfile.Json));
+        var canvasDemo = System.IO.Path.Combine(Directory, "multiplier-baccarat-demo-canvas.json");
+        if (!File.Exists(canvasDemo)) File.WriteAllText(canvasDemo, JsonSerializer.Serialize(MultiplierBaccaratDemo, LiveTableProfile.Json));
         var profiles = new List<LiveTableProfile>();
         foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").Order())
         {
@@ -130,6 +151,36 @@ public sealed class LiveTableProfileStore
         TieSelector = "[data-role=\"bet-spot-Tie\"]",
         BetTotalSelector = "[data-role=\"total-bet-label-value\"]",
         BalanceSelector = "[data-role=\"balance-label-value\"]"
+    };
+
+    // Calibrated from the free play-money demo (FUN currency): everything is drawn on one canvas, so state comes from the
+    // table's Socket.io messages and clicks are canvas points (fractions of the canvas box).
+    public static LiveTableProfile MultiplierBaccaratDemo { get; } = new()
+    {
+        Name = "Multiplier Baccarat (demo canvas)",
+        DetectText = [],
+        DetectSelector = "canvas",
+        StartClick = "point:canvas@0.5,0.3",
+        StaticChips =
+        [
+            new(1, "point:canvas@0.400,0.926"), new(5, "point:canvas@0.450,0.926"), new(10, "point:canvas@0.500,0.926"),
+            new(50, "point:canvas@0.550,0.926"), new(100, "point:canvas@0.600,0.926")
+        ],
+        PlayerSelector = "point:canvas@0.415,0.62",
+        BankerSelector = "point:canvas@0.582,0.62",
+        TieSelector = "point:canvas@0.500,0.67",
+        SocketOpenPattern = "^ROUND_BETTING \\{",
+        SocketClosedPattern = "^(ROUND_BETTING_END|ROUND_DEALCARD|ROUND_SETTLEMENT|ROUND_RESULT)\\b",
+        SocketBetAckPattern = "^RES_BET .*\"result_code\":0",
+        SocketBetAmountPattern = "\"type\":\"(?<side>PLAYER|BANKER)\",\"amount\":(?<amount>[0-9.]+)",
+        SocketPlayerPairPattern = "\"is_player_pair\":true",
+        SocketBankerPairPattern = "\"is_banker_pair\":true",
+        SocketResultRules =
+        [
+            new("^ROUND_SETTLEMENT .*\"winner\":0\\b", Outcome.Player),
+            new("^ROUND_SETTLEMENT .*\"winner\":3\\b", Outcome.Banker),
+            new("^ROUND_SETTLEMENT .*\"winner\":2\\b", Outcome.Tie)
+        ]
     };
 
     // Deliberately unconfigured: selectors must come from inspecting the real table page.

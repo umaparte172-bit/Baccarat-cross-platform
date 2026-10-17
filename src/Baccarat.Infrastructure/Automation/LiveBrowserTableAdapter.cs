@@ -24,6 +24,13 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
     private readonly Dictionary<string, string> targetIds = []; // child session -> its root frame id
     private readonly Dictionary<string, string> parentFrameIds = []; // child session -> frame (in the parent session) holding it
     public event Action<string>? Progress;
+    private readonly List<string> socketLog = [];
+    private readonly Dictionary<string, string> socketUrls = [];
+    private int socketResults;
+    private bool? socketOpen;
+    private decimal socketStake;
+    private int ackCount;
+    private readonly Dictionary<string, decimal> ackTotals = []; // side -> total the table confirmed since the window opened
     private CdpConnection? cdp;
     private Process? launched;
     private string? pageSession;
@@ -77,6 +84,8 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
         var start = new ProcessStartInfo(executable) { UseShellExecute = false };
         foreach (var arg in new[] { $"--remote-debugging-port={options.DebugPort}", "--remote-debugging-address=127.0.0.1",
             "--user-data-dir=" + directory, "--no-first-run", "--no-default-browser-check", "--new-window",
+            // Games on a canvas only advance while the page is rendering: keep it alive even when another window covers it.
+            "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-background-timer-throttling", "--disable-features=CalculateNativeWinOcclusion",
             pageUrl ?? (profile.StartUrl.Length > 0 ? profile.StartUrl : "about:blank") })
             start.ArgumentList.Add(arg);
         launched = Process.Start(start) ?? throw new InvalidOperationException("Could not start the browser.");
@@ -186,6 +195,13 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
                     lockedHost = new Uri(url!).Host;
                     pageSession = session;
                     tableFrame = found;
+                    try
+                    {
+                        await cdp.SendAsync("Network.enable", null, session);
+                        string[] children; lock (frames) children = frames.Keys.ToArray();
+                        foreach (var child in children) await cdp.SendAsync("Network.enable", null, child);
+                    }
+                    catch (Exception ex) when (ex is CdpException or IOException) { }
                     return true;
                 }
             }
@@ -252,6 +268,15 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
             throw new AutomationDisconnectedException("No open tab shows a baccarat table yet. Open a live table in the live browser.");
         polling?.Cancel();
         lastResultSignature = null;
+        socketOpen = null;
+        if (profile.StartClick.Length > 0)
+        {
+            // e.g. "touch anywhere to start": one harmless click before reading begins.
+            await page.WaitAsync(cancellationToken);
+            try { await ClickAsync(profile.StartClick, 0); }
+            catch (Exception ex) when (ex is InvalidOperationException or CdpException) { }
+            finally { page.Release(); }
+        }
         await PollOnceAsync(cancellationToken, announce: false);
         polling = new CancellationTokenSource();
         var token = polling.Token;
@@ -268,6 +293,7 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
 
     private void OnEvent(string method, JsonElement args, string? session)
     {
+        if (method.StartsWith("Network.webSocket", StringComparison.Ordinal)) { OnSocketEvent(method, args); return; }
         if (method == "Target.attachedToTarget")
         {
             var info = args.GetProperty("targetInfo");
@@ -283,9 +309,115 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
             lock (frames) { var gone = args.GetProperty("sessionId").GetString()!; frames.Remove(gone); parents.Remove(gone); targetIds.Remove(gone); parentFrameIds.Remove(gone); }
     }
 
+    // Canvas tables draw everything on a canvas, so the only readable state is the traffic of their WebSocket. Keep the
+    // most recent messages for result rules and for calibration (Inspect page saves them).
+    private void OnSocketEvent(string method, JsonElement args)
+    {
+        if (method == "Network.webSocketCreated")
+        {
+            lock (socketLog) socketUrls[args.GetProperty("requestId").GetString() ?? ""] = args.GetProperty("url").GetString() ?? "";
+            return;
+        }
+        if (method is not ("Network.webSocketFrameReceived" or "Network.webSocketFrameSent")) return;
+        var received = method.EndsWith("Received", StringComparison.Ordinal);
+        var response = args.GetProperty("response");
+        var payload = response.GetProperty("payloadData").GetString() ?? "";
+        var text = response.GetProperty("opcode").GetInt32() == 2 ? "[binary, base64] " + payload[..Math.Min(payload.Length, 240)] : NormalizeSocketText(payload);
+        lock (socketLog)
+        {
+            socketUrls.TryGetValue(args.GetProperty("requestId").GetString() ?? "", out var url);
+            var host = Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : "";
+            socketLog.Add($"{DateTime.UtcNow:HH:mm:ss.fff} {(received ? "recv" : "send")} {host} {text[..Math.Min(text.Length, 700)]}");
+            if (socketLog.Count > 400) socketLog.RemoveRange(0, socketLog.Count - 400);
+        }
+        if (received) TrackSocketState(text);
+        if (received && profile.SocketResultRules.Length > 0) HandleSocketResult(text);
+    }
+
+    // PNG of the watched tab (for calibration of canvas tables, where there is no DOM to read).
+    public async Task<byte[]> ScreenshotAsync(CancellationToken token = default)
+    {
+        EnsureConnected(token);
+        var shot = await cdp!.SendAsync("Page.captureScreenshot", new { format = "png" }, pageSession);
+        return Convert.FromBase64String(shot.GetProperty("data").GetString() ?? "");
+    }
+
+    // Recent WebSocket messages (newest last): for calibration and for tests.
+    public IReadOnlyList<string> SocketMessages()
+    {
+        lock (socketLog) return socketLog.ToArray();
+    }
+
+    // Socket.io frames look like 42["EVENT","{...json...}"]: turn them into  EVENT {...json...}  so patterns stay readable.
+    internal static string NormalizeSocketText(string payload)
+    {
+        if (!payload.StartsWith("42[", StringComparison.Ordinal)) return payload;
+        try
+        {
+            using var doc = JsonDocument.Parse(payload[2..]);
+            var items = doc.RootElement;
+            var name = items[0].GetString() ?? "";
+            if (items.GetArrayLength() < 2) return name;
+            var data = items[1];
+            return name + " " + (data.ValueKind == JsonValueKind.String ? data.GetString() : data.GetRawText());
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { return payload; }
+    }
+
+    private static bool Matches(string pattern, string text)
+    {
+        if (pattern.Length == 0) return false;
+        try { return Regex.IsMatch(text, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50)); }
+        catch (RegexMatchTimeoutException) { return false; }
+    }
+
+    // Betting window and bet acknowledgements as announced by the table.
+    private void TrackSocketState(string text)
+    {
+        if (Matches(profile.SocketOpenPattern, text))
+        {
+            if (socketOpen != true) { socketStake = 0; lock (ackTotals) ackTotals.Clear(); }
+            socketOpen = true;
+        }
+        else if (Matches(profile.SocketClosedPattern, text)) socketOpen = false;
+        if (profile.SocketBetAckPattern.Length > 0 && Matches(profile.SocketBetAckPattern, text))
+        {
+            var amounts = new List<(string, decimal)>();
+            foreach (Match m in Regex.Matches(text, profile.SocketBetAmountPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50)))
+                if (decimal.TryParse(m.Groups["amount"].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))
+                    amounts.Add((m.Groups["side"].Value.ToUpperInvariant(), amount));
+            lock (ackTotals)
+            {
+                // The table reports the running total on each side (seen on the demo: 5, then 6 after one more chip).
+                foreach (var (side, amount) in amounts) ackTotals[side] = amount;
+                socketStake = ackTotals.Values.Sum();
+            }
+            Interlocked.Increment(ref ackCount);
+        }
+    }
+
+    private void HandleSocketResult(string text)
+    {
+        foreach (var rule in profile.SocketResultRules)
+        {
+            bool matched;
+            try { matched = Regex.IsMatch(text, rule.Pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50)); }
+            catch (RegexMatchTimeoutException) { matched = false; }
+            if (!matched) continue;
+            var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))[..16] + ":" + Interlocked.Increment(ref socketResults);
+            ResultObserved?.Invoke(new LiveRoundResult(key, rule.Outcome,
+                rule.BankerPair || Matches(profile.SocketBankerPairPattern, text), rule.PlayerPair || Matches(profile.SocketPlayerPairPattern, text)));
+            return;
+        }
+    }
+
     private async Task AttachNestedAsync(string child)
     {
-        try { await cdp!.SendAsync("Target.setAutoAttach", new { autoAttach = true, waitForDebuggerOnStart = false, flatten = true }, child); }
+        try
+        {
+            await cdp!.SendAsync("Network.enable", null, child);
+            await cdp.SendAsync("Target.setAutoAttach", new { autoAttach = true, waitForDebuggerOnStart = false, flatten = true }, child);
+        }
         catch (Exception ex) when (ex is CdpException or IOException or NullReferenceException) { }
     }
 
@@ -347,7 +479,8 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
                 return {status, results, bal};
                 """);
             await EnsurePageHostAsync();
-            bettingOpen = state.GetProperty("status").ValueKind == JsonValueKind.Null ? null : ParseOpen(state.GetProperty("status").GetString()!);
+            bettingOpen = profile.StatusSelector.Length == 0 && profile.SocketOpenPattern.Length > 0 ? socketOpen
+                : state.GetProperty("status").ValueKind == JsonValueKind.Null ? null : ParseOpen(state.GetProperty("status").GetString()!);
             balance = state.GetProperty("bal").ValueKind == JsonValueKind.String ? state.GetProperty("bal").GetString() : null;
             var results = state.GetProperty("results").EnumerateArray().Select(r => r.GetString() ?? "").ToArray();
             var signature = string.Join('\n', results);
@@ -384,6 +517,11 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
     public async ValueTask<IReadOnlyList<decimal>> GetChipsAsync(CancellationToken cancellationToken = default)
     {
         EnsureConnected(cancellationToken);
+        if (profile.StaticChips.Length > 0)
+        {
+            chipIndex = profile.StaticChips.Select((chip, i) => (chip.Value, i)).Where(c => c.Value > 0).ToList();
+            return chipIndex.Select(c => c.Value).Distinct().OrderBy(v => v).ToArray();
+        }
         if (profile.ChipSelector.Length == 0) throw new InvalidOperationException("This profile has no chip selector.");
         await page.WaitAsync(cancellationToken);
         try
@@ -446,13 +584,33 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
                 return Remember(request, BetPlacementStatus.Rejected, "The table already shows a stake this round; nothing was added.");
             // From here clicks may reach the table, so this operation can never be repeated.
             completed[request.OperationId] = new BetPlacementResult(BetPlacementStatus.Indeterminate, "Placement started; confirm on the table.");
+            var ackBefore = Volatile.Read(ref ackCount);
+            // A canvas table may still show its "touch anywhere to start" screen, which swallows the first click.
+            if (profile.StartClick.Length > 0) { await ClickAsync(profile.StartClick, 0); await Task.Delay(900, cancellationToken); }
             string? lastChip = null;
             foreach (var chip in request.Chips)
             {
                 var index = chipIndex.First(c => c.Value == chip).Index;
                 var chipKey = chip.ToString(CultureInfo.InvariantCulture);
-                if (lastChip != chipKey) { await ClickAsync(profile.ChipSelector, index); lastChip = chipKey; }
+                if (lastChip != chipKey) { await (profile.StaticChips.Length > 0 ? ClickAsync(profile.StaticChips[index].Click, 0) : ClickAsync(profile.ChipSelector, index)); lastChip = chipKey; }
                 await ClickAsync(spot, 0);
+            }
+            if (profile.BetTotalSelector.Length == 0)
+            {
+                // No readable total (canvas): the only proof is the table's own acknowledgement messages.
+                var side = request.Side == BetSide.Player ? "PLAYER" : "BANKER";
+                decimal Confirmed() { lock (ackTotals) return ackTotals.GetValueOrDefault(side); }
+                for (var waited = 0; waited < 8000 && Confirmed() < request.Stake; waited += 100)
+                    await Task.Delay(100, cancellationToken);
+                await Task.Delay(400, cancellationToken); // let a late extra confirmation show up
+                var confirmed = Confirmed();
+                var confirmation = confirmed == request.Stake
+                    ? new BetPlacementResult(BetPlacementStatus.Accepted, $"Table confirmed {request.Stake:0.##} on {request.Side}.")
+                    : new BetPlacementResult(BetPlacementStatus.Indeterminate, confirmed == 0
+                        ? "Clicks were sent but the table sent no confirmation. Check the table; this bet will not be retried."
+                        : $"The table confirmed {confirmed:0.##} on {side}, expected {request.Stake:0.##}. Check the table; this bet will not be retried.");
+                completed[request.OperationId] = confirmation;
+                return confirmation;
             }
             await Task.Delay(Math.Max(300, profile.PollMilliseconds), cancellationToken);
             var after = await ReadStateAsync();
@@ -481,6 +639,11 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
 
     private async Task<(bool? Open, decimal? Total)> ReadStateAsync()
     {
+        if (profile.StatusSelector.Length == 0 && profile.BetTotalSelector.Length == 0)
+        {
+            await EnsurePageHostAsync();
+            return (socketOpen, socketStake);
+        }
         var state = await EvaluateInTableAsync($$"""
             const status = all({{Js(profile.StatusSelector)}}).map(e => (e.textContent||'').trim()).join(' | ');
             const total = all({{Js(profile.BetTotalSelector)}})[0];
@@ -498,6 +661,15 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
     }
 
     // ---- Page access --------------------------------------------------------------------------------------
+
+    // One click at a selector (CSS, "xpath:..." or "point:css@x,y"), with the same host and overlay checks as placements.
+    public async Task ClickSelectorAsync(string selector, CancellationToken token = default)
+    {
+        EnsureConnected(token);
+        await page.WaitAsync(token);
+        try { await ClickAsync(selector, 0); }
+        finally { page.Release(); }
+    }
 
     private void EnsureConnected(CancellationToken token)
     {
@@ -535,7 +707,9 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
                 """);
             var all = await EnumerateFramesAsync(pageSession!);
             var tree = all.Select(f => new { f.Depth, f.Url, tableFrame = tableFrame is { } t && t.Session == f.Session && t.FrameId == f.FrameId }).ToArray();
-            return JsonSerializer.Serialize(new { inspected = DateTime.UtcNow, frames = tree, page = report }, LiveTableProfile.Json);
+            string[] sockets; lock (socketLog) sockets = socketLog.TakeLast(200).ToArray();
+            var canvases = await EvaluateInTableAsync("return [...doc.querySelectorAll('canvas')].map(c => { const r = c.getBoundingClientRect(); return {id: c.id || null, cls: String(c.className).slice(0, 40), pixels: [c.width, c.height], box: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]}; });");
+            return JsonSerializer.Serialize(new { inspected = DateTime.UtcNow, frames = tree, canvases, socketFrames = sockets, page = report }, LiveTableProfile.Json);
         }
         finally { page.Release(); }
     }
@@ -545,4 +719,5 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
 public static class LiveTableChecksAccess
 {
     public static decimal? ParseChip(string? text) => LiveBrowserTableAdapter.ParseChip(text);
+    public static string NormalizeSocketText(string payload) => LiveBrowserTableAdapter.NormalizeSocketText(payload);
 }

@@ -314,6 +314,8 @@ DashboardChecks.Run(CheckButtonAlignment, screenshotDirectory);
 StrategyAcceptanceChecks.Run();
 BrowserSimulationChecks.Run();
 LiveTableChecks.Run();
+CanvasTableChecks.Run();
 LiveTableChecks.RunProbe();
+LiveTableChecks.RunDemoProbe();
 RoadmapViewChecks.Run(screenshotDirectory);
 WorkspacePersistenceChecks.Run();

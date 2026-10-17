@@ -83,23 +83,90 @@ internal static class LiveTableChecks
         if (string.IsNullOrEmpty(url)) return;
         Task.Run(async () =>
         {
-            var profile = new LiveTableProfile { Name = "Probe" };
+            var profile = new LiveTableProfile { Name = "Probe", DetectText = [], DetectSelector = "canvas" };
             await using var adapter = new LiveBrowserTableAdapter(profile, new LiveBrowserOptions(19900 + Random.Shared.Next(0, 90),
                 Path.Combine(Path.GetTempPath(), "Baccarat-Probe-" + Guid.NewGuid().ToString("N"))));
             adapter.Progress += m => Console.WriteLine("PROGRESS: " + m);
             await adapter.OpenBrowserAsync(default, url);
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(75));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
             try
             {
                 await adapter.WaitForTableAsync(cts.Token);
                 Console.WriteLine("PROBE: table detected on " + adapter.DetectedHost);
                 await adapter.ConnectAsync();
+                // Play-money demo only: one click on the canvas centre starts the game ("touch anywhere").
+                await Task.Delay(8000);
+                await adapter.ClickSelectorAsync("point:canvas@0.5,0.5");
+                // Play-money (FUN) demo: place one small bet while betting is open to learn how the table acknowledges it.
+                var until = DateTime.UtcNow.AddSeconds(int.TryParse(Environment.GetEnvironmentVariable("BACCARAT_LIVE_SECONDS"), out var secs) ? secs : 45);
+                var bet = Environment.GetEnvironmentVariable("BACCARAT_LIVE_BET") == "1";
+                var placed = false;
+                var startedAt = DateTime.UtcNow;
+                var nextStartClick = DateTime.UtcNow;
+                while (DateTime.UtcNow < until)
+                {
+                    await Task.Delay(400);
+                    // The start screen needs a touch once the page has loaded; the felt centre is not a bet spot.
+                    if (DateTime.UtcNow < startedAt.AddSeconds(30) && DateTime.UtcNow > nextStartClick)
+                    { await adapter.ClickSelectorAsync("point:canvas@0.5,0.3"); nextStartClick = DateTime.UtcNow.AddSeconds(4); }
+                    if (!bet || placed) continue;
+                    var last = adapter.SocketMessages().LastOrDefault(m => m.Contains("ROUND_BETTING\"") || m.Contains("ROUND_BETTING_END"));
+                    if (last is not null && last.Contains("ROUND_BETTING\"") && System.Text.RegularExpressions.Regex.IsMatch(last, "countdown.{1,3}:1[3-5]"))
+                    {
+                        await Task.Delay(1500);
+                        await adapter.ClickSelectorAsync("point:canvas@0.45,0.924"); // chip 5
+                        await Task.Delay(800);
+                        File.WriteAllBytes(Path.Combine(Path.GetTempPath(), "probe-after-chip.png"), await adapter.ScreenshotAsync());
+                        await adapter.ClickSelectorAsync("point:canvas@0.4125,0.633"); // Player
+                        await Task.Delay(800);
+                        File.WriteAllBytes(Path.Combine(Path.GetTempPath(), "probe-after-player.png"), await adapter.ScreenshotAsync());
+                        placed = true;
+                        Console.WriteLine("PROBE: clicked chip 5 and Player");
+                    }
+                }
                 var report = await adapter.InspectAsync();
                 var path = Path.Combine(Path.GetTempPath(), "baccarat-probe-inspection.json");
                 File.WriteAllText(path, report);
                 Console.WriteLine("PROBE: inspection saved to " + path + " (" + report.Length + " chars)");
             }
-            catch (OperationCanceledException) { Console.WriteLine("PROBE: no table detected within 75s"); }
+            catch (OperationCanceledException) { Console.WriteLine("PROBE: no canvas detected within 90s"); }
+            await adapter.CloseBrowserAsync();
+        }).GetAwaiter().GetResult();
+    }
+
+    // Manual end-to-end run on the play-money demo canvas table with the built-in profile (BACCARAT_LIVE_DEMO=1).
+    internal static void RunDemoProbe()
+    {
+        if (Environment.GetEnvironmentVariable("BACCARAT_LIVE_DEMO") != "1") return;
+        Task.Run(async () =>
+        {
+            var profile = LiveTableProfileStore.MultiplierBaccaratDemo;
+            await using var adapter = new LiveBrowserTableAdapter(profile, new LiveBrowserOptions(19990, Path.Combine(Path.GetTempPath(), "Baccarat-Demo-" + Guid.NewGuid().ToString("N"))));
+            adapter.ResultObserved += r => Console.WriteLine($"DEMO: result {r.Outcome} pairs B={r.BankerPair} P={r.PlayerPair}");
+            adapter.Progress += m => Console.WriteLine("PROGRESS: " + m);
+            await adapter.OpenBrowserAsync(default, "https://games.ntcc.massivegaming.io/mb-table/?operator=demo");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            await adapter.WaitForTableAsync(cts.Token);
+            await adapter.ConnectAsync();
+            Console.WriteLine("DEMO: connected, can bet = " + profile.CanBet);
+            var placed = 0;
+            var until = DateTime.UtcNow.AddSeconds(int.TryParse(Environment.GetEnvironmentVariable("BACCARAT_LIVE_SECONDS"), out var secs) ? secs : 150);
+            while (DateTime.UtcNow < until)
+            {
+                await Task.Delay(500);
+                if (adapter.IsBettingOpen != true || placed >= 2) continue;
+                await Task.Delay(1500); // give the table a moment after the window opens
+                if (adapter.IsBettingOpen != true) continue;
+                var chips = await adapter.GetChipsAsync();
+                var side = placed == 0 ? BetSide.Banker : BetSide.Player;
+                var request = new AutomationBetRequest(Guid.NewGuid(), side, 6m, [5m, 1m], false);
+                await adapter.ClearSelectionAsync(); await adapter.SelectChipAsync(5m); await adapter.SelectChipAsync(1m);
+                var result = await adapter.PlaceBetAsync(request);
+                Console.WriteLine($"DEMO: bet {request.Stake} on {side} -> {result.Status}: {result.Message}");
+                placed++;
+                while (adapter.IsBettingOpen == true && DateTime.UtcNow < until) await Task.Delay(500);
+            }
+            File.WriteAllBytes(Path.Combine(Path.GetTempPath(), "demo-final.png"), await adapter.ScreenshotAsync());
             await adapter.CloseBrowserAsync();
         }).GetAwaiter().GetResult();
     }

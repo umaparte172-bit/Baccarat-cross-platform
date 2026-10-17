@@ -153,13 +153,17 @@ public sealed partial class LiveBrowserTableAdapter
         async Task<JsonElement> MeasureAsync()
         {
             var measured = await EvaluateInTableAsync($$"""
-                const e = all({{Js(selector)}})[{{index}}];
+                // "point:<css>@x,y" targets a spot on a canvas by fractions of its box (canvas tables have no buttons).
+                let sel = {{Js(selector)}}, fx = 0.5, fy = 0.5;
+                if (sel.startsWith('point:')) { const parts = sel.slice(6).split('@'); sel = parts[0];
+                  if (parts[1]) { const p = parts[1].split(','); fx = parseFloat(p[0]); fy = parseFloat(p[1]); if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) return null; } }
+                const e = all(sel)[{{index}}];
                 if (!e) return null;
                 e.scrollIntoView({block: 'center', inline: 'center'});
                 const r = e.getBoundingClientRect();
                 const style = getComputedStyle(e);
                 if (r.width < 2 || r.height < 2 || style.visibility === 'hidden' || style.display === 'none' || e.disabled) return null;
-                const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                const cx = r.left + r.width * fx, cy = r.top + r.height * fy;
                 const hit = doc.elementFromPoint(cx, cy);
                 if (!hit || !(e === hit || e.contains(hit))) return {covered: hit ? (hit.getAttribute('data-role') || hit.tagName.toLowerCase()) : 'nothing'};
                 return {x: cx, y: cy};
