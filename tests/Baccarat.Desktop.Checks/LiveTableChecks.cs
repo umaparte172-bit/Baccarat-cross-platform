@@ -299,8 +299,7 @@ internal static class LiveTableChecks
                 Wait(same.WaitForTableAsync(cts2.Token));
                 WaitV(same.ConnectAsync());
                 Check(WaitV2(same.GetChipsAsync()).SequenceEqual([1m, 5m, 25m, 100m]), "Same-process cross-origin frames must be readable");
-                commands.Enqueue("open");
-                Thread.Sleep(700);
+                for (var i = 0; i < 40 && same.IsBettingOpen != true; i++) { commands.Enqueue("open"); Thread.Sleep(250); }
                 var bet = new AutomationBetRequest(Guid.NewGuid(), BetSide.Player, 5m, [5m], false);
                 WaitV(same.ClearSelectionAsync());
                 WaitV(same.SelectChipAsync(5m));

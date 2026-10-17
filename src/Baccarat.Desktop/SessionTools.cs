@@ -283,8 +283,27 @@ internal sealed class SessionTools : IDisposable
             var profile = FindProfile(profileName);
             if (live is not null && live.IsConnected) return "Live table already connected. Disconnect it first to switch profile.";
             live = new LiveBrowserTableAdapter(profile, LiveOptions);
-            await live.OpenBrowserAsync(default, string.IsNullOrWhiteSpace(pageUrl) ? null : pageUrl.Trim());
-            return "Live browser ready (its own profile, separate from your normal Chrome). Sign in there if asked, open the table in that window, and press Watch for table.";
+            var wanted = string.IsNullOrWhiteSpace(pageUrl) ? null : pageUrl.Trim();
+            await live.OpenBrowserAsync(default, wanted);
+            // Do not claim success until the browser really shows something: report what it ended up on.
+            IReadOnlyList<LiveBrowserTableAdapter.BrowserTab> tabs = [];
+            for (var i = 0; i < 24; i++)
+            {
+                tabs = await live.ListTabsAsync();
+                var settled = tabs.Any(t => Uri.TryCreate(t.Url, UriKind.Absolute, out var u) && u.Scheme is "http" or "https") ||
+                              tabs.Any(t => t.Url.StartsWith("chrome-error:", StringComparison.OrdinalIgnoreCase));
+                if (wanted is null || settled) break;
+                await Task.Delay(500);
+            }
+            if (tabs.Count == 0) return "The live browser started but reports no tabs. Close it and press Open live browser again.";
+            var shown = tabs.FirstOrDefault(t => Uri.TryCreate(t.Url, UriKind.Absolute, out var u) && u.Scheme is "http" or "https") ?? tabs[0];
+            await live.ActivateTabAsync(shown.Id);
+            var summary = string.Join(", ", tabs.Select(t => LiveBrowserTableAdapter.Describe(t.Url)).Distinct());
+            if (shown.Url.StartsWith("chrome-error:", StringComparison.OrdinalIgnoreCase))
+                return "The live browser could not load the page. It is a separate browser with its own profile, so extensions, VPN or proxy settings of your normal Chrome do not apply to it. Open the site there the way it needs to be reached, then press Watch for table.";
+            return wanted is null
+                ? $"Live browser open ({summary}). Open the table in that window, sign in if asked, then press Watch for table."
+                : $"Live browser open and showing {summary}. Sign in there if asked, open the table, then press Watch for table.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
         { return "Could not open the live browser: " + ex.Message; }

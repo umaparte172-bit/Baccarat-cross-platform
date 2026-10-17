@@ -104,6 +104,8 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
         var candidates = OperatingSystem.IsWindows() ? new[] {
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google/Chrome/Application/chrome.exe"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google/Chrome/Application/chrome.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google/Chrome/Application/chrome.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft/Edge/Application/msedge.exe"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft/Edge/Application/msedge.exe") } :
             new[] { "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "/usr/bin/google-chrome", "/usr/bin/chromium" };
         return candidates.FirstOrDefault(File.Exists);
@@ -150,11 +152,12 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
         var seen = new List<string>();
         var frameReport = new List<string>();
         var maxDepth = 0;
+        var unusable = new List<string>();
         foreach (var target in targets.GetProperty("targetInfos").EnumerateArray())
         {
             if (target.GetProperty("type").GetString() != "page") continue;
             var url = target.GetProperty("url").GetString();
-            if (!Eligible(url)) continue;
+            if (!Eligible(url)) { unusable.Add(Describe(url)); continue; }
             string? session = null;
             seen.Add(new Uri(url!).Host);
             try
@@ -188,9 +191,49 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
             }
         }
         Progress?.Invoke(seen.Count == 0
-            ? "Watching… the live browser (the window opened by Open live browser) has no website open. Your normal Chrome cannot be watched: open the table in that window, or paste its address above and press Open live browser."
+            ? "Watching… the live browser (the separate window opened by Open live browser) has no website open"
+              + (unusable.Count == 0 ? "." : $"; its tabs show: {string.Join(", ", unusable.Distinct())}.")
+              + " Your normal Chrome cannot be watched: open the table in that window, or paste its address above and press Open live browser."
             : $"Watching… {seen.Count} tab(s) checked ({string.Join(", ", seen.Distinct())}); {frameReport.Count} embedded frame(s), nested up to {maxDepth} level(s) ({string.Join(", ", frameReport.Distinct().Take(8))}); no table text found yet. If the site needs a sign-in to show the table, sign in inside that window.");
         return false;
+    }
+
+    // Human description of a tab we cannot read (blank, browser page, failed load).
+    public static string Describe(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return "(empty)";
+        if (url.StartsWith("chrome-error:", StringComparison.OrdinalIgnoreCase)) return "a page that failed to load (network, VPN or proxy?)";
+        if (url == "about:blank") return "a blank page";
+        return Uri.TryCreate(url, UriKind.Absolute, out var u) ? (u.Scheme is "http" or "https" ? u.Host : u.Scheme + ": page") : "an unknown page";
+    }
+
+    public sealed record BrowserTab(string Id, string Type, string Url, string Title);
+
+    // Plain view of what the dedicated browser has open (does not attach to anything).
+    public async Task<IReadOnlyList<BrowserTab>> ListTabsAsync(CancellationToken token = default)
+    {
+        try
+        {
+            using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(3) };
+            using var doc = JsonDocument.Parse(await client.GetStringAsync($"http://127.0.0.1:{options.DebugPort}/json/list", token));
+            return doc.RootElement.EnumerateArray()
+                .Where(t => t.GetProperty("type").GetString() == "page")
+                .Select(t => new BrowserTab(t.GetProperty("id").GetString() ?? "", "page", t.GetProperty("url").GetString() ?? "",
+                    t.TryGetProperty("title", out var title) ? title.GetString() ?? "" : ""))
+                .ToList();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { return []; }
+    }
+
+    // Brings a tab's window to the front so the user can see which browser the app is watching.
+    public async Task ActivateTabAsync(string id, CancellationToken token = default)
+    {
+        try
+        {
+            using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(3) };
+            await client.GetStringAsync($"http://127.0.0.1:{options.DebugPort}/json/activate/{Uri.EscapeDataString(id)}", token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { }
     }
 
     private bool Eligible(string? url) =>
