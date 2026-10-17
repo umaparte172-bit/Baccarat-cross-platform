@@ -186,7 +186,7 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         }
         Progress?.Invoke(seen.Count == 0
             ? "Watching… the live browser (the window opened by Open live browser) has no website open. Your normal Chrome cannot be watched: open the table in that window, or paste its address above and press Open live browser."
-            : $"Watching… {seen.Count} tab(s) checked ({string.Join(", ", seen.Distinct())}); {frameReport.Count} embedded frame(s) ({string.Join(", ", frameReport.Distinct().Take(6))}); no table text found yet.");
+            : $"Watching… {seen.Count} tab(s) checked ({string.Join(", ", seen.Distinct())}); {frameReport.Count} embedded frame(s) ({string.Join(", ", frameReport.Distinct().Take(6))}); no table text found yet. If the site needs a sign-in to show the table, sign in inside that window.");
         return false;
     }
 

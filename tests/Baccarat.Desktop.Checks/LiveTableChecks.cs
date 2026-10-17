@@ -70,6 +70,35 @@ internal static class LiveTableChecks
         client.Send(request).EnsureSuccessStatusCode();
     }
 
+    // Manual diagnostic: BACCARAT_LIVE_URL=<table page> opens it in a throwaway browser profile and reports what detection sees.
+    // Read-only: it never signs in, clicks or bets.
+    internal static void RunProbe()
+    {
+        var url = Environment.GetEnvironmentVariable("BACCARAT_LIVE_URL");
+        if (string.IsNullOrEmpty(url)) return;
+        Task.Run(async () =>
+        {
+            var profile = new LiveTableProfile { Name = "Probe" };
+            await using var adapter = new LiveBrowserTableAdapter(profile, new LiveBrowserOptions(19900 + Random.Shared.Next(0, 90),
+                Path.Combine(Path.GetTempPath(), "Baccarat-Probe-" + Guid.NewGuid().ToString("N"))));
+            adapter.Progress += m => Console.WriteLine("PROGRESS: " + m);
+            await adapter.OpenBrowserAsync(default, url);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(75));
+            try
+            {
+                await adapter.WaitForTableAsync(cts.Token);
+                Console.WriteLine("PROBE: table detected on " + adapter.DetectedHost);
+                await adapter.ConnectAsync();
+                var report = await adapter.InspectAsync();
+                var path = Path.Combine(Path.GetTempPath(), "baccarat-probe-inspection.json");
+                File.WriteAllText(path, report);
+                Console.WriteLine("PROBE: inspection saved to " + path + " (" + report.Length + " chars)");
+            }
+            catch (OperationCanceledException) { Console.WriteLine("PROBE: no table detected within 75s"); }
+            await adapter.CloseBrowserAsync();
+        }).GetAwaiter().GetResult();
+    }
+
     internal static void Run()
     {
         if (Environment.GetEnvironmentVariable("BACCARAT_DOM_CHECKS") != "1")

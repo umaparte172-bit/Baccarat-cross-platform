@@ -313,5 +313,6 @@ Console.WriteLine("PASS: Remember Me opt-in, restoration, password exclusion, re
 DashboardChecks.Run(CheckButtonAlignment, screenshotDirectory);
 BrowserSimulationChecks.Run();
 LiveTableChecks.Run();
+LiveTableChecks.RunProbe();
 RoadmapViewChecks.Run(screenshotDirectory);
 WorkspacePersistenceChecks.Run();
