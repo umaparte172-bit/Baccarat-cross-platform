@@ -81,7 +81,9 @@ public sealed class LiveTableProfileStore
     {
         System.IO.Directory.CreateDirectory(Directory);
         var template = System.IO.Path.Combine(Directory, "template-calibrate-me.json");
-        if (!File.Exists(template)) File.WriteAllText(template, JsonSerializer.Serialize(Template, LiveTableProfile.Json));
+        // The stock template is rewritten when an older build left one that is tied to a placeholder site.
+        if (!File.Exists(template) || File.ReadAllText(template).Contains("example.com", StringComparison.OrdinalIgnoreCase))
+            File.WriteAllText(template, JsonSerializer.Serialize(Template, LiveTableProfile.Json));
         var profiles = new List<LiveTableProfile>();
         foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").Order())
         {

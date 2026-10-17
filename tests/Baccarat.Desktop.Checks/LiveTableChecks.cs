@@ -106,6 +106,14 @@ internal static class LiveTableChecks
 
     internal static void Run()
     {
+        // Always-on: a template left by an older build (tied to example.com) must be refreshed, not block every real site.
+        var staleDir = Path.Combine(Path.GetTempPath(), "Baccarat-Stale-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staleDir);
+        File.WriteAllText(Path.Combine(staleDir, "template-calibrate-me.json"), "{\"Name\":\"Template (calibrate before use)\",\"HostContains\":\"example.com\",\"StartUrl\":\"https://example.com/\"}");
+        var refreshed = new LiveTableProfileStore(staleDir).Load().Single();
+        if (refreshed.HostContains.Length != 0) throw new Exception("Stale template must be rewritten without a host restriction");
+        Directory.Delete(staleDir, true);
+        Console.WriteLine("PASS: stale live-profile template is refreshed");
         if (Environment.GetEnvironmentVariable("BACCARAT_DOM_CHECKS") != "1")
         { Console.WriteLine("SKIP: live-table browser checks require BACCARAT_DOM_CHECKS=1 and installed Chrome/Edge."); return; }
         StartMock();

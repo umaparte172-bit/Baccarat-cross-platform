@@ -157,7 +157,12 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
         {
             if (target.GetProperty("type").GetString() != "page") continue;
             var url = target.GetProperty("url").GetString();
-            if (!Eligible(url)) { unusable.Add(Describe(url)); continue; }
+            if (!Eligible(url))
+            {
+                var blocked = Uri.TryCreate(url, UriKind.Absolute, out var skipped) && skipped.Scheme is "http" or "https";
+                unusable.Add(blocked ? $"{skipped!.Host} (skipped: this profile only allows hosts containing \"{profile.HostContains}\")" : Describe(url));
+                continue;
+            }
             string? session = null;
             seen.Add(new Uri(url!).Host);
             try
