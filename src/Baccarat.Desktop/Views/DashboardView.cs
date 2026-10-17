@@ -17,6 +17,7 @@ public sealed class DashboardView : UserControl
 {
     public DashboardWorkspace Workspace { get; }
     public event Action? WorkspaceChanged;
+    public Func<string, Task<bool>>? DomAction { get; set; }
     public void RefreshSharedState() => Refresh(true);
     public void SetStorageStatus(string status) => notice.Text = status;
     private readonly ListBox sessionList = new() { Name = "SessionList", Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
@@ -122,16 +123,17 @@ public sealed class DashboardView : UserControl
         empty.Margin = new Thickness(30);
         foreach (var child in empty.Children) child.HorizontalAlignment = HorizontalAlignment.Center;
 
-        undo = DashboardUi.Button("Undo", () => { Workspace.Selected?.Undo(); Refresh(false); });
+        undo = DashboardUi.Button("Undo", async () => { if (await TryDomAsync("undo")) return; Workspace.Selected?.Undo(); Refresh(false); });
         export = DashboardUi.Button("Export CSV", () => _ = ExportAsync());
-        beginDraft = DashboardUi.Button("Return to strategy drafts", () =>
+        beginDraft = DashboardUi.Button("Return to strategy drafts", async () =>
         {
+            if (await TryDomAsync("draft")) return;
             Workspace.Selected?.BeginDraftRun();
             Refresh(true);
         });
         sessionBody = new StackPanel { Name = "DashboardContent", Spacing = 14, Margin = new Thickness(16, 0, 16, 16), MinWidth = 704 };
         main.SizeChanged += (_, _) => sessionBody.Width = Math.Max(704, main.Bounds.Width - 32);
-        var top = new Grid { ColumnDefinitions = new ColumnDefinitions("280,*"), ColumnSpacing = 14 };
+        var top = new Grid { ColumnDefinitions = new ColumnDefinitions("400,*"), ColumnSpacing = 14 };
         top.Children.Add(BuildEntry());
         Add(top, BuildStrategy(), 1);
         sessionBody.Children.Add(top);
@@ -153,8 +155,8 @@ public sealed class DashboardView : UserControl
 
     private Control BuildEntry()
     {
-        var results = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*"), ColumnSpacing = 8 };
-        var outcomes = new[] { Outcome.Banker, Outcome.Player, Outcome.Tie };
+        var results = new Grid { ColumnDefinitions = new ColumnDefinitions("0.8*,1.5*,1*,1.3*,0.8*"), ColumnSpacing = 2, Height = 116 };
+        var outcomes = new[] { Outcome.Player, Outcome.Tie, Outcome.Banker };
         for (var i = 0; i < outcomes.Length; i++)
         {
             var outcome = outcomes[i];
@@ -164,35 +166,98 @@ public sealed class DashboardView : UserControl
                 Outcome.Player => "#086CE8",
                 _ => "#119C50"
             });
-            button.Height = 56;
+            StyleTableButton(button, outcome.ToString().ToUpperInvariant(), outcome == Outcome.Tie ? "8:1" : outcome == Outcome.Banker ? "0.95:1" : "1:1",
+                outcome == Outcome.Banker ? "#CA1008" : outcome == Outcome.Player ? "#164BB7" : "#159810",
+                outcome == Outcome.Banker ? "#69170F" : outcome == Outcome.Player ? "#102C48" : "#10480D",
+                outcome == Outcome.Tie ? new CornerRadius(40, 40, 3, 3) : new CornerRadius(3));
+            button.Height = outcome == Outcome.Tie ? 104 : 114;
+            button.VerticalAlignment = VerticalAlignment.Bottom;
             button.HorizontalAlignment = HorizontalAlignment.Stretch;
             button.Name = $"Record{outcome}";
             resultButtons.Add(button);
-            Add(results, button, i);
+            Add(results, button, i + 1);
         }
+        var pp = DashboardUi.Button("P Pair", async () => { if (await TryDomAsync("player-pair")) return; if (Workspace.Selected is { } s) s.PlayerPairDraft = !s.PlayerPairDraft; Refresh(false); });
+        StyleTableButton(pp, "P PAIR", "11:1", "#164BB7", "#102C48", new CornerRadius(70, 3, 3, 70));
+        var bp = DashboardUi.Button("B Pair", async () => { if (await TryDomAsync("banker-pair")) return; if (Workspace.Selected is { } s) s.BankerPairDraft = !s.BankerPairDraft; Refresh(false); });
+        StyleTableButton(bp, "B PAIR", "15:1", "#CA1008", "#69170F", new CornerRadius(3, 70, 70, 3));
+        Add(results, pp, 0); Add(results, bp, 4);
         var pairs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         pairs.Children.Add(bankerPair);
         pairs.Children.Add(playerPair);
-        bankerPair.IsCheckedChanged += (_, _) => { if (!refreshing && Workspace.Selected is { } s) { s.BankerPairDraft = bankerPair.IsChecked == true; WorkspaceChanged?.Invoke(); } };
-        playerPair.IsCheckedChanged += (_, _) => { if (!refreshing && Workspace.Selected is { } s) { s.PlayerPairDraft = playerPair.IsChecked == true; WorkspaceChanged?.Invoke(); } };
+        bankerPair.IsCheckedChanged += async (_, _) => { if (!refreshing && Workspace.Selected is { } s) { if (await TryDomAsync("banker-pair")) return; s.BankerPairDraft = bankerPair.IsChecked == true; WorkspaceChanged?.Invoke(); } };
+        playerPair.IsCheckedChanged += async (_, _) => { if (!refreshing && Workspace.Selected is { } s) { if (await TryDomAsync("player-pair")) return; s.PlayerPairDraft = playerPair.IsChecked == true; WorkspaceChanged?.Invoke(); } };
         var actions = new WrapPanel { Orientation = Orientation.Horizontal };
-        newShoe = DashboardUi.Button("New Shoe", () => { Workspace.Selected?.NewShoe(); Refresh(false); });
+        newShoe = DashboardUi.Button("New Shoe", async () => { if (await TryDomAsync("shoe")) return; Workspace.Selected?.NewShoe(); Refresh(false); });
         foreach (var button in new[] { undo, newShoe, export })
         {
             button.Margin = new Thickness(0, 0, 6, 6);
             actions.Children.Add(button);
         }
-        dealSimulation = DashboardUi.Button("Deal simulated hand", () =>
+        dealSimulation = DashboardUi.Button("Deal simulated hand", async () =>
         {
+            if (await TryDomAsync("deal")) return;
             var hand = Workspace.Selected?.DealSimulation();
             Refresh(false);
             simulatedCards.Text = hand?.Description ?? "Apply a strategy first, or start a New Shoe if this shoe is exhausted.";
         });
         dealSimulation.Name = "DealSimulation";
-        return DashboardUi.Card("Enter result", DashboardUi.Stack(results, pairs, actions, handCount,
+        var table = new Border
+        {
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+                GradientStops = new GradientStops { new GradientStop(Color.Parse("#8D690D"), 0), new GradientStop(Color.Parse("#4B3409"), 1) }
+            },
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(6, 12, 6, 6),
+            Child = results
+        };
+        return DashboardUi.Card("Enter result", DashboardUi.Stack(table, pairs, actions, handCount,
             dealSimulation, simulatedCards,
             DashboardUi.Text("TRAINING ONLY · Eight decks · No money or server. Apply settings, then deal. Manual results occupy shoe positions too. Undo replays the same deal.", 11, DashboardUi.Muted),
             DashboardUi.Text("New Shoe resets shoe counts; balance and strategy carry forward. Undo reverses an empty new shoe. Pairs are observations, not bets.", 11, DashboardUi.Muted)));
+    }
+
+    private static void StyleTableButton(Button button, string label, string payout, string top, string bottom, CornerRadius radius)
+    {
+        button.Padding = new Thickness(0);
+        button.Height = 114;
+        button.VerticalAlignment = VerticalAlignment.Bottom;
+        button.HorizontalAlignment = HorizontalAlignment.Stretch;
+        button.Template = new FuncControlTemplate<Button>((_, _) => new Border
+        {
+            CornerRadius = radius,
+            BorderThickness = new Thickness(1),
+            BorderBrush = Brush.Parse(top),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+                GradientStops = new GradientStops { new GradientStop(Color.Parse(top), 0), new GradientStop(Color.Parse(bottom), 1) }
+            },
+            Child = new Avalonia.Controls.Presenters.ContentPresenter
+            {
+                Name = "PART_ContentPresenter",
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Content = new StackPanel
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Children = { new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeight.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center },
+                    new TextBlock { Text = payout, FontSize = 10, Foreground = Brushes.LightSkyBlue, HorizontalAlignment = HorizontalAlignment.Center } }
+                }
+            }
+        });
+        ToolTip.SetTip(button, "Record result / mark pair only. Payout is a reference label; side bets are not enabled.");
+    }
+
+    private async Task<bool> TryDomAsync(string action)
+    {
+        try { return DomAction is not null && await DomAction(action); }
+        catch { notice.Text = "DOM browser unavailable. Reopen it in Tools → Automation. No local fallback action was performed."; return true; }
     }
 
     private Control BuildStrategy()
@@ -275,8 +340,9 @@ public sealed class DashboardView : UserControl
         Refresh(true);
     }
 
-    private void Record(Outcome outcome)
+    private async void Record(Outcome outcome)
     {
+        if (await TryDomAsync(outcome.ToString().ToLowerInvariant())) return;
         if (Workspace.Selected is not { } s) return;
         try
         {
@@ -294,8 +360,9 @@ public sealed class DashboardView : UserControl
         WorkspaceChanged?.Invoke();
     }
 
-    private void ApplySettings()
+    private async void ApplySettings()
     {
+        if (await TryDomAsync("apply")) return;
         if (Workspace.Selected is not { } s) return;
         var valid = s.ApplySettings(out var message);
         if (valid) Refresh(true);

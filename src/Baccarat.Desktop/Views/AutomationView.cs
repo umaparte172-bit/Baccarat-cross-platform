@@ -33,7 +33,7 @@ public sealed class AutomationView : StackPanel, IDisposable
         controller.SnapshotChanged -= OnSnapshotChanged;
     }
 
-    public AutomationView(AutomationController controller, Action? openBrowser = null)
+    public AutomationView(AutomationController controller, Action? openBrowser = null, Func<string, Task>? domAction = null)
     {
         this.controller = controller ?? throw new ArgumentNullException(nameof(controller));
         Margin = new Thickness(0);
@@ -78,13 +78,26 @@ public sealed class AutomationView : StackPanel, IDisposable
             14,
             "#91A1B9"));
 
-        connect.Click += async (_, _) => await RunAsync(() => controller.ConnectAsync());
-        recover.Click += async (_, _) => await RunAsync(() => controller.RecoverAsync());
-        pause.Click += (_, _) => controller.Pause();
-        initialBet.Click += async (_, _) => await PrepareInitialAsync();
-        approve.Click += async (_, _) => await RunAsync(() => controller.ApprovePendingAsync());
-        enableAuto.Click += (_, _) => controller.SetAutoBet(true);
-        disableAuto.Click += (_, _) => controller.SetAutoBet(false);
+        if (domAction is null)
+        {
+            connect.Click += async (_, _) => await RunAsync(() => controller.ConnectAsync());
+            recover.Click += async (_, _) => await RunAsync(() => controller.RecoverAsync());
+            pause.Click += (_, _) => controller.Pause();
+            initialBet.Click += async (_, _) => await PrepareInitialAsync();
+            approve.Click += async (_, _) => await RunAsync(() => controller.ApprovePendingAsync());
+            enableAuto.Click += (_, _) => controller.SetAutoBet(true);
+            disableAuto.Click += (_, _) => controller.SetAutoBet(false);
+        }
+        else
+        {
+            foreach (var (button, action) in new[] { (connect, "connect"), (recover, "recover"), (pause, "pause"),
+                (initialBet, "initial"), (approve, "approve"), (enableAuto, "enable-auto"), (disableAuto, "disable-auto") })
+                button.Click += async (_, _) =>
+                {
+                    try { await domAction(action); }
+                    catch { controller.Pause("DOM simulator unavailable. Reopen it before continuing."); }
+                };
+        }
         controller.SnapshotChanged += OnSnapshotChanged;
         Refresh(controller.Snapshot);
     }

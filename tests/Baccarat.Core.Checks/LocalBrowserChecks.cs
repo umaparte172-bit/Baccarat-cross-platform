@@ -8,15 +8,11 @@ internal static class LocalBrowserChecks
     internal static async Task RunAsync()
     {
         void Check(bool value, string message) { if (!value) throw new Exception(message); }
-        var settled = 0;
-        using var host = new LocalSimulationServer(key => Task.FromResult(key == "round-1" && Interlocked.CompareExchange(ref settled, 1, 0) == 0));
-        host.Publish(new { roundKey = "round-1", canDeal = true, title = "Local fixture" });
+        using var host = new LocalSimulationServer();
         using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { BaseAddress = host.Address, Timeout = TimeSpan.FromSeconds(5) };
         Check((await client.GetStringAsync("/")).Contains("NO MONEY", StringComparison.Ordinal), "Local page must label simulation");
-        Check((await client.GetAsync("state")).StatusCode == HttpStatusCode.Forbidden, "State requires token");
-        client.DefaultRequestHeaders.Add("X-Simulation-Token", host.BrowserAddress.Fragment[1..]);
-        Check((await client.GetStringAsync("state")).Contains("Local fixture", StringComparison.Ordinal), "Authenticated state sync");
-        Check(host.BrowserConnected, "Browser heartbeat");
+        Check((await client.GetAsync("state")).StatusCode == HttpStatusCode.NotFound, "No state API");
+        Check(!(await client.GetStringAsync("app.js")).Contains("fetch("), "DOM page must not call application APIs");
         using (var foreign = new HttpRequestMessage(HttpMethod.Post, "deal"))
         {
             foreign.Headers.Add("Origin", "https://example.invalid");
@@ -26,10 +22,7 @@ internal static class LocalBrowserChecks
         client.DefaultRequestHeaders.Add("X-Simulation-Round", "round-1");
         Check((await client.PostAsync("deal", new StringContent("unexpected payload"))).StatusCode == HttpStatusCode.BadRequest,
             "Request bodies must be rejected");
-        Check((await client.PostAsync("deal", null)).StatusCode == HttpStatusCode.OK, "First round settles");
-        Check((await client.PostAsync("deal", null)).StatusCode == HttpStatusCode.Conflict && settled == 1, "Duplicate round not replayed");
-        Check((await client.GetStringAsync("state")).Contains("round-1", StringComparison.Ordinal) && settled == 1,
-            "Reconnect polling must never repeat a deal");
+        Check((await client.PostAsync("deal", null)).StatusCode == HttpStatusCode.NotFound, "No deal API");
         using (var wrongHost = new HttpRequestMessage(HttpMethod.Get, "state"))
         {
             wrongHost.Headers.Host = "example.invalid";
@@ -50,6 +43,6 @@ internal static class LocalBrowserChecks
         Check(adapter.CurrentRoundBet?.OperationId == bet.OperationId, "Reconnect preserves accepted wager without resubmission");
         adapter.BeginRound();
         Check(adapter.CurrentRoundBet is null, "Next round clears settled wager");
-        Console.WriteLine("PASS: local browser HTTP, token/origin/host isolation, state sync, duplicate deal rejection and placement/reconnect idempotency");
+        Console.WriteLine("PASS: static simulator page, no action APIs, origin/host isolation and placement/reconnect idempotency");
     }
 }

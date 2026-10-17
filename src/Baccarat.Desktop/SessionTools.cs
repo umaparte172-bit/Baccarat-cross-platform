@@ -9,7 +9,7 @@ using Baccarat.Infrastructure.Communication;
 using Baccarat.Infrastructure.Strategies;
 using Avalonia.Threading;
 using Baccarat.Core.Strategies;
-using System.Diagnostics;
+using System.Text.Json;
 
 namespace Baccarat.Desktop;
 
@@ -24,6 +24,7 @@ internal sealed class SessionTools : IDisposable
     private readonly SimulatedAutomationTableAdapter adapter = new();
     private readonly Action changed;
     private LocalSimulationServer? browser;
+    private LocalDomBrowser? domBrowser;
     private string roundKey = Guid.NewGuid().ToString("N");
     private string? contextKey;
     private string cards = "";
@@ -40,7 +41,7 @@ internal sealed class SessionTools : IDisposable
         this.diagnostics = diagnostics;
         this.changed = changed;
         Controller = new AutomationController(adapter);
-        Automation = new AutomationView(Controller, OpenBrowser);
+        Automation = new AutomationView(Controller, OpenBrowser, ExecuteControlAsync);
         Viewer = new ViewerView(communication);
         Strategies = new StrategyView(new StrategyFileLoader(), changed: _ => changed(), sharedSession: session);
         Controller.SnapshotChanged += PublishAutomation;
@@ -109,9 +110,9 @@ internal sealed class SessionTools : IDisposable
 
     private void PublishBrowser()
     {
-        if (disposed || browser is null) return;
+        if (disposed || domBrowser is null) return;
         var bet = adapter.CurrentRoundBet;
-        browser.Publish(new
+        domBrowser.Publish(new
         {
             title = session.Title,
             next = session.Engine?.Recommendation.Message ?? "Apply strategy settings in the desktop app.",
@@ -121,13 +122,20 @@ internal sealed class SessionTools : IDisposable
             chips = bet is null ? "" : "Selected chips: " + string.Join(" + ", bet.Chips),
             cards,
             roundKey,
-            canDeal = CanDeal()
+            canDeal = CanDeal(),
+            active,
+            strategy = session.Strategy.Name,
+            unit = session.BaseUnitDraft,
+            bankroll = session.BankrollDraft,
+            playerPair = session.PlayerPairDraft,
+            bankerPair = session.BankerPairDraft,
+            fields = session.Strategy.Fields.Select(f => new { key = f.Key, label = f.Label, hint = f.Hint, value = session.GetField(f.Key) }).ToArray()
         });
     }
 
-    private async Task<bool> DealBrowserAsync(string expectedKey) => await Dispatcher.UIThread.InvokeAsync(() =>
+    private bool DealBrowser()
     {
-        if (disposed || expectedKey != roundKey || !CanDeal()) return false;
+        if (disposed || !CanDeal()) return false;
         var result = session.DealSimulation();
         if (result is null)
         {
@@ -140,13 +148,13 @@ internal sealed class SessionTools : IDisposable
         cards = result.Description;
         PublishBrowser();
         return true;
-    });
+    }
 
-    private void OpenBrowser()
+    private async void OpenBrowser()
     {
         try
         {
-            Process.Start(new ProcessStartInfo(StartBrowser().AbsoluteUri) { UseShellExecute = true });
+            await StartBrowserAsync();
         }
         catch
         {
@@ -154,18 +162,93 @@ internal sealed class SessionTools : IDisposable
         }
     }
 
-    internal Uri StartBrowser()
+    internal async Task StartBrowserAsync()
     {
         if (disposed) throw new ObjectDisposedException(nameof(SessionTools));
+        if (domBrowser?.IsConnected == true) return;
+        if (domBrowser is not null) await domBrowser.DisposeAsync();
         if (browser is null)
         {
-            browser = new LocalSimulationServer(DealBrowserAsync);
+            browser = new LocalSimulationServer();
             adapter.LimitOneBetPerRound = true;
             adapter.BeginRound();
         }
         active = true;
+        domBrowser = new LocalDomBrowser(browser.BrowserAddress,
+            async (action, payload) => await Dispatcher.UIThread.InvokeAsync(() => CommandAsync(action, payload)),
+            message => Dispatcher.UIThread.Post(() => Pause(message)));
         PublishBrowser();
-        return browser.BrowserAddress;
+        try { await domBrowser.StartAsync(); }
+        catch { await domBrowser.DisposeAsync(); throw; }
+    }
+
+    internal async Task CloseBrowserAsync()
+    {
+        if (domBrowser is not null) await domBrowser.DisposeAsync();
+    }
+
+    internal async Task<bool> TryDomActionAsync(string action)
+    {
+        if (domBrowser is null) return false;
+        PublishBrowser();
+        await domBrowser.ClickAsync(action);
+        return true;
+    }
+
+    private async Task ExecuteControlAsync(string action)
+    {
+        if (!await TryDomActionAsync(action)) await CommandAsync(action, default);
+    }
+
+    private async Task<string?> CommandAsync(string action, JsonElement payload)
+    {
+        if (disposed || !active) return "Select this session in the desktop app first.";
+        if (payload.ValueKind != JsonValueKind.Undefined &&
+            (!payload.TryGetProperty("roundKey", out var key) || key.GetString() != roundKey)) return "Stale round; no action was applied.";
+        try
+        {
+            switch (action)
+            {
+                case "player":
+                case "banker":
+                case "tie":
+                    if (!session.CanRecord) return "Strategy is stopped or requires a manual decision.";
+                    session.Record(action == "player" ? Outcome.Player : action == "banker" ? Outcome.Banker : Outcome.Tie);
+                    break;
+                case "player-pair": session.PlayerPairDraft = !session.PlayerPairDraft; break;
+                case "banker-pair": session.BankerPairDraft = !session.BankerPairDraft; break;
+                case "undo": session.Undo(); break;
+                case "shoe": session.NewShoe(); break;
+                case "clear": session.Clear(); break;
+                case "draft": session.BeginDraftRun(); break;
+                case "deal": return DealBrowser() ? null : "Approve a simulated wager or start a new shoe first.";
+                case "apply":
+                    var name = payload.GetProperty("strategy").GetString()!;
+                    if (!DashboardSession.Strategies.Any(s => s.Name == name)) return "Unknown strategy.";
+                    session.SelectStrategy(name);
+                    session.BaseUnitDraft = payload.GetProperty("unit").GetString() ?? "";
+                    session.BankrollDraft = payload.GetProperty("bankroll").GetString() ?? "";
+                    foreach (var field in payload.GetProperty("fields").EnumerateObject())
+                        if (session.Strategy.Fields.Any(f => f.Key == field.Name)) session.SetField(field.Name, field.Value.GetString() ?? "");
+                    if (!session.ApplySettings(out var error)) { changed(); return error; }
+                    break;
+                case "connect": await Controller.ConnectAsync(); break;
+                case "recover": await Controller.RecoverAsync(); break;
+                case "initial":
+                    if (session.Engine is null) return "Apply a strategy first.";
+                    await Controller.InitialBetAsync(session.Engine.Recommendation); break;
+                case "approve": await Controller.ApprovePendingAsync(); break;
+                case "auto": Controller.SetAutoBet(!Controller.Snapshot.AutoBetEnabled); break;
+                case "enable-auto": Controller.SetAutoBet(true); break;
+                case "disable-auto": Controller.SetAutoBet(false); break;
+                case "pause": Controller.CancelPending(); Controller.Pause(); break;
+                default: return "Unsupported training action.";
+            }
+            changed();
+            return null;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or KeyNotFoundException)
+        { return "Could not apply this action. Review the strategy and table state."; }
     }
 
     private void Publish(ViewerPayload payload) => _ = PublishAsync(payload);
@@ -179,6 +262,7 @@ internal sealed class SessionTools : IDisposable
     {
         disposed = true;
         browser?.Dispose();
+        if (domBrowser is not null) _ = domBrowser.DisposeAsync();
         Pause("Application closed. Pending simulation cancelled.");
         Controller.SnapshotChanged -= PublishAutomation;
         Automation.Dispose();

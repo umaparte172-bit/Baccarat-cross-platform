@@ -38,6 +38,8 @@ public sealed partial class DashboardWindow : Window
         Background = DashboardUi.Surface;
         Foreground = DashboardUi.Ink;
         Dashboard = new DashboardView(ShowTools, LoadWorkspace(persistenceEnabled, workspacePath));
+        Dashboard.DomAction = action => Dashboard.Workspace.Selected is { } selected && tools.TryGetValue(selected.Id, out var context)
+            ? context.TryDomActionAsync(action) : Task.FromResult(false);
         Dashboard.SetStorageStatus(storageStatus);
         Dashboard.WorkspaceChanged += RefreshTools;
         Dashboard.WorkspaceChanged += QueueSave;
@@ -143,10 +145,18 @@ public sealed partial class DashboardWindow : Window
         var page = WorkspaceUi.Page("CONFIRM CLEAR", "Clear this session?",
             "This removes recorded results, pairs and calculated profits from this session. Export first if you want to keep them.");
         var confirm = WorkspaceUi.Action("Clear selected session");
-        confirm.Click += (_, _) =>
+        confirm.Click += async (_, _) =>
         {
-            selected.Clear();
-            if (tools.Remove(selected.Id, out var clearedTools)) clearedTools.Dispose();
+            try
+            {
+                if (!tools.TryGetValue(selected.Id, out var context) || !await context.TryDomActionAsync("clear-confirmed"))
+                    selected.Clear();
+            }
+            catch
+            {
+                confirm.Content = "Browser unavailable — reopen simulator";
+                return;
+            }
             Dashboard.RefreshSharedState();
             ShowDashboard();
         };

@@ -9,8 +9,9 @@ No casino connection, wallet, real money or hosted server is involved.
 ## Browser-connected training table
 
 1. Create a session and Apply settings on the desktop dashboard.
-2. Open Tools → Automation → **Open browser simulator**. The default browser opens
-   the page embedded in this app, on a random `127.0.0.1` port.
+2. Open Tools → Automation → **Open browser simulator**. Installed Chrome (or Edge
+   if Chrome is unavailable) opens a separate temporary profile with the embedded
+   page on a random `127.0.0.1` port. Personal tabs and profiles are not attached.
 3. In the desktop Automation page click **Connect simulation**, **Prepare initial
    bet**, then **Approve pending bet**. The browser displays the accepted side,
    stake, operation identifier and selected chips.
@@ -20,12 +21,12 @@ No casino connection, wallet, real money or hosted server is involved.
    without an approved wager.
 5. **Enable auto-bet** prepares each next eligible recommendation after a result;
    every placement still requires explicit approval in the desktop app.
-6. Browser **Reconnect** refreshes table state only. It never places another
+6. Browser **Recover connection** recovers table state only. It never places another
    wager or replays a deal. If the desktop adapter disconnects, use **Recover
    connection** and review the existing state before continuing.
 
-The local table service is authoritative: its placement acknowledgement is not
-an acknowledgement from an external casino or browser driver. Closing a browser
+The desktop simulation engine is authoritative: its placement acknowledgement is not
+an acknowledgement from an external casino. Closing a browser
 tab does not erase a previously accepted simulated wager. Reopen it from the
 same session to see the state. Closing the desktop app stops its local listener;
 browser placement/approval state is transient and must be prepared again after
@@ -37,21 +38,44 @@ Changing these controls before settlement cancels that simulated round's table
 state. Use a dedicated session for the browser workflow rather than mixing manual
 result entry with pending simulated placements.
 
-### Local transport protections
+### DOM integration and local protections
 
-The listener binds only IPv4 loopback and uses a random per-instance capability
-token passed in the URL fragment and subsequent request headers. Tokens are not
-saved to workspace files. Do not share the browser URL: it grants access to that
-local training session. Host and Origin checks, restrictive CSP, no external
-resources, bodyless requests, 8 KiB header limits, eight concurrent connections,
-five-second I/O limits and round-key checks constrain the service. It is not a
-general web server, proxy, casino connector or configurable remote-control API.
+Desktop actions click actual DOM buttons. Browser clicks write a bounded command
+to a DOM output element; the driver reads it, updates the shared session, and
+renders the result back into DOM elements. There are **no `/state` or `/deal`
+application APIs**. The local HTTP listener serves only HTML and JavaScript.
+Chrome DevTools Protocol is used internally as the browser-control transport,
+not as a casino API or an application request/response API.
 
-Automated checks exercise desktop→browser state, browser→desktop settlement,
-initial/auto-bet approval, chips, duplicate/stale commands, inactive sessions,
-unauthenticated/cross-origin requests and reconnect idempotency. A browser UI
-check also confirmed an accepted simulated wager, card settlement and the next
-approval-required state. Physical Safari/macOS acceptance remains separate.
+Result/pair entry, dealing, Undo, New Shoe, confirmed Clear Session, strategy
+settings/drafts, connection recovery, initial-bet preparation, placement approval,
+auto-bet controls and Pause are routed through DOM when the browser is open.
+Session navigation, Tools navigation, import/export dialogs and application
+settings remain native. Other tool views share the same session model; they are
+not copies of browser DOM controls. Closing the browser does not silently switch
+DOM-routed actions to native execution: reopen it to continue.
+
+The driver verifies the exact owned URL, including a random identity fragment,
+before DOM operations. Its page request filter permits only the owned root and
+script; downloads are denied. It never attaches to casino or personal tabs.
+The listener binds IPv4 loopback with Host/Origin checks, restrictive CSP,
+8 KiB header limits, eight concurrent connections and five-second I/O limits.
+Commands are serialized, consumed before dispatch and checked against the current
+round. No action is replayed on reconnect. Browser debugging is local, but is not
+a security boundary against other malicious processes on the same computer.
+Temporary browser profiles contain no casino credentials; they may remain in the
+OS temporary folder after closing. Safari is not a supported DOM driver.
+
+Run desktop checks with `BACCARAT_DOM_CHECKS=1` to exercise an installed browser.
+They verify DOM initial/auto-bet approval, settlement, result/pair controls, Undo,
+shoe, settings, confirmed clear and inactive-session isolation. Core checks verify
+the static-only listener and rejected application API routes, origin checks and
+adapter idempotency. Physical macOS/installed-browser acceptance remains separate.
+
+The dashboard and browser use the five-segment blue Player Pair/Player, green Tie,
+and red Banker/Banker Pair reference layout. Labels do not enable side wagers:
+Player/Banker/Tie record outcomes, pairs mark observations. No reference screenshot
+account balances, player counts or percentages are fabricated.
 
 ## Rules and replay
 
