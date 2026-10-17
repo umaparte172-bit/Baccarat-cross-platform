@@ -13,8 +13,13 @@ public sealed record LiveTableProfile
 {
     public string Name { get; init; } = "";
     public string StartUrl { get; init; } = "";
-    // The page host must contain this text; every read and click re-checks it. Required.
+    // Optional restriction to sites whose host contains this text. When empty the app is not tied to any site:
+    // it recognises a table by its page content (DetectText / DetectSelector) and then locks to that tab's host.
     public string HostContains { get; init; } = "";
+    // The table is detected when every text below appears in a page or frame (case-insensitive)...
+    public string[] DetectText { get; init; } = ["BANKER", "PLAYER"];
+    // ...and, when set, this selector matches at least one element.
+    public string DetectSelector { get; init; } = "";
     // Table rendered inside an iframe (same-origin or cross-origin); matched against the frame URL.
     public string? FrameUrlContains { get; init; }
     public string StatusSelector { get; init; } = "";
@@ -44,10 +49,11 @@ public sealed record LiveTableProfile
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Name)) throw new InvalidDataException("Profile needs a name.");
-        if (string.IsNullOrWhiteSpace(HostContains) || HostContains.Contains('/'))
-            throw new InvalidDataException("Profile needs a host name filter (for example: example.com).");
-        if (StartUrl.Length > 0 && (!Uri.TryCreate(StartUrl, UriKind.Absolute, out var uri) ||
-            uri.Scheme is not ("http" or "https") || !uri.Host.Contains(HostContains, StringComparison.OrdinalIgnoreCase)))
+        if (HostContains.Contains('/')) throw new InvalidDataException("Host filter must be a host name, not a URL.");
+        if (DetectText.Length == 0 && DetectSelector.Length == 0)
+            throw new InvalidDataException("Profile needs DetectText or DetectSelector so a table can be recognised.");
+        if (StartUrl.Length > 0 && (!Uri.TryCreate(StartUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") ||
+            (HostContains.Length > 0 && !uri.Host.Contains(HostContains, StringComparison.OrdinalIgnoreCase))))
             throw new InvalidDataException("Start URL must be http(s) and match the host filter.");
     }
 
@@ -95,8 +101,8 @@ public sealed class LiveTableProfileStore
     public static LiveTableProfile Template { get; } = new()
     {
         Name = "Template (calibrate before use)",
-        HostContains = "example.com",
-        StartUrl = "https://example.com/",
+        HostContains = "",
+        StartUrl = "",
         FrameUrlContains = null,
         ResultRules =
         [

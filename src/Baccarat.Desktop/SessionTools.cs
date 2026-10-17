@@ -27,6 +27,8 @@ internal sealed class SessionTools : IDisposable
     private LiveBrowserTableAdapter? live;
     internal LiveBrowserOptions LiveOptions { get; set; } = new();
     private string? lastLiveKey;
+    private CancellationTokenSource? watching;
+    private event Action<string>? LiveStatus;
     private readonly Action changed;
     private LocalSimulationServer? browser;
     private LocalDomBrowser? domBrowser;
@@ -48,7 +50,8 @@ internal sealed class SessionTools : IDisposable
         switcher = new SwitchableTableAdapter(adapter);
         Controller = new AutomationController(switcher);
         Automation = new AutomationView(Controller, OpenBrowser, ExecuteControlAsync, new LiveTableControls(
-            LoadProfileNames, OpenLiveAsync, ConnectLiveAsync, DisconnectLiveAsync, InspectLiveAsync, profileStore.Directory));
+            LoadProfileNames, OpenLiveAsync, ConnectLiveAsync, DisconnectLiveAsync, InspectLiveAsync, profileStore.Directory,
+            handler => LiveStatus += handler));
         Viewer = new ViewerView(communication);
         Strategies = new StrategyView(new StrategyFileLoader(), changed: _ => changed(), sharedSession: session);
         Controller.SnapshotChanged += PublishAutomation;
@@ -281,40 +284,65 @@ internal sealed class SessionTools : IDisposable
             if (live is not null && live.IsConnected) return "Live table already connected. Disconnect it first to switch profile.";
             live = new LiveBrowserTableAdapter(profile, LiveOptions);
             await live.OpenBrowserAsync();
-            return "Browser opened on its own profile. Sign in and open the table yourself, then press Connect live table.";
+            return "Browser opened on its own profile. Press Watch for table, then sign in and open any live table there.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
         { return "Could not open the live browser: " + ex.Message; }
     }
 
+    // No fixed site: the app waits until a tab shows a table, then connects by itself.
     internal async Task<string> ConnectLiveAsync(string profileName)
     {
         try
         {
             var profile = FindProfile(profileName);
-            if (live is null || live.Name != "Live table · " + profile.Name) live = new LiveBrowserTableAdapter(profile, LiveOptions);
             if (!profile.CanRead) return "This profile has no result selectors yet. Use Inspect page, then edit the profile in the profiles folder.";
+            watching?.Cancel();
+            if (live is null || live.Name != "Live table · " + profile.Name) live = new LiveBrowserTableAdapter(profile, LiveOptions);
             await Controller.DisconnectAsync();
-            live.ResultObserved -= OnLiveResult;
-            live.Faulted -= OnLiveFaulted;
-            live.ResultObserved += OnLiveResult;
-            live.Faulted += OnLiveFaulted;
-            switcher.Use(live);
-            lastLiveKey = null;
-            var result = await Controller.ConnectAsync();
-            if (result.Outcome != AutomationActionOutcome.Accepted) { switcher.Use(adapter); return result.Message; }
-            return profile.CanBet
-                ? "Live table connected. Results are recorded automatically; every bet still needs your approval."
-                : "Live table connected for reading results only (profile cannot place bets yet).";
+            var adapterToUse = live;
+            adapterToUse.ResultObserved -= OnLiveResult;
+            adapterToUse.Faulted -= OnLiveFaulted;
+            adapterToUse.ResultObserved += OnLiveResult;
+            adapterToUse.Faulted += OnLiveFaulted;
+            watching = new CancellationTokenSource();
+            _ = WatchLiveAsync(adapterToUse, profile, watching.Token);
+            return "Watching for a live table. Open one in the live browser; the app connects as soon as it appears.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
-        { switcher.Use(adapter); return "Could not connect: " + ex.Message; }
+        { return "Could not start watching: " + ex.Message; }
+    }
+
+    internal async Task WatchLiveAsync(LiveBrowserTableAdapter adapterToUse, LiveTableProfile profile, CancellationToken token)
+    {
+        void Say(string text) => Dispatcher.UIThread.Post(() => LiveStatus?.Invoke(text));
+        try
+        {
+            await adapterToUse.WaitForTableAsync(token);
+            if (disposed || token.IsCancellationRequested) return;
+            Say($"Table detected on {adapterToUse.DetectedHost}. Connecting…");
+            var result = await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                lastLiveKey = null;
+                switcher.Use(adapterToUse);
+                var connected = await Controller.ConnectAsync();
+                if (connected.Outcome != AutomationActionOutcome.Accepted) switcher.Use(adapter);
+                return connected;
+            });
+            Say(result.Outcome != AutomationActionOutcome.Accepted ? result.Message : profile.CanBet
+                ? $"Connected to the table on {adapterToUse.DetectedHost}. Results are recorded automatically; every bet still needs your approval."
+                : $"Connected to {adapterToUse.DetectedHost} for reading results only (profile cannot place bets yet).");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or InvalidDataException)
+        { Say("Live table watch stopped: " + ex.Message); }
     }
 
     private async Task<string> DisconnectLiveAsync()
     {
+        watching?.Cancel();
         await Controller.DisconnectAsync();
-        if (live is not null) { live.ResultObserved -= OnLiveResult; live.Faulted -= OnLiveFaulted; }
+        if (live is not null) { live.ResultObserved -= OnLiveResult; live.Faulted -= OnLiveFaulted; await live.DisposeAsync(); }
         switcher.Use(adapter);
         return "Live table disconnected. The browser stays open.";
     }
@@ -358,6 +386,7 @@ internal sealed class SessionTools : IDisposable
     public void Dispose()
     {
         disposed = true;
+        watching?.Cancel();
         browser?.Dispose();
         if (live is not null) { live.ResultObserved -= OnLiveResult; live.Faulted -= OnLiveFaulted; _ = live.DisposeAsync().AsTask(); }
         if (domBrowser is not null) _ = domBrowser.DisposeAsync();

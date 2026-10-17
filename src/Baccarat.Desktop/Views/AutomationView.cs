@@ -106,7 +106,7 @@ public sealed class AutomationView : StackPanel, IDisposable
     private Control BuildLiveCard(LiveTableControls live)
     {
         var profiles = new ComboBox { MinWidth = 260, PlaceholderText = "Choose a table profile", Name = "LiveProfile" };
-        var message = Text("Opens your own Chrome/Edge on a separate profile. You sign in and open the table yourself; the app never sees your password.", 13, "#91A1B9");
+        var message = Text("Opens your own Chrome/Edge on a separate profile. Press Watch for table, then sign in and open any live table yourself: the app detects it and starts. It never sees your password and is not tied to one website.", 13, "#91A1B9");
         void Reload()
         {
             var names = live.Profiles();
@@ -123,7 +123,7 @@ public sealed class AutomationView : StackPanel, IDisposable
         reload.Click += (_, _) => { Reload(); message.Text = $"Profiles are JSON files in {live.ProfileFolder}"; };
         var open = Button("Open live browser");
         open.Click += async (_, _) => await Run(live.Open);
-        var connect = Button("Connect live table");
+        var connect = Button("Watch for table");
         connect.Name = "ConnectLive";
         connect.Click += async (_, _) => await Run(live.Connect);
         var disconnect = Button("Disconnect live table");
@@ -135,7 +135,8 @@ public sealed class AutomationView : StackPanel, IDisposable
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(row);
         panel.Children.Add(message);
-        panel.Children.Add(Text("Live tables use real money. Placements need your approval each time, never repeat after an error, and only act on the site named in the profile.", 13, "#E48787"));
+        panel.Children.Add(Text("Live tables use real money. Placements need your approval each time, never repeat after an error, and only act on the tab they were detected on.", 13, "#E48787"));
+        live.SubscribeStatus(text => message.Text = text);
         Reload();
         return WorkspaceUi.Card("LIVE TABLE (REAL BROWSER)", panel);
     }

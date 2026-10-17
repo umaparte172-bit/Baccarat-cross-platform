@@ -27,4 +27,5 @@ public sealed record LiveTableControls(
     Func<string, Task<string>> Connect,
     Func<Task<string>> Disconnect,
     Func<Task<string>> Inspect,
-    string ProfileFolder);
+    string ProfileFolder,
+    Action<Action<string>> SubscribeStatus);

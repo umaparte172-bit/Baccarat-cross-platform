@@ -61,6 +61,13 @@ internal static class LiveTableChecks
         static string Drain() { var sb = new StringBuilder(); while (Commands.TryDequeue(out var c)) sb.Append(c).Append((char)10); return sb.ToString(); }
     }
 
+    private static void OpenTab(int debugPort, string url)
+    {
+        using var client = new HttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"http://127.0.0.1:{debugPort}/json/new?{url}");
+        client.Send(request).EnsureSuccessStatusCode();
+    }
+
     internal static void Run()
     {
         if (Environment.GetEnvironmentVariable("BACCARAT_DOM_CHECKS") != "1")
@@ -95,7 +102,7 @@ internal static class LiveTableChecks
         Directory.CreateDirectory(profileDirectory);
         var profile = new LiveTableProfile
         {
-            Name = "Mock", StartUrl = $"http://127.0.0.1:{mockPort}/", HostContains = "127.0.0.1", FrameUrlContains = "/table",
+            Name = "Mock",
             StatusSelector = "#status", ChipSelector = "#chips button", ChipValueSource = "data-value",
             PlayerSelector = "[data-role=player]", BankerSelector = "[data-role=banker]", BetTotalSelector = "#total",
             ResultSelector = "#results li", NewestResult = "last", PollMilliseconds = 150,
@@ -117,8 +124,13 @@ internal static class LiveTableChecks
         Thread.Sleep(1500);
 
         var connect = context.ConnectLiveAsync("Mock"); Pump(connect);
-        Check(connect.Result.StartsWith("Live table connected"), "Connect message: " + connect.Result);
-        Check(!context.Controller.Snapshot.IsSimulation && context.Controller.Snapshot.State == AutomationRunState.Ready, "Controller must run on the live adapter");
+        Check(connect.Result.StartsWith("Watching"), "Watch message: " + connect.Result);
+        Thread.Sleep(2500);
+        Check(context.Controller.Snapshot.State == AutomationRunState.Disconnected, "Nothing may connect before a table is opened");
+        OpenTab(context.LiveOptions.DebugPort, $"http://127.0.0.1:{mockPort}/");
+        Check(Until(() => !context.Controller.Snapshot.IsSimulation && context.Controller.Snapshot.State == AutomationRunState.Ready),
+            "Opening a table must be detected and connected automatically: " + context.Controller.Snapshot.Message);
+        Thread.Sleep(500);
         Commands.Enqueue("result:banker");
         Check(Until(() => session.Hands.Count == 1 && session.Hands[0].Round.Outcome == Outcome.Banker), "Live result must be recorded in the session");
         Commands.Enqueue("result:player");
@@ -142,6 +154,7 @@ internal static class LiveTableChecks
         T Get<T>(Task<T> task) { if (!task.Wait(TimeSpan.FromSeconds(40))) throw new TimeoutException("live check timed out"); return task.Result; }
         void Wait(Task task) { if (!task.Wait(TimeSpan.FromSeconds(40))) throw new TimeoutException("live check timed out"); }
         T GetV<T>(ValueTask<T> task) => Get(task.AsTask());
+        IReadOnlyList<decimal> WaitV2(ValueTask<IReadOnlyList<decimal>> task) => Get(task.AsTask());
         void WaitV(ValueTask task) => Wait(task.AsTask());
 
         var commands = Commands;
@@ -150,7 +163,7 @@ internal static class LiveTableChecks
 
         var profile = new LiveTableProfile
         {
-            Name = "Mock", StartUrl = $"http://127.0.0.1:{port}/", HostContains = "127.0.0.1", FrameUrlContains = "/table",
+            Name = "Mock", StartUrl = "", HostContains = "127.0.0.1", FrameUrlContains = "/table",
             StatusSelector = "#status", ChipSelector = "#chips button", ChipValueSource = "data-value",
             PlayerSelector = "[data-role=player]", BankerSelector = "xpath://*[@data-role='banker']", BetTotalSelector = "#total",
             ResultSelector = "#results li", NewestResult = "last", BalanceSelector = "#bal", PollMilliseconds = 150,
@@ -168,6 +181,22 @@ internal static class LiveTableChecks
             Check(!adapter.IsConnected, "Starts disconnected");
             Wait(adapter.OpenBrowserAsync());
             Thread.Sleep(1500);
+
+            // Not tied to any URL: no host filter, no frame hint. Nothing is detected on a blank tab; once the
+            // user opens a page showing a table (inside an iframe here) it is found and locked to that host.
+            var detector = new LiveBrowserTableAdapter(profile with { HostContains = "", StartUrl = "", FrameUrlContains = null },
+                new LiveBrowserOptions(debugPort, profileDirectory, LaunchBrowser: false));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var waiting = detector.WaitForTableAsync(cts.Token);
+            Thread.Sleep(2500);
+            Check(!waiting.IsCompleted && !detector.IsConnected, "Must keep waiting while no table is open");
+            OpenTab(debugPort, $"http://127.0.0.1:{port}/");
+            Wait(waiting);
+            Check(detector.DetectedHost == "127.0.0.1", "Detected host must be locked to the page the user opened");
+            WaitV(detector.ConnectAsync());
+            Check(WaitV2(detector.GetChipsAsync()).SequenceEqual([1m, 5m, 25m, 100m]), "Auto-detected frame must be readable without any URL configured");
+            Wait(detector.DisposeAsync().AsTask());
+
             WaitV(adapter.ConnectAsync());
             Check(adapter.IsConnected && !adapter.IsSimulation, "Live adapter connects to the browser tab and is not a simulation");
 
