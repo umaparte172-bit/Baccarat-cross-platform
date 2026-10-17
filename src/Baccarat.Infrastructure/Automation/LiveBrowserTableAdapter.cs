@@ -63,7 +63,7 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
             if (pageUrl is not null)
             {
                 using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
-                using var request = new HttpRequestMessage(HttpMethod.Put, $"http://127.0.0.1:{options.DebugPort}/json/new?{Uri.EscapeDataString(pageUrl)}");
+                using var request = new HttpRequestMessage(HttpMethod.Put, $"http://127.0.0.1:{options.DebugPort}/json/new?{pageUrl}");
                 using var response = await client.SendAsync(request, token);
                 response.EnsureSuccessStatusCode();
             }

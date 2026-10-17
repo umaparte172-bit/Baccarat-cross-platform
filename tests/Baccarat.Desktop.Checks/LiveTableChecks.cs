@@ -232,7 +232,8 @@ internal static class LiveTableChecks
             var waiting = detector.WaitForTableAsync(cts.Token);
             Thread.Sleep(2500);
             Check(!waiting.IsCompleted && !detector.IsConnected, "Must keep waiting while no table is open");
-            OpenTab(debugPort, $"http://127.0.0.1:{port}/");
+            // The app's own "open this address" path, with a browser that is already running.
+            Wait(adapter.OpenBrowserAsync(default, $"http://127.0.0.1:{port}/"));
             Wait(waiting);
             Check(detector.DetectedHost == "127.0.0.1", "Detected host must be locked to the page the user opened");
             WaitV(detector.ConnectAsync());
