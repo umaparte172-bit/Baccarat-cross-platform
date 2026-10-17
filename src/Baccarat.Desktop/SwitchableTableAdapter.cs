@@ -23,7 +23,7 @@ internal sealed class SwitchableTableAdapter(IAutomationTableAdapter initial) : 
 // Callbacks the Automation tool uses for the real-browser table; each returns a status line to show.
 public sealed record LiveTableControls(
     Func<IReadOnlyList<string>> Profiles,
-    Func<string, Task<string>> Open,
+    Func<string, string?, Task<string>> Open,
     Func<string, Task<string>> Connect,
     Func<Task<string>> Disconnect,
     Func<Task<string>> Inspect,

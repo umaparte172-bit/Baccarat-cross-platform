@@ -113,6 +113,7 @@ public sealed class AutomationView : StackPanel, IDisposable
             profiles.ItemsSource = names;
             if (profiles.SelectedItem is null && names.Count > 0) profiles.SelectedIndex = 0;
         }
+        var address = new TextBox { MinWidth = 380, Watermark = "Table page address to open in the live browser (optional)", Name = "LiveAddress" };
         async Task Run(Func<string, Task<string>> action)
         {
             if (profiles.SelectedItem is not string name) { message.Text = "Choose a profile first."; return; }
@@ -122,7 +123,7 @@ public sealed class AutomationView : StackPanel, IDisposable
         var reload = Button("Reload profiles");
         reload.Click += (_, _) => { Reload(); message.Text = $"Profiles are JSON files in {live.ProfileFolder}"; };
         var open = Button("Open live browser");
-        open.Click += async (_, _) => await Run(live.Open);
+        open.Click += async (_, _) => await Run(name => live.Open(name, address.Text));
         var connect = Button("Watch for table");
         connect.Name = "ConnectLive";
         connect.Click += async (_, _) => await Run(live.Connect);
@@ -134,6 +135,7 @@ public sealed class AutomationView : StackPanel, IDisposable
         foreach (var control in new Control[] { profiles, reload, open, connect, disconnect, inspect }) row.Children.Add(control);
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(row);
+        panel.Children.Add(address);
         panel.Children.Add(message);
         panel.Children.Add(Text("Live tables use real money. Placements need your approval each time, never repeat after an error, and only act on the tab they were detected on.", 13, "#E48787"));
         live.SubscribeStatus(text => message.Text = text);

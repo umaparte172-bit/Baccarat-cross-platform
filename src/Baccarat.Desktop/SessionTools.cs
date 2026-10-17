@@ -276,15 +276,15 @@ internal sealed class SessionTools : IDisposable
     private LiveTableProfile FindProfile(string name) =>
         profileStore.Load().FirstOrDefault(p => p.Name == name) ?? throw new InvalidOperationException("Profile not found. Reload profiles.");
 
-    internal async Task<string> OpenLiveAsync(string profileName)
+    internal async Task<string> OpenLiveAsync(string profileName, string? pageUrl = null)
     {
         try
         {
             var profile = FindProfile(profileName);
             if (live is not null && live.IsConnected) return "Live table already connected. Disconnect it first to switch profile.";
             live = new LiveBrowserTableAdapter(profile, LiveOptions);
-            await live.OpenBrowserAsync();
-            return "Browser opened on its own profile. Press Watch for table, then sign in and open any live table there.";
+            await live.OpenBrowserAsync(default, string.IsNullOrWhiteSpace(pageUrl) ? null : pageUrl.Trim());
+            return "Live browser ready (its own profile, separate from your normal Chrome). Sign in there if asked, open the table in that window, and press Watch for table.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
         { return "Could not open the live browser: " + ex.Message; }

@@ -52,9 +52,22 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
     public event Action<string>? Faulted;
 
     // Starts the dedicated browser (or reuses one already listening) on the profile's start page.
-    public async Task OpenBrowserAsync(CancellationToken token = default)
+    public async Task OpenBrowserAsync(CancellationToken token = default, string? pageUrl = null)
     {
-        if (await TryVersionAsync(token) is not null) return;
+        if (pageUrl is not null && (!Uri.TryCreate(pageUrl, UriKind.Absolute, out var wanted) || wanted.Scheme is not ("http" or "https")))
+            throw new InvalidOperationException("Enter a full http(s) address, for example https://example.com/table.");
+        if (await TryVersionAsync(token) is not null)
+        {
+            // Browser already running: open the requested page in a new tab of it.
+            if (pageUrl is not null)
+            {
+                using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
+                using var request = new HttpRequestMessage(HttpMethod.Put, $"http://127.0.0.1:{options.DebugPort}/json/new?{Uri.EscapeDataString(pageUrl)}");
+                using var response = await client.SendAsync(request, token);
+                response.EnsureSuccessStatusCode();
+            }
+            return;
+        }
         if (!options.LaunchBrowser) throw new InvalidOperationException("No browser is listening on the debugging port.");
         var executable = options.BrowserPath ?? FindBrowser() ?? throw new InvalidOperationException("Install Chrome or Edge to use a live table.");
         var directory = options.ProfileDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -63,7 +76,7 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
         var start = new ProcessStartInfo(executable) { UseShellExecute = false };
         foreach (var arg in new[] { $"--remote-debugging-port={options.DebugPort}", "--remote-debugging-address=127.0.0.1",
             "--user-data-dir=" + directory, "--no-first-run", "--no-default-browser-check", "--new-window",
-            profile.StartUrl.Length > 0 ? profile.StartUrl : "about:blank" })
+            pageUrl ?? (profile.StartUrl.Length > 0 ? profile.StartUrl : "about:blank") })
             start.ArgumentList.Add(arg);
         launched = Process.Start(start) ?? throw new InvalidOperationException("Could not start the browser.");
         for (var i = 0; i < 100; i++)
@@ -172,7 +185,7 @@ public sealed class LiveBrowserTableAdapter : IAutomationTableAdapter, ILiveTabl
             }
         }
         Progress?.Invoke(seen.Count == 0
-            ? "Watching… no web page is open in the live browser yet."
+            ? "Watching… the live browser (the window opened by Open live browser) has no website open. Your normal Chrome cannot be watched: open the table in that window, or paste its address above and press Open live browser."
             : $"Watching… {seen.Count} tab(s) checked ({string.Join(", ", seen.Distinct())}); {frameReport.Count} embedded frame(s) ({string.Join(", ", frameReport.Distinct().Take(6))}); no table text found yet.");
         return false;
     }
