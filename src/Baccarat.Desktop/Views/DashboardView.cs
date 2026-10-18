@@ -180,8 +180,12 @@ public sealed class DashboardView : UserControl
         historyNotice.FontSize = 11;
         var ledgerCard = new Border
         {
-            Background = Brushes.White, BorderBrush = DashboardUi.Line, BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(7), Padding = new Thickness(12), Child = ledger
+            Background = Brushes.White,
+            BorderBrush = DashboardUi.Line,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(7),
+            Padding = new Thickness(12),
+            Child = ledger
         };
         Grid.SetRow(ledgerCard, 1); left.Children.Add(ledgerCard);
         var right = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 12 };
@@ -302,9 +306,13 @@ public sealed class DashboardView : UserControl
         badges[outcome] = (percent, count);
         var ring = new Border
         {
-            Width = 30, Height = 30, CornerRadius = new CornerRadius(15), BorderThickness = new Thickness(3),
+            Width = 30,
+            Height = 30,
+            CornerRadius = new CornerRadius(15),
+            BorderThickness = new Thickness(3),
             BorderBrush = Brush.Parse(outcome == Outcome.Banker ? "#FF6B63" : outcome == Outcome.Player ? "#4F8BFF" : "#4CE04F"),
-            Background = new SolidColorBrush(Color.Parse("#66000000")), Child = percent
+            Background = new SolidColorBrush(Color.Parse("#66000000")),
+            Child = percent
         };
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(6, 6, 0, 0), IsHitTestVisible = false };
         row.Children.Add(ring);
@@ -325,8 +333,11 @@ public sealed class DashboardView : UserControl
             layers.Children.Add(new Avalonia.Controls.Presenters.ContentPresenter { Name = "PART_ContentPresenter", HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center });
             var name = new TextBlock
             {
-                Text = label, Foreground = pair ? Brushes.White : Brush.Parse("#E4E0D8"), HorizontalAlignment = HorizontalAlignment.Center,
-                FontSize = pair ? 11 : 14, FontWeight = FontWeight.Bold,
+                Text = label,
+                Foreground = pair ? Brushes.White : Brush.Parse("#E4E0D8"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                FontSize = pair ? 11 : 14,
+                FontWeight = FontWeight.Bold,
                 FontFamily = pair ? FontFamily.Default : new FontFamily("Georgia, Times New Roman, serif")
             };
             var odds = live ?? new TextBlock();

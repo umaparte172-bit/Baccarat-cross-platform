@@ -76,7 +76,10 @@ internal static class StrategyAcceptanceChecks
 
     private static Outcome Parse(string click) => click switch
     {
-        "P" => Outcome.Player, "B" => Outcome.Banker, "T" => Outcome.Tie, _ => throw new ArgumentException(click)
+        "P" => Outcome.Player,
+        "B" => Outcome.Banker,
+        "T" => Outcome.Tie,
+        _ => throw new ArgumentException(click)
     };
 
     private static string Describe(DashboardSession session)

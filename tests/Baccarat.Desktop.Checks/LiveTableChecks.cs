@@ -214,9 +214,15 @@ internal static class LiveTableChecks
         var profile = new LiveTableProfile
         {
             Name = "Mock",
-            StatusSelector = "#status", ChipSelector = "#chips button", ChipValueSource = "data-value",
-            PlayerSelector = "[data-role=player]", BankerSelector = "[data-role=banker]", BetTotalSelector = "#total",
-            ResultSelector = "#results li", NewestResult = "last", PollMilliseconds = 150,
+            StatusSelector = "#status",
+            ChipSelector = "#chips button",
+            ChipValueSource = "data-value",
+            PlayerSelector = "[data-role=player]",
+            BankerSelector = "[data-role=banker]",
+            BetTotalSelector = "#total",
+            ResultSelector = "#results li",
+            NewestResult = "last",
+            PollMilliseconds = 150,
             PlacementWaitSeconds = 15,
             ResultRules = [new("player", Outcome.Player), new("banker", Outcome.Banker), new("tie", Outcome.Tie)]
         };
@@ -311,10 +317,21 @@ internal static class LiveTableChecks
 
         var profile = new LiveTableProfile
         {
-            Name = "Mock", StartUrl = "", HostContains = "127.0.0.1", FrameUrlContains = "/table", PlacementWaitSeconds = 0,
-            StatusSelector = "#status", ChipSelector = "#chips button", ChipValueSource = "data-value",
-            PlayerSelector = "[data-role=player]", BankerSelector = "xpath://*[@data-role='banker']", BetTotalSelector = "#total",
-            ResultSelector = "#results li", NewestResult = "last", BalanceSelector = "#bal", PollMilliseconds = 150,
+            Name = "Mock",
+            StartUrl = "",
+            HostContains = "127.0.0.1",
+            FrameUrlContains = "/table",
+            PlacementWaitSeconds = 0,
+            StatusSelector = "#status",
+            ChipSelector = "#chips button",
+            ChipValueSource = "data-value",
+            PlayerSelector = "[data-role=player]",
+            BankerSelector = "xpath://*[@data-role='banker']",
+            BetTotalSelector = "#total",
+            ResultSelector = "#results li",
+            NewestResult = "last",
+            BalanceSelector = "#bal",
+            PollMilliseconds = 150,
             ResultRules = [new("player", Outcome.Player), new("banker", Outcome.Banker), new("tie", Outcome.Tie)]
         };
         var profileDirectory = Path.Combine(Path.GetTempPath(), "Baccarat-Live-Check-" + Guid.NewGuid().ToString("N"));

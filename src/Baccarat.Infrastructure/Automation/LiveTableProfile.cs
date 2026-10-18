@@ -113,7 +113,7 @@ public sealed class LiveTableProfileStore
         var canvasDemo = System.IO.Path.Combine(Directory, "multiplier-baccarat-demo-canvas.json");
         if (!File.Exists(canvasDemo)) File.WriteAllText(canvasDemo, JsonSerializer.Serialize(MultiplierBaccaratDemo, LiveTableProfile.Json));
         var profiles = new List<LiveTableProfile>();
-        foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").Order())
+        foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").OrderBy(file => file))
         {
             try
             {
