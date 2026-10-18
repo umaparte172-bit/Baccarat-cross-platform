@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Baccarat.Desktop.Views;
 
@@ -259,27 +260,79 @@ public sealed partial class DashboardWindow : Window
         toolsSidebar.IsVisible = false;
         RequestedThemeVariant = ThemeVariant.Light;
         Background = DashboardUi.Surface;
-        var shell = new DockPanel { Margin = new Thickness(16) };
-        var actions = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 12) };
+        var shell = new DockPanel { Margin = new Thickness(16, 12) };
+        var actions = BuildToolNav(name, showBack);
+        DockPanel.SetDock(actions, Dock.Top);
+        shell.Children.Add(actions);
+        if (view.Parent is ContentControl parent) parent.Content = null;
+        if (view.Parent is Decorator wrapper) wrapper.Child = null;
+        // Keep pages readable on wide monitors: centred column, scrolling when tall.
+        shell.Children.Add(new ScrollViewer
+        {
+            Content = new Border { MaxWidth = 1180, HorizontalAlignment = HorizontalAlignment.Stretch, Child = view }
+        });
+        workspaceContent.Content = shell;
+        Title = $"Baccarat Workspace — {name}";
+    }
+
+    // Top bar of every tool page: back to the dashboard, tabs between tools, and the Tools menu.
+    private Control BuildToolNav(string active, bool showMenu)
+    {
+        var bar = new Border
+        {
+            Background = Brushes.White,
+            BorderBrush = DashboardUi.Line,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10, 8),
+            MaxWidth = 1180,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 10 };
         var back = WorkspaceUi.Action("Back to dashboard");
-        back.HorizontalAlignment = HorizontalAlignment.Left;
         back.Click += (_, _) => ShowDashboard();
-        actions.Children.Add(back);
-        if (showBack)
+        grid.Children.Add(back);
+        var tabs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, HorizontalAlignment = HorizontalAlignment.Center };
+        foreach (var (label, key, open) in new (string, string, Action)[]
+        {
+            ("Strategies", "Strategies", () => { if (CurrentTools() is { } c) ShowTool("Strategies", c.Strategies); }),
+            ("Automation", "Automation", () => { if (CurrentTools() is { } c) ShowTool("Automation", c.Automation); }),
+            ("Viewer", "Viewer", () => { if (CurrentTools() is { } c) ShowTool("Viewer", c.Viewer); }),
+            ("Account", "Sing In / Up", ShowAccount)
+        })
+        {
+            var isActive = key == active;
+            var tab = new Button
+            {
+                // A control (not a string) so these never clash with the Tools-menu buttons of the same name.
+                Content = new TextBlock { Text = label, FontWeight = isActive ? Avalonia.Media.FontWeight.SemiBold : Avalonia.Media.FontWeight.Normal, FontSize = 13 },
+                Background = isActive ? Brush.Parse("#E8F0FC") : Brushes.Transparent,
+                Foreground = isActive ? Brush.Parse("#1769CE") : DashboardUi.Muted,
+                BorderBrush = isActive ? Brush.Parse("#1769CE") : Brushes.Transparent,
+                BorderThickness = new Thickness(0, 0, 0, 2),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14, 7),
+                MinHeight = 36,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            tab.Click += (_, _) => open();
+            tabs.Children.Add(tab);
+        }
+        Grid.SetColumn(tabs, 1);
+        grid.Children.Add(tabs);
+        if (showMenu)
         {
             var menu = WorkspaceUi.Action("Tools");
             menu.Name = "ToggleTools";
             Avalonia.Automation.AutomationProperties.SetName(menu, "Show or hide session tools");
             menu.Click += (_, _) => ShowTools();
-            Grid.SetColumn(menu, 1);
-            actions.Children.Add(menu);
+            Grid.SetColumn(menu, 2);
+            grid.Children.Add(menu);
         }
-        DockPanel.SetDock(actions, Dock.Top);
-        shell.Children.Add(actions);
-        if (view.Parent is ContentControl parent) parent.Content = null;
-        shell.Children.Add(new ScrollViewer { Content = view });
-        workspaceContent.Content = shell;
-        Title = $"Baccarat Workspace — {name}";
+        bar.Child = grid;
+        return bar;
     }
 
     private void ShowAccount()

@@ -35,10 +35,9 @@ public sealed class ViewerView : StackPanel, IDisposable
             $"Protocol {ViewerDocumentContract.EnvelopeVersion} · Session document {ViewerDocumentContract.SessionSnapshotVersion} · Strategy document {ViewerDocumentContract.StrategySnapshotVersion} · Automation document {ViewerDocumentContract.AutomationSnapshotVersion}",
             14,
             "#91A1B9"));
-        page.Children.Add(WorkspaceUi.Card("COMMUNICATION", connection));
-        page.Children.Add(WorkspaceUi.Card("SESSION", session));
-        page.Children.Add(WorkspaceUi.Card("STRATEGY", strategy));
-        page.Children.Add(WorkspaceUi.Card("AUTOMATION", automation));
+        foreach (var block in new[] { connection, session, strategy, automation }) block.FontSize = 16;
+        page.Children.Add(WorkspaceUi.Columns(WorkspaceUi.Card("COMMUNICATION", connection), WorkspaceUi.Card("SESSION", session)));
+        page.Children.Add(WorkspaceUi.Columns(WorkspaceUi.Card("STRATEGY", strategy), WorkspaceUi.Card("AUTOMATION", automation)));
         page.Children.Add(WorkspaceUi.Card("DOCUMENT HISTORY", history));
 
         communication.DocumentReceived += OnDocumentReceived;

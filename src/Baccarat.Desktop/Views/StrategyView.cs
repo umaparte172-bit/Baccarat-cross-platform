@@ -57,7 +57,7 @@ public sealed class StrategyView : StackPanel
         fileActions.Children.Add(reset);
         fileActions.Children.Add(undo);
         fileActions.Children.Add(export);
-        page.Children.Add(WorkspaceUi.Card("STRATEGY FILE", fileActions));
+        var fileCard = WorkspaceUi.Card("STRATEGY FILE", fileActions);
 
         var current = new StackPanel { Spacing = 10 };
         strategyName.Foreground = LegacyTheme.Text;
@@ -65,14 +65,16 @@ public sealed class StrategyView : StackPanel
         current.Children.Add(strategyName);
         current.Children.Add(recommendation);
         current.Children.Add(totals);
-        page.Children.Add(WorkspaceUi.Card("CURRENT RECOMMENDATION", current));
+        recommendation.FontSize = 20;
+        var currentCard = WorkspaceUi.Card("CURRENT RECOMMENDATION", current);
+        page.Children.Add(WorkspaceUi.Columns(currentCard, fileCard));
 
         var resolution = Row();
         resolution.Children.Add(choosePlayer);
         resolution.Children.Add(chooseBanker);
         resolution.Children.Add(manualStake);
         resolution.Children.Add(applyStake);
-        page.Children.Add(WorkspaceUi.Card("MANUAL RESOLUTION", resolution));
+        var manualCard = WorkspaceUi.Card("MANUAL RESOLUTION", resolution);
         page.Children.Add(Text(
             "Protected rules such as PATTERN require your side and stake decisions. Their automatic algorithms are not yet verified. " +
             "Settlement currently uses Player 1:1, Banker 0.95:1 and tie pushes; confirm these against the original before relying on comparisons.",
@@ -86,7 +88,7 @@ public sealed class StrategyView : StackPanel
         outcomes.Children.Add(playerResult);
         outcomes.Children.Add(bankerResult);
         outcomes.Children.Add(tieResult);
-        page.Children.Add(WorkspaceUi.Card("OBSERVED TABLE RESULT", outcomes));
+        page.Children.Add(WorkspaceUi.Columns(manualCard, WorkspaceUi.Card("OBSERVED TABLE RESULT", outcomes)));
         page.Children.Add(WorkspaceUi.Card("STRATEGY HISTORY", history));
 
         load.Click += async (_, _) => await LoadAsync();
@@ -268,7 +270,7 @@ public sealed class StrategyView : StackPanel
         if (engine is not null) changed?.Invoke(engine);
     }
 
-    private static StackPanel Row() => WorkspaceUi.Row();
+    private static WrapPanel Row() => WorkspaceUi.WrapRow();
 
     private static Button Button(string content) => WorkspaceUi.Action(content);
 

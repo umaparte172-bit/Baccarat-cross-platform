@@ -395,16 +395,13 @@ public sealed class DashboardView : UserControl
         {
             if (e.Key == Key.Enter && e.Source is TextBox) { ApplySettings(); e.Handled = true; }
         };
-        var pause = new Expander
-        {
-            Header = "Stop rules",
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Content = stopDescription
-        };
+        var pause = DashboardUi.Stack(DashboardUi.Text("STOP RULES", 11, DashboardUi.Muted, true), stopDescription);
+        pause.Spacing = 4;
+        editor.Children.Add(pause);
 
         var summary = DashboardUi.Stack(DashboardUi.Text("NEXT HAND", 11, DashboardUi.Muted, true), next, nextDescription,
             new Separator(), DashboardUi.Text("Balance", 12, DashboardUi.Muted), balance,
-            profit, pause);
+            profit);
         ToolTip.SetTip(balance, "Calculated from recorded strategy results, not a casino account. Use Tools for import and manual decisions.");
         var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 16 };
         columns.Children.Add(editor);

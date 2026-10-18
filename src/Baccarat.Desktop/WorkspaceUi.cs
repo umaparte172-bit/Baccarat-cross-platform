@@ -9,11 +9,13 @@ internal static class WorkspaceUi
 {
     internal static StackPanel Page(string eyebrow, string title, string description, bool centerHeading = false)
     {
-        var page = new StackPanel { Margin = new Thickness(16), Spacing = 14 };
-        var heading = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var page = new StackPanel { Margin = new Thickness(20, 8, 20, 20), Spacing = 16 };
+        var heading = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Stretch };
         heading.Children.Add(Text(eyebrow, 11, LegacyTheme.Gold, FontWeight.Bold));
-        heading.Children.Add(Text(title, 24, LegacyTheme.Text, FontWeight.Bold));
-        heading.Children.Add(Text(description, 13, LegacyTheme.Muted));
+        heading.Children.Add(Text(title, 28, LegacyTheme.Text, FontWeight.SemiBold));
+        var detail = Text(description, 13, LegacyTheme.Muted);
+        detail.Margin = new Thickness(0, 2, 0, 0);
+        heading.Children.Add(detail);
         if (centerHeading)
             foreach (var child in heading.Children.OfType<TextBlock>())
             {
@@ -24,18 +26,53 @@ internal static class WorkspaceUi
         return page;
     }
 
+    private static readonly BoxShadows CardShadow = new(new BoxShadow { OffsetX = 0, OffsetY = 1, Blur = 6, Color = Color.Parse("#14000000") });
+
+    // Status label: a small coloured pill.
+    internal static Border Pill(TextBlock text, IBrush color)
+    {
+        text.FontSize = 12;
+        text.FontWeight = FontWeight.SemiBold;
+        text.Foreground = Brushes.White;
+        return new Border { Background = color, CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 3), HorizontalAlignment = HorizontalAlignment.Left, Child = text };
+    }
+
+    // Large highlighted statement with an accent bar (for the thing the user acts on).
+    internal static Border Callout(Control content, IBrush accent) => new()
+    {
+        Background = Brush.Parse("#F3F7FD"),
+        BorderBrush = accent,
+        BorderThickness = new Thickness(4, 0, 0, 0),
+        CornerRadius = new CornerRadius(6),
+        Padding = new Thickness(14, 10),
+        Child = content
+    };
+
+    // Two cards side by side on wide windows (equal columns); children keep their own widths.
+    internal static Grid Columns(Control left, Control right, double gap = 16)
+    {
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = gap };
+        Grid.SetColumn(right, 1);
+        grid.Children.Add(left);
+        grid.Children.Add(right);
+        return grid;
+    }
+
+    internal static WrapPanel WrapRow(double spacing = 10) => new() { Orientation = Orientation.Horizontal, ItemSpacing = spacing, LineSpacing = spacing };
+
     internal static Border Card(string heading, Control content)
     {
-        var body = new StackPanel { Spacing = 10 };
-        body.Children.Add(Text(heading, 12, LegacyTheme.Muted, FontWeight.Bold));
+        var body = new StackPanel { Spacing = 12 };
+        body.Children.Add(Text(heading, 11, LegacyTheme.Muted, FontWeight.Bold));
         body.Children.Add(content);
         return new Border
         {
             Background = LegacyTheme.Panel,
-            BorderBrush = LegacyTheme.FieldBorder,
+            BorderBrush = Brush.Parse("#E3E6EC"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(7),
-            Padding = new Thickness(14),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(18, 16),
+            BoxShadow = CardShadow,
             Child = body
         };
     }
@@ -68,9 +105,9 @@ internal static class WorkspaceUi
     internal static Button Action(string label, IBrush? fill = null, IBrush? foreground = null) => new()
     {
         Content = label,
-        MinHeight = 34,
-        Padding = new Thickness(12, 6),
-        CornerRadius = new CornerRadius(5),
+        MinHeight = 36,
+        Padding = new Thickness(14, 7),
+        CornerRadius = new CornerRadius(8),
         Background = fill ?? LegacyTheme.Panel,
         Foreground = foreground ?? LegacyTheme.Text,
         BorderBrush = LegacyTheme.FieldBorder,
@@ -84,9 +121,10 @@ internal static class WorkspaceUi
     internal static Border HistoryRow(string text, IBrush? accent = null) => new()
     {
         Background = LegacyTheme.Panel,
-        BorderBrush = accent ?? LegacyTheme.FieldBorder,
-        BorderThickness = new Thickness(2, 0, 0, 0),
-        Padding = new Thickness(10, 7),
+        BorderBrush = accent ?? Brush.Parse("#C9D3E4"),
+        BorderThickness = new Thickness(3, 0, 0, 0),
+        CornerRadius = new CornerRadius(3),
+        Padding = new Thickness(12, 7),
         Child = Text(text, 13)
     };
 

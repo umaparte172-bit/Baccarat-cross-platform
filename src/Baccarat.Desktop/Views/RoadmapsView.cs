@@ -13,8 +13,8 @@ namespace Baccarat.Desktop.Views;
 
 public sealed class RoadmapsView : UserControl
 {
-    private readonly RoadGrid[] grids = [new(20, 11, RoadStyle.Bead), new(20, 22, RoadStyle.Ring),
-        new(14, 14, RoadStyle.Ring), new(14, 14, RoadStyle.Dot), new(14, 14, RoadStyle.Slash)];
+    private readonly RoadGrid[] grids = [new(18, 12, RoadStyle.Bead), new(18, 24, RoadStyle.Ring),
+        new(12, 16, RoadStyle.Ring), new(12, 16, RoadStyle.Dot), new(12, 16, RoadStyle.Slash)];
     private readonly ScrollViewer[] scrolls = new ScrollViewer[5];
     private readonly TextBlock bankerAsk = DashboardUi.Text("", 12);
     private readonly TextBlock playerAsk = DashboardUi.Text("", 12);

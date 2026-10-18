@@ -11,6 +11,8 @@ namespace Baccarat.Desktop.Views;
 public sealed class AutomationView : StackPanel, IDisposable
 {
     private readonly AutomationController controller;
+    private readonly TextBlock statePillText = new();
+    private Border? statePill;
     private readonly TextBlock status = Text("Automation is disconnected.", 17, "#E9BC72");
     private readonly TextBlock recommendation = Text("Load a strategy to prepare an initial bet.", 16, "#A8B5CA");
     private readonly TextBlock totals = Text("Accepted bets 0 · Session stake 0.00", 16, "#A8B5CA");
@@ -42,25 +44,22 @@ public sealed class AutomationView : StackPanel, IDisposable
             "Review each recommendation and approve every simulated placement.");
         Children.Add(page);
 
-        var state = new StackPanel { Spacing = 12 };
-        state.Children.Add(status);
-        state.Children.Add(totals);
-        page.Children.Add(WorkspaceUi.Card("SIMULATION STATUS", state));
-        page.Children.Add(WorkspaceUi.Card("NEXT RECOMMENDATION", recommendation));
+        // Top row: what is happening now, and what the strategy wants next.
+        statePill = WorkspaceUi.Pill(statePillText, Brush.Parse("#7A8294"));
+        var statusBody = new StackPanel { Spacing = 10 };
+        statusBody.Children.Add(statePill);
+        status.FontSize = 15;
+        statusBody.Children.Add(status);
+        statusBody.Children.Add(totals);
+        totals.FontSize = 13;
+        recommendation.FontSize = 22;
+        recommendation.FontWeight = FontWeight.SemiBold;
+        recommendation.Foreground = WorkspaceUi.Tone("#E9EEF6");
+        page.Children.Add(WorkspaceUi.Columns(
+            WorkspaceUi.Card("STATUS", statusBody),
+            WorkspaceUi.Card("NEXT RECOMMENDATION", WorkspaceUi.Callout(recommendation, Brush.Parse("#1769CE")))));
 
-        var connectionActions = Row();
-        connectionActions.Children.Add(connect);
-        connectionActions.Children.Add(recover);
-        connectionActions.Children.Add(pause);
-        page.Children.Add(WorkspaceUi.Card("CONNECTION", connectionActions));
-        if (openBrowser is not null)
-        {
-            var browser = Button("Open browser simulator");
-            browser.Click += (_, _) => openBrowser();
-            connectionActions.Children.Add(browser);
-        }
-
-        if (live is not null) page.Children.Add(BuildLiveCard(live));
+        // Second row: the actions you use every round, next to the connection controls.
         var bettingActions = Row();
         bettingActions.Children.Add(initialBet);
         bettingActions.Children.Add(approve);
@@ -68,16 +67,24 @@ public sealed class AutomationView : StackPanel, IDisposable
         bettingActions.Children.Add(disableAuto);
         approve.Background = LegacyTheme.Green;
         approve.Foreground = Brushes.White;
-        page.Children.Add(WorkspaceUi.Card("BET CONTROLS", bettingActions));
+        var connectionActions = Row();
+        connectionActions.Children.Add(connect);
+        connectionActions.Children.Add(recover);
+        connectionActions.Children.Add(pause);
+        if (openBrowser is not null)
+        {
+            var browser = Button("Open browser simulator");
+            browser.Click += (_, _) => openBrowser();
+            connectionActions.Children.Add(browser);
+        }
+        page.Children.Add(WorkspaceUi.Columns(
+            WorkspaceUi.Card("BET CONTROLS", bettingActions),
+            WorkspaceUi.Card("CONNECTION (SIMULATION)", connectionActions)));
 
-        page.Children.Add(Text(
-            "Local simulation is the only enabled adapter. Every placement requires approval.",
-            14,
-            "#91A1B9"));
-        page.Children.Add(Text(
-            "The browser simulator is a local training table only. It never connects to a casino or uses real money.",
-            14,
-            "#91A1B9"));
+        if (live is not null) page.Children.Add(BuildLiveCard(live));
+
+        var notes = Text("Local simulation is the only enabled adapter until you connect a live table below. Every placement requires approval. The browser simulator is a local training table: it never connects to a casino or uses real money.", 12, "#91A1B9");
+        page.Children.Add(notes);
 
         if (domAction is null)
         {
@@ -113,7 +120,7 @@ public sealed class AutomationView : StackPanel, IDisposable
             profiles.ItemsSource = names;
             if (profiles.SelectedItem is null && names.Count > 0) profiles.SelectedIndex = 0;
         }
-        var address = new TextBox { MinWidth = 380, Watermark = "Table page address to open in the live browser (optional)", Name = "LiveAddress" };
+        var address = new TextBox { HorizontalAlignment = HorizontalAlignment.Stretch, Watermark = "Table page address to open in the live browser (optional)", Name = "LiveAddress" };
         async Task Run(Func<string, Task<string>> action)
         {
             if (profiles.SelectedItem is not string name) { message.Text = "Choose a profile first."; return; }
@@ -132,8 +139,10 @@ public sealed class AutomationView : StackPanel, IDisposable
         var inspect = Button("Inspect page");
         inspect.Click += async (_, _) => { try { message.Text = await live.Inspect(); } catch (Exception ex) { message.Text = ex.Message; } };
         var row = Row();
-        foreach (var control in new Control[] { profiles, reload, open, connect, disconnect, inspect }) row.Children.Add(control);
+        foreach (var control in new Control[] { reload, open, connect, disconnect, inspect }) row.Children.Add(control);
         var panel = new StackPanel { Spacing = 10 };
+        profiles.MinWidth = 280;
+        panel.Children.Add(profiles);
         panel.Children.Add(row);
         panel.Children.Add(address);
         panel.Children.Add(message);
@@ -227,6 +236,16 @@ public sealed class AutomationView : StackPanel, IDisposable
     private void Refresh(AutomationSnapshot snapshot)
     {
         status.Text = $"{snapshot.State}: {snapshot.Message}";
+        statePillText.Text = snapshot.State.ToString();
+        if (statePill is not null)
+            statePill.Background = Brush.Parse(snapshot.State switch
+            {
+                AutomationRunState.Ready => "#119C50",
+                AutomationRunState.AwaitingApproval => "#1769CE",
+                AutomationRunState.PlacingBet or AutomationRunState.SelectingChips or AutomationRunState.Connecting => "#C47F0A",
+                AutomationRunState.Faulted or AutomationRunState.Stopped => "#B42331",
+                _ => "#7A8294"
+            });
         status.Foreground = WorkspaceUi.Tone(snapshot.State is AutomationRunState.Faulted or AutomationRunState.Stopped
             ? "#E48787"
             : snapshot.State == AutomationRunState.Ready ? "#7BD88F" : "#E9BC72");
@@ -246,7 +265,7 @@ public sealed class AutomationView : StackPanel, IDisposable
         pause.IsEnabled = connected && snapshot.State is not AutomationRunState.Stopped;
     }
 
-    private static StackPanel Row() => WorkspaceUi.Row();
+    private static WrapPanel Row() => WorkspaceUi.WrapRow();
     private static Button Button(string content) => WorkspaceUi.Action(content);
     private static TextBlock Text(string value, double size, string color = "#E9EEF6") =>
         new() { Text = value, FontSize = size, Foreground = WorkspaceUi.Tone(color), TextWrapping = TextWrapping.Wrap };
