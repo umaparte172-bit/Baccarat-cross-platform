@@ -98,32 +98,54 @@ public sealed class LiveTableProfileStore
             "BaccaratWorkspace", "live-profiles");
     }
 
+    // Why the last Load() skipped or could not write something (shown to the user instead of an empty list).
+    public IReadOnlyList<string> Problems { get; private set; } = [];
+
     public IReadOnlyList<LiveTableProfile> Load()
     {
-        System.IO.Directory.CreateDirectory(Directory);
-        var template = System.IO.Path.Combine(Directory, "template-calibrate-me.json");
-        // The stock template is rewritten when an older build left one that is tied to a placeholder site.
-        if (!File.Exists(template) || File.ReadAllText(template).Contains("example.com", StringComparison.OrdinalIgnoreCase))
-            File.WriteAllText(template, JsonSerializer.Serialize(Template, LiveTableProfile.Json));
-        // Calibrated from a real Evolution Speed Baccarat page (data-role attributes): reads results only, no betting yet.
-        var evolution = System.IO.Path.Combine(Directory, "evolution-baccarat-results-only.json");
-        if (!File.Exists(evolution)) File.WriteAllText(evolution, JsonSerializer.Serialize(EvolutionResultsOnly, LiveTableProfile.Json));
-        var betting = System.IO.Path.Combine(Directory, "evolution-baccarat-live-betting.json");
-        if (!File.Exists(betting)) File.WriteAllText(betting, JsonSerializer.Serialize(EvolutionBetting, LiveTableProfile.Json));
-        var canvasDemo = System.IO.Path.Combine(Directory, "multiplier-baccarat-demo-canvas.json");
-        if (!File.Exists(canvasDemo)) File.WriteAllText(canvasDemo, JsonSerializer.Serialize(MultiplierBaccaratDemo, LiveTableProfile.Json));
-        var profiles = new List<LiveTableProfile>();
-        foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").OrderBy(file => file))
+        var problems = new List<string>();
+        var builtIns = new (string File, LiveTableProfile Profile)[]
         {
-            try
+            ("template-calibrate-me.json", Template),
+            ("evolution-baccarat-results-only.json", EvolutionResultsOnly),
+            ("evolution-baccarat-live-betting.json", EvolutionBetting),
+            ("multiplier-baccarat-demo-canvas.json", MultiplierBaccaratDemo)
+        };
+        var profiles = new List<LiveTableProfile>();
+        try
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            foreach (var (name, profile) in builtIns)
             {
-                var profile = JsonSerializer.Deserialize<LiveTableProfile>(File.ReadAllText(file), LiveTableProfile.Json);
-                if (profile is null) continue;
-                profile.Validate();
-                profiles.Add(profile);
+                var path = System.IO.Path.Combine(Directory, name);
+                // The stock template is rewritten when an older build left one that is tied to a placeholder site.
+                var stale = name.StartsWith("template", StringComparison.Ordinal) && File.Exists(path) &&
+                    File.ReadAllText(path).Contains("example.com", StringComparison.OrdinalIgnoreCase);
+                if (!File.Exists(path) || stale) File.WriteAllText(path, JsonSerializer.Serialize(profile, LiveTableProfile.Json));
             }
-            catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException) { }
+            foreach (var file in System.IO.Directory.EnumerateFiles(Directory, "*.json").OrderBy(file => file, StringComparer.Ordinal))
+            {
+                try
+                {
+                    var profile = JsonSerializer.Deserialize<LiveTableProfile>(File.ReadAllText(file), LiveTableProfile.Json);
+                    if (profile is null) continue;
+                    profile.Validate();
+                    profiles.Add(profile);
+                }
+                catch (Exception ex)
+                {
+                    problems.Add($"{System.IO.Path.GetFileName(file)}: {ex.Message}");
+                }
+            }
         }
+        catch (Exception ex)
+        {
+            problems.Add($"Profile folder {Directory} is not usable: {ex.Message}");
+        }
+        // The built-in profiles are always offered, even when the folder cannot be read or written.
+        foreach (var (_, profile) in builtIns)
+            if (!profiles.Any(p => p.Name == profile.Name)) profiles.Add(profile);
+        Problems = problems;
         return profiles;
     }
 

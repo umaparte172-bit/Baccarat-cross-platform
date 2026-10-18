@@ -269,8 +269,10 @@ internal sealed class SessionTools : IDisposable
 
     private IReadOnlyList<string> LoadProfileNames()
     {
-        try { return profileStore.Load().Select(p => p.Name).ToArray(); }
-        catch (IOException) { return []; }
+        var names = profileStore.Load().Select(p => p.Name).ToArray();
+        if (profileStore.Problems.Count > 0)
+            Dispatcher.UIThread.Post(() => LiveStatus?.Invoke("Some profiles were skipped: " + string.Join(" | ", profileStore.Problems)));
+        return names;
     }
 
     private LiveTableProfile FindProfile(string name) =>
