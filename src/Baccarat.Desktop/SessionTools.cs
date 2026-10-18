@@ -166,9 +166,9 @@ internal sealed class SessionTools : IDisposable
         {
             await StartBrowserAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            Controller.Pause("Could not open the local browser simulator. Check your default browser and local firewall settings.");
+            Controller.Pause("Could not open the local browser simulator: " + ex.Message);
         }
     }
 

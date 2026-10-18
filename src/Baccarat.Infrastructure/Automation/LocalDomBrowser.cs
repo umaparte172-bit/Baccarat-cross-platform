@@ -35,11 +35,7 @@ public sealed class LocalDomBrowser : IAsyncDisposable
 
     public async Task StartAsync()
     {
-        var candidates = OperatingSystem.IsWindows() ? new[] {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google/Chrome/Application/chrome.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft/Edge/Application/msedge.exe") } :
-            new[] { "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "/usr/bin/chromium", "/usr/bin/google-chrome" };
-        var executable = candidates.FirstOrDefault(File.Exists) ?? throw new InvalidOperationException("Install Chrome or Edge to use the DOM simulator.");
+        var executable = BrowserLocator.FindInstalled() ?? throw new InvalidOperationException(BrowserLocator.MissingBrowserMessage);
         var profile = Path.Combine(Path.GetTempPath(), "Baccarat-DOM-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true };
@@ -49,6 +45,8 @@ public sealed class LocalDomBrowser : IAsyncDisposable
         browserProcess = Process.Start(start) ?? throw new InvalidOperationException("Could not start isolated browser.");
         var activePort = Path.Combine(profile, "DevToolsActivePort");
         for (var i = 0; i < 100 && !File.Exists(activePort); i++) await Task.Delay(150, lifetime.Token);
+        if (!File.Exists(activePort))
+            throw new InvalidOperationException("The browser did not start its local controller. Open the browser from Applications to check that it runs on this Mac, close it, then try again.");
         var lines = await File.ReadAllLinesAsync(activePort, lifetime.Token);
         if (lines.Length < 2 || !int.TryParse(lines[0], out var port) || port is < 1024 or > 65535)
             throw new InvalidOperationException("Browser did not expose a valid local debugging port.");

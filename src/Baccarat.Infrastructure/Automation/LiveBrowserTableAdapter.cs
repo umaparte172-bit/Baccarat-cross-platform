@@ -77,7 +77,7 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
             return;
         }
         if (!options.LaunchBrowser) throw new InvalidOperationException("No browser is listening on the debugging port.");
-        var executable = options.BrowserPath ?? FindBrowser() ?? throw new InvalidOperationException("Install Chrome or Edge to use a live table.");
+        var executable = options.BrowserPath ?? BrowserLocator.FindInstalled() ?? throw new InvalidOperationException(BrowserLocator.MissingBrowserMessage);
         var directory = options.ProfileDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "BaccaratWorkspace", "live-browser-profile");
         Directory.CreateDirectory(directory);
@@ -106,18 +106,6 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
             return doc.RootElement.Clone();
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { return null; }
-    }
-
-    private static string? FindBrowser()
-    {
-        var candidates = OperatingSystem.IsWindows() ? new[] {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google/Chrome/Application/chrome.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google/Chrome/Application/chrome.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google/Chrome/Application/chrome.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft/Edge/Application/msedge.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft/Edge/Application/msedge.exe") } :
-            new[] { "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "/usr/bin/google-chrome", "/usr/bin/chromium" };
-        return candidates.FirstOrDefault(File.Exists);
     }
 
     private async Task EnsureBrowserConnectionAsync(CancellationToken token)

@@ -17,6 +17,13 @@ using Baccarat.Infrastructure.Authentication;
 using Baccarat.Infrastructure.Strategies;
 using Baccarat.Infrastructure.Security;
 
+var macBrowserPaths = BrowserLocator.MacCandidates("/Users/tester").Select(path => path.Replace('\\', '/')).ToArray();
+if (!macBrowserPaths.Contains("/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing") ||
+    !macBrowserPaths.Contains("/Users/tester/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing") ||
+    !macBrowserPaths.Contains("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome") ||
+    !macBrowserPaths.Contains("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"))
+    throw new Exception("macOS browser discovery must support Chrome for Testing and existing browsers.");
+
 var screenshotDirectory = Environment.GetEnvironmentVariable("BACCARAT_SCREENSHOT_DIR");
 var builder = AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = screenshotDirectory is null });
 if (screenshotDirectory is not null) builder.UseSkia();
