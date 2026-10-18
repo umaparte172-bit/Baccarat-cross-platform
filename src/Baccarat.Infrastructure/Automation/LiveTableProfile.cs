@@ -94,8 +94,7 @@ public sealed class LiveTableProfileStore
 
     public LiveTableProfileStore(string? directory = null)
     {
-        Directory = directory ?? Environment.GetEnvironmentVariable("BACCARAT_LIVE_PROFILES") ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "BaccaratWorkspace", "live-profiles");
+        Directory = directory ?? Environment.GetEnvironmentVariable("BACCARAT_LIVE_PROFILES") ?? AppDataLocation.Combine("BaccaratWorkspace", "live-profiles");
     }
 
     // Why the last Load() skipped or could not write something (shown to the user instead of an empty list).

@@ -18,8 +18,7 @@ public sealed partial class DashboardWindow
     private DashboardWorkspace LoadWorkspace(bool enabled, string? path)
     {
         if (!enabled) return new DashboardWorkspace();
-        path ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "BaccaratWorkspace", "workspace-v1.json");
+        path ??= Baccarat.Infrastructure.AppDataLocation.Combine("BaccaratWorkspace", "workspace-v1.json");
         try
         {
             store = new WorkspaceFileStore(path);

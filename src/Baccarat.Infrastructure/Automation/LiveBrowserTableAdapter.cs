@@ -78,8 +78,7 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
         }
         if (!options.LaunchBrowser) throw new InvalidOperationException("No browser is listening on the debugging port.");
         var executable = options.BrowserPath ?? BrowserLocator.FindInstalled() ?? throw new InvalidOperationException(BrowserLocator.MissingBrowserMessage);
-        var directory = options.ProfileDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "BaccaratWorkspace", "live-browser-profile");
+        var directory = options.ProfileDirectory ?? AppDataLocation.Combine("BaccaratWorkspace", "live-browser-profile");
         Directory.CreateDirectory(directory);
         var start = new ProcessStartInfo(executable) { UseShellExecute = false };
         foreach (var arg in new[] { $"--remote-debugging-port={options.DebugPort}", "--remote-debugging-address=127.0.0.1",
