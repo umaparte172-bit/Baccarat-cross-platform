@@ -113,7 +113,7 @@ internal static class CanvasTableChecks
             }
         }
 
-        var profile = LiveTableProfileStore.MultiplierBaccaratDemo with { Name = "Mock canvas", StartClick = "" };
+        var profile = LiveTableProfileStore.MultiplierBaccaratDemo with { Name = "Mock canvas", StartClick = "", PlacementWaitSeconds = 0 };
         var debugPort = 19600 + Random.Shared.Next(0, 300);
         var adapter = new LiveBrowserTableAdapter(profile, new LiveBrowserOptions(debugPort, Path.Combine(Path.GetTempPath(), "Baccarat-Canvas-" + Guid.NewGuid().ToString("N"))));
         var seen = new ConcurrentQueue<LiveRoundResult>();

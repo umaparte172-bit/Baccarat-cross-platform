@@ -68,3 +68,10 @@ Some tables draw everything on one `<canvas>`. The app supports them without a D
 - **Calibrated profile:** *Multiplier Baccarat (demo canvas)* for the free play-money table at
   `games.ntcc.massivegaming.io/mb-table/?operator=demo` (winner codes seen: 0 Player, 3 Banker, 2 Tie). Verified end to end
   on that demo: results read, two 6-unit bets placed and confirmed by the table.
+
+## Synchronisation: result → strategy → approval → table → result
+
+- Live results are recorded through the same session path as manual ones, so the strategy engine, history and balance always match what the table showed.
+- With auto-bet on, each recorded result prepares the next recommendation; it still waits for your approval.
+- An approved bet is held (nothing is clicked) until the table's betting window opens, up to the profile's `PlacementWaitSeconds` (default 25, 0 = refuse immediately). If the window never opens in time, nothing is placed.
+- Placement is confirmed by the table (bet total or socket acknowledgement) and never retried. The next live result then settles against the exact side and stake that were recommended and placed. This full cycle is covered by the live-session check.

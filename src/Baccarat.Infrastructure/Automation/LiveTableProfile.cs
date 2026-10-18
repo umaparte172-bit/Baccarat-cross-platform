@@ -57,6 +57,8 @@ public sealed record LiveTableProfile
     public LiveOutcomeRule[] ResultRules { get; init; } = [];
     public LivePairRule[] PairRules { get; init; } = [];
     public string BalanceSelector { get; init; } = "";
+    // A bet approved while the table is between rounds waits this long for the next betting window (0 = refuse at once).
+    public int PlacementWaitSeconds { get; init; } = 25;
     public int PollMilliseconds { get; init; } = 500;
     public int ClickDelayMilliseconds { get; init; } = 120;
 

@@ -578,8 +578,17 @@ public sealed partial class LiveBrowserTableAdapter : IAutomationTableAdapter, I
         try
         {
             var state = await ReadStateAsync();
+            // Results arrive before the next betting window opens: hold an approved bet until it does (never clicking while closed).
+            var deadline = DateTime.UtcNow.AddSeconds(Math.Clamp(profile.PlacementWaitSeconds, 0, 120));
+            while (state.Open != true && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(300, cancellationToken);
+                state = await ReadStateAsync();
+            }
             if (state.Open != true)
-                return Remember(request, BetPlacementStatus.Rejected, "The betting window is not open; nothing was placed.");
+                return Remember(request, BetPlacementStatus.Rejected, profile.PlacementWaitSeconds > 0
+                    ? $"The betting window did not open within {profile.PlacementWaitSeconds} seconds; nothing was placed."
+                    : "The betting window is not open; nothing was placed.");
             if (state.Total != 0m)
                 return Remember(request, BetPlacementStatus.Rejected, "The table already shows a stake this round; nothing was added.");
             // From here clicks may reach the table, so this operation can never be repeated.

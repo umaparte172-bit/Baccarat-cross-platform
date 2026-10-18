@@ -217,6 +217,7 @@ internal static class LiveTableChecks
             StatusSelector = "#status", ChipSelector = "#chips button", ChipValueSource = "data-value",
             PlayerSelector = "[data-role=player]", BankerSelector = "[data-role=banker]", BetTotalSelector = "#total",
             ResultSelector = "#results li", NewestResult = "last", PollMilliseconds = 150,
+            PlacementWaitSeconds = 15,
             ResultRules = [new("player", Outcome.Player), new("banker", Outcome.Banker), new("tie", Outcome.Tie)]
         };
         File.WriteAllText(Path.Combine(profileDirectory, "mock.json"), System.Text.Json.JsonSerializer.Serialize(profile));
@@ -252,6 +253,33 @@ internal static class LiveTableChecks
         Check(context.Controller.Snapshot.State == AutomationRunState.AwaitingApproval, "Live bets must wait for approval");
         Pump(context.Controller.ApprovePendingAsync().AsTask());
         Check(context.Controller.Snapshot.AcceptedBets == 1, "Approved bet must be placed on the live table: " + context.Controller.Snapshot.Message);
+        // ---- Full cycle, everything in sync: result -> strategy -> auto recommendation -> approval -> table -> next result ----
+        Commands.Enqueue("reset"); Commands.Enqueue("close");
+        Thread.Sleep(600);
+        context.Controller.SetAutoBet(true);
+        var stakeBefore = context.Controller.Snapshot.SessionStake;
+        var handsBefore = session.Hands.Count;
+        Commands.Enqueue("result:banker");
+        Check(Until(() => session.Hands.Count == handsBefore + 1), "Cycle: live result recorded");
+        Check(Until(() => context.Controller.Snapshot.State == AutomationRunState.AwaitingApproval),
+            "Cycle: with auto-bet on, the next recommendation must be prepared automatically: " + context.Controller.Snapshot.Message);
+        var wanted = session.Engine!.Recommendation;
+        Check(wanted.Side is not null && wanted.Stake is not null, "Cycle: strategy must offer a bet");
+        // Approve while the table is still between rounds: the bet must wait for the window, then land exactly as recommended.
+        var approving = context.Controller.ApprovePendingAsync().AsTask();
+        Thread.Sleep(1500);
+        Check(!approving.IsCompleted, "Cycle: an approved bet must wait while the window is closed (nothing clicked)");
+        for (var i = 0; i < 40 && !approving.IsCompleted; i++) { Commands.Enqueue("open"); Thread.Sleep(250); }
+        Pump(approving);
+        Check(context.Controller.Snapshot.SessionStake - stakeBefore == wanted.Stake, "Cycle: stake placed on the table must equal the strategy's stake: " + context.Controller.Snapshot.Message);
+        Commands.Enqueue("close");
+        Commands.Enqueue("result:player");
+        Check(Until(() => session.Hands.Count == handsBefore + 2), "Cycle: next live result recorded");
+        var settled = session.Hands[^1].StrategyResult;
+        Check(settled is not null && settled.Side == wanted.Side && settled.Stake == wanted.Stake,
+            "Cycle: the strategy must settle the hand against the bet that was recommended and placed");
+        context.Controller.SetAutoBet(false);
+        Commands.Enqueue("reset");
         Check(context.LiveActive, "Live table must be the active adapter while connected (dashboard buttons then act on the browser)");
         var second = context.PlaceLiveBetAsync(Baccarat.Core.Strategies.BetSide.Player, 5m); Pump(second);
         Check(second.Result.Length > 0, "A dashboard-button placement must report a result");
@@ -283,7 +311,7 @@ internal static class LiveTableChecks
 
         var profile = new LiveTableProfile
         {
-            Name = "Mock", StartUrl = "", HostContains = "127.0.0.1", FrameUrlContains = "/table",
+            Name = "Mock", StartUrl = "", HostContains = "127.0.0.1", FrameUrlContains = "/table", PlacementWaitSeconds = 0,
             StatusSelector = "#status", ChipSelector = "#chips button", ChipValueSource = "data-value",
             PlayerSelector = "[data-role=player]", BankerSelector = "xpath://*[@data-role='banker']", BetTotalSelector = "#total",
             ResultSelector = "#results li", NewestResult = "last", BalanceSelector = "#bal", PollMilliseconds = 150,
