@@ -2,14 +2,14 @@ namespace Baccarat.Infrastructure.Automation;
 
 public static class BrowserLocator
 {
-    public const string MissingBrowserMessage = "No supported browser was found. On macOS, move Google Chrome, Google Chrome for Testing, or Microsoft Edge into Applications using Finder, then try again. Safari is not supported by this browser controller.";
+    public const string MissingBrowserMessage = "No supported browser was found. On macOS, install Google Chrome (or Microsoft Edge, Brave or Chromium) into Applications, then try again. Safari is not supported by this browser controller.";
 
     public static string? FindInstalled() => Candidates().FirstOrDefault(File.Exists);
 
     public static IEnumerable<string> MacCandidates(string userDirectory)
     {
         foreach (var directory in new[] { "/Applications", Path.Combine(userDirectory, "Applications") })
-            foreach (var name in new[] { "Google Chrome", "Google Chrome for Testing", "Microsoft Edge" })
+            foreach (var name in new[] { "Google Chrome", "Google Chrome for Testing", "Microsoft Edge", "Chromium", "Brave Browser", "Google Chrome Canary", "Vivaldi" })
                 yield return Path.Combine(directory, name + ".app", "Contents", "MacOS", name);
     }
 
