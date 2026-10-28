@@ -35,6 +35,8 @@ export interface EngineStatus {
   run_net_units: number;
   single_wins: number;
   virtual_mode: boolean;
+  /** A real bet has been placed in the current run and the run has not closed yet. */
+  run_open: boolean;
 }
 
 /**
@@ -50,6 +52,10 @@ export interface StrategyEngine {
   settle(result: Result, paused: boolean): HandResult;
   /** A new shoe is starting; apply the configured shoe-change policy. */
   newShoe(): void;
+  /** Drop the open run (its loss is accepted) and return to the base stake. */
+  cutRun(): void;
+  /** Start again from scratch: no pattern history, no run, no counters. */
+  reset(): void;
   status(): EngineStatus;
   snapshot(): unknown;
   restore(snapshot: unknown): void;

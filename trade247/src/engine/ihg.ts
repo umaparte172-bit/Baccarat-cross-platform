@@ -1,4 +1,4 @@
-import { roundUpToChip, toMicro } from './money.js';
+import { BANKER_PAYOUT, roundUpToChip, toMicro } from './money.js';
 import type { Settings } from './settings.js';
 import type { BetPlan, EngineStatus, HandResult, StrategyEngine } from './strategy.js';
 import type { Result, Side } from './types.js';
@@ -35,7 +35,6 @@ export function ihgConfig(s: Settings): IhgConfig {
 
 /** One unit expressed in "unit-micros": stakes in units are held as integers of 1e-6 unit. */
 const UNIT = 1_000_000;
-const BANKER_PAYOUT = 0.95;
 const VIRTUAL_WINS_TO_RESUME = 2;
 
 interface State {
@@ -53,6 +52,8 @@ interface State {
   stakeUnits: number;
   /** The previous settled hand of this run was a win. */
   previousWin: boolean;
+  /** A real bet was placed in this run and the run has not closed yet. */
+  runOpen: boolean;
   singles: number;
   virtual: boolean;
   virtualWins: number;
@@ -66,6 +67,7 @@ const freshState = (): State => ({
   runMicro: 0,
   stakeUnits: UNIT,
   previousWin: false,
+  runOpen: false,
   singles: 0,
   virtual: false,
   virtualWins: 0,
@@ -173,6 +175,7 @@ export class IhgEngine implements StrategyEngine {
         s.runMicro = 0;
         s.singles = 0;
         s.previousWin = false;
+        s.runOpen = false;
         s.stakeUnits = UNIT;
         if (plan.final && pause) {
           s.virtual = true;
@@ -181,6 +184,7 @@ export class IhgEngine implements StrategyEngine {
         }
       } else {
         s.previousWin = won;
+        s.runOpen = true;
         s.stakeUnits = won ? this.recoveryStake() : UNIT;
         if (pause) {
           s.virtual = true;
@@ -190,10 +194,7 @@ export class IhgEngine implements StrategyEngine {
         const cap = this.cfg.hardCapUnits;
         if (cap !== null && s.stakeUnits / UNIT > cap) {
           note = `${note ? note + ' - ' : ''}hard cap exceeded - run dropped`;
-          s.runMicro = 0;
-          s.previousWin = false;
-          s.stakeUnits = UNIT;
-          if (!s.virtual) s.singles = 0;
+          this.cutRun();
           runClosed = true;
         }
       }
@@ -254,14 +255,23 @@ export class IhgEngine implements StrategyEngine {
     s.twoRemaining = 0;
     s.pattern = 'First bet';
     s.side = 'P';
-    if (this.cfg.shoePolicy === 'reset_all') {
-      // Cut the open sequence so no deficit is carried into the new shoe. Virtual mode is a table
-      // safety valve rather than a deficit, so it keeps running until its two wins arrive.
-      s.runMicro = 0;
-      s.stakeUnits = UNIT;
-      s.previousWin = false;
-      if (!s.virtual) s.singles = 0;
-    }
+    // Cut the open sequence so no deficit is carried into the new shoe.
+    if (this.cfg.shoePolicy === 'reset_all') this.cutRun();
+  }
+
+  cutRun(): void {
+    const s = this.s;
+    s.runMicro = 0;
+    s.stakeUnits = UNIT;
+    s.previousWin = false;
+    s.runOpen = false;
+    // Virtual mode is a table safety valve rather than a deficit, so it keeps running until its
+    // two wins arrive; its single-win count is only cleared when betting is live.
+    if (!s.virtual) s.singles = 0;
+  }
+
+  reset(): void {
+    this.s = freshState();
   }
 
   status(): EngineStatus {
@@ -269,6 +279,7 @@ export class IhgEngine implements StrategyEngine {
       run_net_units: Math.round((this.s.runMicro / this.cfg.unitMicro) * 100) / 100,
       single_wins: this.s.singles,
       virtual_mode: this.s.virtual,
+      run_open: this.s.runOpen,
     };
   }
 

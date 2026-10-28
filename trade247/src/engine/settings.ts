@@ -20,6 +20,7 @@ export interface Settings {
   hard_cap_mode: 'off' | 'custom';
   hard_cap_units: number;
   daily_stop_loss: number;
+  daily_take_profit: number;
 
   single_wins_mode: 'off' | 'doc' | 'custom';
   single_wins_limit: number;
@@ -80,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hard_cap_mode: 'off',
   hard_cap_units: 200,
   daily_stop_loss: 0,
+  daily_take_profit: 0,
 
   single_wins_mode: 'doc',
   single_wins_limit: 7,
@@ -189,6 +191,7 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
     hard_cap_mode: pick(g('hard_cap_mode'), ['off', 'custom'], p.hard_cap_mode),
     hard_cap_units: num(g('hard_cap_units'), p.hard_cap_units, 1, 1e6),
     daily_stop_loss: num(g('daily_stop_loss'), p.daily_stop_loss, 0, 1e9),
+    daily_take_profit: num(g('daily_take_profit'), p.daily_take_profit, 0, 1e9),
 
     single_wins_mode: pick(g('single_wins_mode'), ['off', 'doc', 'custom'], p.single_wins_mode),
     single_wins_limit: int(g('single_wins_limit'), p.single_wins_limit, 1, 10_000),
@@ -236,6 +239,8 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
   if (!(s.start_balance > 0)) errors.push('Start balance must be above 0');
   if (s.progression === 'list' && s.chain.length === 0) errors.push('Enter a progression sequence, e.g. 0.1, 0.2, 0.4, 0.8');
   if (s.cycle_pct_max < s.cycle_pct_min) errors.push('JJ "up to %" must not be below "Increase from %"');
+  if (s.pause_consec_loss_count > 0 && s.pause_bet_count === 0) errors.push('Enter how many hands to pause for ("Pause for (hands)")');
+  if (s.keepalive_enabled && s.keepalive_amount <= 0) errors.push('Keep-Alive amount must be above 0');
   return { settings: s, errors };
 }
 

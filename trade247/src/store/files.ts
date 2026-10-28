@@ -6,6 +6,18 @@ interface Meta {
   sessionCounter: number;
 }
 
+/** Profit/loss of all sessions on one local calendar day. */
+export interface DayTotal {
+  /** Local date, YYYY-MM-DD. */
+  day: string;
+  pnlMicro: number;
+}
+
+export function localDay(d: Date): string {
+  const p = (n: number): string => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 function readJson<T>(path: string): T | null {
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as T;
@@ -49,6 +61,17 @@ export class SettingsStore {
     const { telegram_token, ...rest } = settings;
     writeJsonAtomic(this.settingsPath, rest);
     if (telegram_token || existsSync(this.secretsPath)) writeJsonAtomic(this.secretsPath, { telegram_token }, 0o600);
+  }
+
+  /** The saved day total, or an empty total for today when there is none (or it is from another day). */
+  loadDay(today: string): DayTotal {
+    const saved = readJson<DayTotal>(join(this.dataDir, 'day.json'));
+    if (saved && saved.day === today && Number.isFinite(saved.pnlMicro)) return saved;
+    return { day: today, pnlMicro: 0 };
+  }
+
+  saveDay(total: DayTotal): void {
+    writeJsonAtomic(join(this.dataDir, 'day.json'), total);
   }
 
   nextSessionNumber(): number {

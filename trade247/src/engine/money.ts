@@ -1,7 +1,10 @@
 // Money is held as integer micro-units (1e-6) so repeated 0.95 Banker payouts never drift.
 export const MICRO = 1_000_000;
 
-export const toMicro = (value: number): number => Math.round(value * MICRO);
+/** A Banker win pays 95% of the stake (5% commission); a Player win pays 1:1. */
+export const BANKER_PAYOUT = 0.95;
+
+export const toMicro =(value: number): number => Math.round(value * MICRO);
 export const fromMicro = (micro: number): number => micro / MICRO;
 
 /** Two-decimal string for display and logs (rounded half away from zero). */

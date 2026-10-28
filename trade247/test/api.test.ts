@@ -295,7 +295,7 @@ describe('IHG through the API', () => {
     expect(state.rows.map((r: any) => [r.pick, r.outcome, r.pattern])).toEqual([['P', 'LOSS', 'Follow'], ['B', 'WIN', 'Streak']]);
     expect(state.rows[1]).toMatchObject({ run_net_units: -0.05, session_pnl: '-0.05' });
     expect(state.next).toMatchObject({ mode: 'REAL', pick: 'BANKER', units: 2, stake: 2, final: false, pattern: 'Streak' });
-    expect(state.strategy_state).toEqual({ run_net_units: -0.05, single_wins: 0, virtual_mode: false });
+    expect(state.strategy_state).toMatchObject({ run_net_units: -0.05, single_wins: 0, virtual_mode: false, run_open: true });
   });
 
   it('switches to virtual bets at the single-win limit and resumes after two virtual wins', async () => {
@@ -348,13 +348,6 @@ describe('settings the bot cannot honour yet', () => {
     ['JJ', { strategy: 'JJ' }, /JJ is not available yet/],
     ['manual sequence', { progression: 'list', chain: [1, 2, 3] }, /Manual Sequence Input is not available yet/],
     ['virtual entry filter', { entry_loss_filter: 3 }, /Virtual Bet entry filter is not available yet/],
-    ['keep-alive', { keepalive_enabled: true }, /Keep-Alive is not available yet/],
-    ['take profit', { take_profit: 10 }, /Take Profit is not available yet/],
-    ['stop loss', { stop_loss: 10 }, /Stop Loss is not available yet/],
-    ['daily stop loss', { daily_stop_loss: 10 }, /Daily stop loss is not available yet/],
-    ['stop after N losses', { stop_consec_loss_count: 5 }, /Stop after N losses is not available yet/],
-    ['pause after N losses', { pause_consec_loss_count: 5 }, /Pause after N losses is not available yet/],
-    ['near shoe end', { end_shoe_policy: 'cut_run' }, /Near shoe end handling is not available yet/],
   ];
 
   it.each(refused)('refuses to start with %s instead of silently ignoring it', async (_name, extra, message) => {
@@ -368,10 +361,10 @@ describe('settings the bot cannot honour yet', () => {
   it('refuses a live change to an unsupported setting and leaves the session untouched', async () => {
     const h = harness();
     await start(h);
-    expect((await h.post('/api/apply', { stop_loss: 5 })).json).toEqual({ ok: false, live: false });
+    expect((await h.post('/api/apply', { entry_loss_filter: 3 })).json).toEqual({ ok: false, live: false });
     const state = (await h.get('/api/state')).json;
-    expect(state.error).toMatch(/Stop Loss is not available yet/);
-    expect(state.settings.stop_loss).toBe(0);
+    expect(state.error).toMatch(/Virtual Bet entry filter is not available yet/);
+    expect(state.settings.entry_loss_filter).toBe(0);
     expect(state.running).toBe(true);
   });
 

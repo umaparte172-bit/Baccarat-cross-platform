@@ -206,6 +206,7 @@ total, depending mostly on the client's answers and table access.
 | M0 Alignment and setup | Done (scaffold, tests, README). The client's questions in section 11 are still unanswered. |
 | M1 Skeleton and UI wiring | Done. |
 | M2 IHG engine | Done. 315-hand oracle passes; 88 tests in total; six deliberate engine mutations are all caught. |
+| M3 Risk and operations layer | Done except the Virtual Bet entry filter, which waits for the client's answer (once per session or before every run?). 110 tests; ten deliberate mutations of the risk layer are all caught. |
 
 Section 11 updates from M2: question 5 is answered by the document itself (Example 4 keeps the run's debt after
 a virtual pause and resumes at one unit; Example 3's text says a fresh run starts after a run-end pause).
