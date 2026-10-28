@@ -1,0 +1,12 @@
+{
+  "name": "Pragmatic Play baccarat on Roobet (road only)",
+  "containerSelector": ".wC_wK",
+  "itemSelector": ".wC_wL",
+  "order": "columns",
+  "rules": [
+    { "exact": "P", "result": "P" },
+    { "exact": "B", "result": "B" },
+    { "exact": "T", "result": "T" }
+  ],
+  "hostContains": ""
+}

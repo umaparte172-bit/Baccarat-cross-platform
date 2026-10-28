@@ -71,7 +71,7 @@ export async function startChrome(executable: string): Promise<TestChrome> {
 
 export interface MockTable {
   /** What the table shows. Change it and the page follows within a moment. */
-  state: { container: boolean; cells: string[] };
+  state: { container: boolean; cells: string[]; /** When set, the road is drawn as a grid: one string per row, '.' for an empty cell. */ rows: string[] | null };
   /** The address to open: a page on one site that shows the table from another site in a frame. */
   pageUrl: string;
   stop: () => Promise<void>;
@@ -83,7 +83,7 @@ function listen(server: Server): Promise<number> {
 
 /** A table page inside a frame from a different site (like a casino lobby around a game provider's table). */
 export async function startMockTable(): Promise<MockTable> {
-  const state = { container: true, cells: [] as string[] };
+  const state = { container: true, cells: [] as string[], rows: null as string[] | null };
   const inner = createServer((req, res) => {
     if (req.url === '/state') {
       res.setHeader('content-type', 'application/json');
@@ -97,7 +97,9 @@ export async function startMockTable(): Promise<MockTable> {
           const s = await (await fetch('/state')).json();
           document.body.innerHTML = s.container
             ? '<div data-role="status"><span>PLACE YOUR BETS</span></div><div data-role="balance">$ 1,234.50</div>' +
-              '<div data-role="Bead-road">' + s.cells.map(c => '<div data-role="roadItem">' + c + '</div>').join('') + '</div>'
+              (s.rows
+                ? '<div class="grid">' + s.rows.map(r => '<div class="row">' + [...r].map(ch => '<div class="cell">' + (ch === '.' ? '' : ch) + '</div>').join('') + '</div>').join('') + '</div>'
+                : '<div data-role="Bead-road">' + s.cells.map(c => '<div data-role="roadItem">' + c + '</div>').join('') + '</div>')
             : '<p>lobby</p>';
         } catch (e) {}
       }

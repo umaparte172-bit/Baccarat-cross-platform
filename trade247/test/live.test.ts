@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { HandEvent } from '../src/feeds/feed.js';
 import { LiveFeed, type LiveHooks } from '../src/feeds/live.js';
 import { listPages } from '../src/live/cdp.js';
+import { PageSession } from '../src/live/page.js';
 import { inspectTables } from '../src/live/inspect.js';
 import { EVOLUTION_BEAD_ROAD, PROFILE_FILE, diffRoad, loadProfile, parseProfile, probeScript } from '../src/live/profile.js';
 import { findChrome, openTab, startChrome, startMockTable, until, type MockTable, type TestChrome } from './chrome.js';
@@ -92,6 +93,32 @@ describe.skipIf(!chrome)('reading a table in a real Chrome', () => {
     return { hands, log, hooks };
   };
   const results = (hands: HandEvent[]) => hands.map((h) => h.result).join('');
+
+  it('reads a road drawn as a grid column by column, skipping empty cells', async () => {
+    table.state.container = true;
+    table.state.cells = [];
+    table.state.rows = ['BPP...', 'TBB...', 'BT....', 'PB....', 'BB....', 'PT....'];
+    await new Promise((r) => setTimeout(r, 300));
+    const target = (await listPages(browser.port)).find((p) => p.url.includes('/lobby'))!;
+    const session = await PageSession.attach(target, 800);
+    try {
+      const profile = parseProfile({
+        name: 'grid', containerSelector: '.row', itemSelector: '.cell', order: 'columns',
+        rules: [{ exact: 'P', result: 'P' }, { exact: 'B', result: 'B' }, { exact: 'T', result: 'T' }],
+      });
+      if ('error' in profile) throw new Error(profile.error);
+      expect(profile.order).toBe('columns');
+      const reading = await session.readRoad(profile);
+      // Column 1 top to bottom (B T B P B P), column 2 (P B T B B T), column 3 (P B).
+      expect(reading?.items.join('')).toBe('BTBPBP' + 'PBTBBT' + 'PB');
+      expect(reading?.unreadable).toBe(false);
+      // The same page read as a plain list gives the cells row by row only when asked to.
+      expect(parseProfile({ ...profile, order: 'sideways' })).toMatchObject({ error: expect.stringContaining('order') });
+    } finally {
+      session.close();
+      table.state.rows = null;
+    }
+  });
 
   it('lists the tab and reads a road inside a frame from another site', async () => {
     const pages = await listPages(browser.port);

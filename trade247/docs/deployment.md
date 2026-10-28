@@ -150,8 +150,9 @@ The **Live table** result feed reads the results of a baccarat table you have op
 **Paper** bet mode it never clicks, types or bets there: bets stay simulated, and the page says so. Real betting is a
 separate, opt-in step (section 10).
 
-1. Double-click `Start-Chrome-for-Trade247.bat` (Windows) or `Start-Chrome-for-Trade247.command` (Mac). It opens a Chrome
-   window with its own profile and a debugging port on this computer only (default 9014).
+1. In the app, press **Open Chrome for the table** (Result feed > Live table). It opens a Chrome window with its own profile
+   (in the data folder) and a debugging port on this computer only (default 9014), or tells you why it could not. The
+   launcher scripts `Start-Chrome-for-Trade247.bat` (Windows) and `.command` (Mac) do the same thing without the app.
 2. In that window sign in and open a baccarat table.
 3. In TRADE247 choose **Live table (read-only, from your Chrome)**, check the port, press **START**.
 
@@ -267,6 +268,17 @@ It is **real money**, and a casino may close an account that bets automatically;
 * **PAUSE** while a bet is on the table starts after its result. **STOP** ends everything immediately.
 * It never goes near deposits, tips, withdrawals or any account page.
 * It does not change your browser's identity or imitate a person's mouse movements; the pause before a bet is only a delay.
+
+### Ready-made profiles
+
+Copy one into the data folder as `live-profile.json`, then run `trade247 --check-table` with the table open.
+
+| File | Table | Status |
+|---|---|---|
+| `docs/profiles/pragmatic-play-roobet.json` | Pragmatic Play baccarat (for example "Baccarat 5") on Roobet | **Road only** (Paper mode). Checked against a real open table on 2026-10-28: it read the road. No betting settings yet. Its selectors are generated class names (`wC_wK`), which Pragmatic may change; `--check-table` shows when they stop matching. |
+| built-in | Evolution baccarat | Road only, unverified. |
+
+Roobet hosts tables from more than one provider (Evolution, Pragmatic Play, ...), so the profile must match the provider of the table you open. If the status says "no baccarat table is visible" while a table is open, the profile is for another provider.
 
 ### Calibrating a table
 

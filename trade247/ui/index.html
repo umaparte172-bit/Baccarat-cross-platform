@@ -199,7 +199,8 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
     </div>
     <div id="liveBox" class="hide">
       <label>Chrome debugging port</label><input type="number" data-key="live_port" min="1" max="65535">
-      <div class="foot">Open Chrome with the TRADE247 Chrome launcher, sign in and open a baccarat table there. Results are read from the page. The road already on screen when you press Start is history and is not played.</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:4px"><button class="btn-reset-input" id="openChrome" type="button" title="Opens Chrome with a debugging port and a profile of its own, so the bot can read your table">Open Chrome for the table</button><span id="chromeMsg" class="foot"></span></div>
+      <div class="foot">Press "Open Chrome for the table", sign in and open a baccarat table in that window. Results are read from the page. The road already on screen when you press Start is history and is not played.</div>
       <div class="foot"><b>Betting on this table</b></div>
       <label>Bet mode</label>
       <select data-key="bet_mode">
@@ -628,6 +629,14 @@ $('#apply').onclick = guarded(async (d) => {
   toast(r.live ? 'Applied to the running session' + (d.strategy !== (cur && cur.settings.strategy) ? ' - strategy switched, new strategy starts from the next hand' : '') : 'Settings saved');
 });
 $('#stop').onclick = () => api('/api/stop', {});
+$('#openChrome').onclick = async () => {
+  const msg = $('#chromeMsg');
+  msg.textContent = 'Opening...';
+  try {
+    const r = await api('/api/live/open_browser', {port: num(document.querySelector('[data-key=live_port]').value, 9014)});
+    msg.textContent = r.ok ? (r.already ? 'Chrome is already open on this port - open your table in it.' : 'Chrome is open - sign in and open your table in that window.') : (r.error || 'Could not open Chrome');
+  } catch (e) { msg.textContent = 'Could not open Chrome'; }
+};
 $('#betOk').onclick = async () => { const r = await api('/api/bet/approve', {}); if (!r.ok) toast(r.error || 'Could not place the bet'); };
 $('#betSkip').onclick = async () => { await api('/api/bet/skip', {}); };
 $('#pause').onclick = async () => { const r = await api(cur && cur.paused ? '/api/resume' : '/api/pause', {}); if (!r.ok) toast('Nothing to pause - session not running'); };

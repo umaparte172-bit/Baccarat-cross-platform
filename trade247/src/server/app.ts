@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { BacktestManager } from '../backtest/jobs.js';
+import { openTableBrowser, type BrowserLaunch } from '../live/browser.js';
 import { writeSnapshot } from '../report/export.js';
 import { uiHtml } from '../runtime.js';
 import { XLSX_MIME } from '../report/xlsx.js';
@@ -22,6 +24,8 @@ export interface AppOptions {
   backtest?: BacktestManager;
   /** Seals the Telegram token on disk (the desktop app passes the system keychain). */
   secretBox?: SecretBox;
+  /** Opens the browser the Live table feed reads; tests pass a fake so no browser is started. */
+  openBrowser?: (port: number, profileDir: string) => Promise<BrowserLaunch>;
 }
 
 const CSP = [
@@ -147,6 +151,13 @@ export function buildApp(options: AppOptions): FastifyInstance {
   });
 
   app.post('/api/telegram_test', async () => manager.telegramTest());
+  // Chrome with a debugging port and a profile of its own, for the Live table feed (the port is the one on the page).
+  app.post('/api/live/open_browser', async (req) => {
+    const asked = Number(body(req).port);
+    const port = Number.isInteger(asked) && asked >= 1 && asked <= 65535 ? asked : manager.currentSettings().live_port;
+    const profileDir = join(options.dataDir, 'chrome-profile');
+    return (options.openBrowser ?? ((p, dir) => openTableBrowser({ port: p, profileDir: dir })))(port, profileDir);
+  });
   app.post('/api/bet/approve', async () => manager.approveBet());
   app.post('/api/bet/skip', async () => manager.skipBet());
 

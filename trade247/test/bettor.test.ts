@@ -64,8 +64,15 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
     s.mode = 'normal';
     s.coverBanker = false;
     s.coverPlayer = false;
-    // The page follows the table's state a few times a second.
-    await new Promise((r) => setTimeout(r, 200));
+    // The page follows the table's state a few times a second: wait until it shows the reset state.
+    const end = Date.now() + 5000;
+    for (;;) {
+      const snap = await page.readWindow(betting).catch(() => null);
+      if (snap && snap.reading.open && snap.reading.total === 0 && !table.state.coverBanker && !table.state.coverPlayer) break;
+      if (Date.now() > end) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    await new Promise((r) => setTimeout(r, 60));
   });
 
   const bettor = (extra: ConstructorParameters<typeof TableBettor>[2] = {}) =>

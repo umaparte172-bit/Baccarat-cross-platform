@@ -42,6 +42,13 @@ export interface LiveProfile {
   /** The result cells inside the container, oldest first. */
   itemSelector: string;
   rules: LiveRule[];
+  /**
+   * "document": the cells inside the first container, in page order (a plain list of results).
+   * "columns": the road is a grid whose ROWS are the elements matching containerSelector and whose cells match
+   * itemSelector (empty cells included, so each keeps its column); results are read column by column, top to bottom,
+   * which is how a bead plate fills.
+   */
+  order: 'document' | 'columns';
   /** Optional: only tabs whose address contains this text are considered. */
   hostContains: string;
   /** null = read only: the table cannot be bet on with this profile. */
@@ -59,6 +66,7 @@ export const EVOLUTION_BEAD_ROAD: LiveProfile = {
     { exact: 'T', result: 'T' },
   ],
   hostContains: '',
+  order: 'document',
   betting: null,
 };
 
@@ -95,6 +103,8 @@ export function parseProfile(raw: unknown): LiveProfile | { error: string } {
   }
   const host = o.hostContains === undefined ? '' : o.hostContains;
   if (typeof host !== 'string' || host.length > 200) return { error: '"hostContains" must be text' };
+  const order = o.order === undefined ? 'document' : o.order;
+  if (order !== 'document' && order !== 'columns') return { error: '"order" must be "document" or "columns"' };
   const betting = parseBetting(o.betting);
   if (betting && 'error' in betting) return betting;
   return {
@@ -103,6 +113,7 @@ export function parseProfile(raw: unknown): LiveProfile | { error: string } {
     itemSelector: o.itemSelector as string,
     rules,
     hostContains: host,
+    order,
     betting,
   };
 }
@@ -154,13 +165,36 @@ export function loadProfile(dataDir: string): LiveProfile | { error: string } {
  * Returns { container, items } where items are 'P' | 'B' | 'T' or '?' for a cell no rule recognises.
  */
 export function probeScript(profile: LiveProfile): string {
-  const fn = function (p: { containerSelector: string; itemSelector: string; rules: LiveRule[] }) {
+  const fn = function (p: { containerSelector: string; itemSelector: string; rules: LiveRule[]; order: string }) {
     const out: { container: boolean; items: string[]; error?: string } = { container: false, items: [] };
     try {
-      const container = document.querySelector(p.containerSelector);
-      if (!container) return out;
-      out.container = true;
-      const nodes = container.querySelectorAll(p.itemSelector);
+      let nodes: HTMLElement[] = [];
+      if (p.order === 'columns') {
+        const rows = document.querySelectorAll(p.containerSelector);
+        if (rows.length === 0) return out;
+        out.container = true;
+        const grid: NodeListOf<Element>[] = [];
+        let width = 0;
+        for (let r = 0; r < rows.length; r++) {
+          const cells = rows[r]!.querySelectorAll(p.itemSelector);
+          grid.push(cells);
+          if (cells.length > width) width = cells.length;
+        }
+        for (let c = 0; c < width; c++) {
+          for (let r = 0; r < grid.length; r++) {
+            const cell = grid[r]![c] as HTMLElement | undefined;
+            if (!cell) continue;
+            // An empty cell is a place not yet filled: it keeps its column but is not a result.
+            if (String(cell.textContent || '').trim() === '' && !cell.getAttribute('aria-label')) continue;
+            nodes.push(cell);
+          }
+        }
+      } else {
+        const container = document.querySelector(p.containerSelector);
+        if (!container) return out;
+        out.container = true;
+        nodes = Array.prototype.slice.call(container.querySelectorAll(p.itemSelector));
+      }
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i] as HTMLElement;
         const text = String(node.innerText || node.textContent || '').trim().toLowerCase();
@@ -179,7 +213,7 @@ export function probeScript(profile: LiveProfile): string {
     }
     return out;
   };
-  const arg = { containerSelector: profile.containerSelector, itemSelector: profile.itemSelector, rules: profile.rules };
+  const arg = { containerSelector: profile.containerSelector, itemSelector: profile.itemSelector, rules: profile.rules, order: profile.order };
   return `(${fn.toString()})(${JSON.stringify(arg)})`;
 }
 
