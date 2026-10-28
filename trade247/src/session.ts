@@ -8,6 +8,8 @@ import { normalizeSettings, publicSettings, type Settings } from './engine/setti
 import type { BetPlan } from './engine/strategy.js';
 import { isResult, type NextBet, type Row } from './engine/types.js';
 import { ManualFeed, ReplayFeed, SimulatorFeed, parseReplay, type Feed, type HandEvent } from './feeds/feed.js';
+import { LiveFeed } from './feeds/live.js';
+import { loadProfile, type LiveProfile } from './live/profile.js';
 import { TelegramNotifier, configProblem, type Notifier, type SendResult, type TelegramOptions } from './notify/telegram.js';
 import { LOG_FILE_NAME, appendHistory, buildCsv, type HandRecord } from './report/csv.js';
 import { latestSessionFromHistory, tableFromRecords, type Table } from './report/table.js';
@@ -74,6 +76,7 @@ export class SessionManager {
   private readonly notifier: Notifier;
   private shoeNo = 1;
   private feedIsLost = false;
+  private liveProfile: LiveProfile | null = null;
 
   constructor(
     private readonly store: SettingsStore,
@@ -164,6 +167,11 @@ export class SessionManager {
         };
       }
     }
+    if (settings.feed === 'live') {
+      const profile = loadProfile(this.store.dataDir);
+      if ('error' in profile) return { ok: false, status: profile.error };
+      this.liveProfile = profile;
+    }
     const made = PlayCore.create(settings);
     if ('error' in made) return { ok: false, status: made.error };
     const locked = dailyLockReason(riskConfig(settings), this.dayTotal(this.now()));
@@ -175,6 +183,7 @@ export class SessionManager {
     this.error = this.alertsWarning(settings);
     this.core = made.core;
     this.feed = this.createFeed();
+    if (settings.feed === 'live') this.status = 'FEED WAITING - connecting to the table';
     this.feed.start();
     return { ok: true, status: this.status };
   }
@@ -195,6 +204,7 @@ export class SessionManager {
     if (this.running) {
       // The feed and the money baseline cannot change under a running session.
       settings.feed = this.settings.feed;
+      settings.live_port = this.settings.live_port;
       settings.sim_seed = this.settings.sim_seed;
       settings.start_balance = this.settings.start_balance;
       const reason = unsupportedReason(settings);
@@ -317,6 +327,19 @@ export class SessionManager {
     return true;
   }
 
+  /** A live table is attached: clears "waiting", and an earlier outage if there was one. */
+  feedConnected(): void {
+    if (!this.running) return;
+    if (this.feedIsLost) this.feedRestored();
+    else if (this.status.startsWith('FEED')) this.status = this.paused ? 'PAUSED' : 'RUNNING';
+  }
+
+  /** Still looking for the live table: shown in the status so the user knows what to do. */
+  feedWaiting(reason: string): void {
+    if (!this.running || this.feedIsLost || this.paused) return;
+    this.status = `FEED WAITING - ${reason}`.slice(0, 140);
+  }
+
   feedRestored(): boolean {
     if (!this.running || !this.feedIsLost) return false;
     this.feedIsLost = false;
@@ -365,6 +388,16 @@ export class SessionManager {
         feed.onFinished = () => this.finish('STOPPED (replay finished)');
         return feed;
       }
+      case 'live':
+        return new LiveFeed(
+          handler,
+          { port: this.settings.live_port, profile: this.liveProfile! },
+          {
+            connected: () => this.feedConnected(),
+            waiting: (reason) => this.feedWaiting(reason),
+            lost: (reason) => void this.feedLost(reason),
+          },
+        );
       default:
         return new SimulatorFeed(handler, () => this.settings.sim_interval, this.settings.sim_seed);
     }

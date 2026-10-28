@@ -97,10 +97,11 @@ describe('settings', () => {
   });
 
   it('keeps the previous value for blanks and falls back for unknown choices', () => {
-    const { settings } = normalizeSettings({ unit_value: '', strategy: 'NOPE', feed: 'live' }, { ...DEFAULT_SETTINGS, unit_value: 0.7 });
+    const { settings } = normalizeSettings({ unit_value: '', strategy: 'NOPE', feed: 'teleport' }, { ...DEFAULT_SETTINGS, unit_value: 0.7 });
     expect(settings.unit_value).toBe(0.7);
     expect(settings.strategy).toBe('IHG');
     expect(settings.feed).toBe('simulator');
+    expect(normalizeSettings({ feed: 'live' }).settings.feed).toBe('live');
   });
 
   it('clamps out-of-range values', () => {

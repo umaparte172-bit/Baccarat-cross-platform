@@ -8,7 +8,7 @@ const read = (path: string): string => readFileSync(new URL(path, root), 'utf8')
 
 describe('command line', () => {
   it('has sensible defaults', () => {
-    expect(parseArgs([])).toEqual({ help: false, version: false, open: undefined, port: undefined, errors: [] });
+    expect(parseArgs([])).toEqual({ help: false, version: false, open: undefined, port: undefined, inspectTable: false, livePort: undefined, errors: [] });
   });
 
   it('understands every option', () => {
@@ -17,6 +17,9 @@ describe('command line', () => {
     expect(parseArgs(['--open', '--no-open']).open).toBe(false);
     expect(parseArgs(['--port', '9100']).port).toBe(9100);
     expect(parseArgs(['--port=9101']).port).toBe(9101);
+    expect(parseArgs(['--inspect-table']).inspectTable).toBe(true);
+    expect(parseArgs(['--live-port', '9222']).livePort).toBe(9222);
+    expect(parseArgs(['--live-port=9223']).livePort).toBe(9223);
     expect(parseArgs(['--version']).version).toBe(true);
     expect(parseArgs(['-v']).version).toBe(true);
     expect(parseArgs(['--help']).help).toBe(true);
@@ -30,6 +33,7 @@ describe('command line', () => {
       expect(parsed.errors[0]).toMatch(/--port needs a number between 1 and 65535/);
       expect(parsed.port).toBeUndefined();
     }
+    expect(parseArgs(['--live-port', '0']).errors[0]).toMatch(/--live-port needs a number/);
     expect(parseArgs(['--bogus']).errors).toEqual(['Unknown option "--bogus"']);
     expect(parseArgs(['--no-open', '--bogus', '--port', 'x']).errors).toHaveLength(2);
   });
@@ -42,7 +46,7 @@ describe('command line', () => {
   });
 
   it('documents every option it accepts', () => {
-    for (const option of ['--open', '--no-open', '--port', '--version', '--help', 'T247_PORT', 'T247_DATA_DIR', 'T247_NO_OPEN', 'T247_OPEN_REPORTS']) {
+    for (const option of ['--open', '--no-open', '--port', '--inspect-table', '--live-port', '--version', '--help', 'T247_PORT', 'T247_DATA_DIR', 'T247_NO_OPEN', 'T247_OPEN_REPORTS']) {
       expect(HELP, option).toContain(option);
     }
   });
@@ -68,6 +72,7 @@ describe('what ships with the program', () => {
   it('every file the release assembler copies exists', () => {
     for (const f of [
       'packaging/windows/Start-Trade247.bat', 'packaging/windows/install-vps-task.ps1', 'packaging/windows/uninstall-vps-task.ps1',
+      'packaging/windows/Start-Chrome-for-Trade247.bat', 'packaging/macos/Start-Chrome-for-Trade247.command',
       'packaging/macos/Start-Trade247.command', 'packaging/README-RUN.windows.txt', 'packaging/README-RUN.macos.txt',
       'docs/deployment.md', 'README.md', 'ui/index.html', 'tools/build-app.mjs', 'tools/assemble-release.mjs', 'tools/smoke-app.mjs',
     ]) expect(existsSync(new URL(f, root)), f).toBe(true);

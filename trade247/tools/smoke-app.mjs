@@ -7,6 +7,7 @@
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -86,6 +87,70 @@ const api = (path, body) =>
   });
 const json = async (path, body) => (await api(path, body)).json();
 
+
+function findChrome() {
+  return [
+    process.env.T247_TEST_CHROME,
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ].find((p) => p && existsSync(p));
+}
+
+/** A table page in a frame from another site, in a headless Chrome; the packaged program reads three new hands from it. */
+async function liveWithChrome(chromePath, json, waitFor) {
+  const cells = ['P', 'B'];
+  const inner = createHttpServer((req, res) => {
+    if (req.url === '/state') return void res.end(JSON.stringify(cells));
+    res.setHeader('content-type', 'text/html');
+    res.end(`<body><script>
+      async function t(){try{const c=await(await fetch('/state')).json();
+        document.body.innerHTML='<div data-role="Bead-road">'+c.map(x=>'<div data-role="roadItem">'+x+'</div>').join('')+'</div>'}catch(e){}}
+      setInterval(t,40);t()</script></body>`);
+  });
+  await new Promise((r) => inner.listen(0, '127.0.0.1', r));
+  const outer = createHttpServer((_q, res) => {
+    res.setHeader('content-type', 'text/html');
+    res.end(`<iframe src="http://localhost:${inner.address().port}/"></iframe>`);
+  });
+  await new Promise((r) => outer.listen(0, '127.0.0.1', r));
+  const profile = mkdtempSync(join(tmpdir(), 't247-smoke-chrome-'));
+  const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore', windowsHide: true });
+  try {
+    let port = 0;
+    for (let i = 0; i < 100 && !port; i++) {
+      await sleep(100);
+      try { port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0]); } catch { /* not yet */ }
+    }
+    if (!port) return { ok: false, detail: 'Chrome did not start' };
+    await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(`http://127.0.0.1:${outer.address().port}/`)}`, { method: 'PUT' });
+    const started = await json('/api/start', { settings: { feed: 'live', live_port: port, unit_value: 1, min_chip: 0, start_balance: 1000 } });
+    if (!started.ok) return { ok: false, detail: JSON.stringify(started) };
+    await waitFor(async () => ((await json('/api/state?since=0')).status.startsWith('FEED') ? null : true), 15_000, 'the live feed to connect');
+    cells.push('B', 'T', 'P');
+    const state = await waitFor(async () => {
+      const st = await json('/api/state?since=0');
+      return st.hands >= 3 ? st : null;
+    }, 15_000, 'three hands from the table');
+    await json('/api/stop', {});
+    const got = state.rows.map((r) => r.result).join('');
+    return { ok: got === 'BTP', detail: `read "${got}", expected "BTP"` };
+  } finally {
+    chrome.kill();
+    outer.closeAllConnections?.();
+    inner.closeAllConnections?.();
+    outer.close();
+    inner.close();
+    await sleep(300);
+    try { rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* temp folder */ }
+  }
+}
+
 let child;
 try {
   child = start(port, dataDir);
@@ -128,6 +193,32 @@ try {
   check('runs a backtest on worker threads', first.ok === true && first.result?.trials === 8 && first.done === 8, JSON.stringify(first).slice(0, 300));
   const second = await runBacktest();
   check('a backtest with the same seed repeats exactly', first.result !== undefined && JSON.stringify(first.result) === JSON.stringify(second.result));
+
+
+  // The Live table feed: first without a Chrome (it must say what to do), then, when a Chrome is installed, against a
+  // mock table in a real headless Chrome, which proves the packaged program can talk to the browser.
+  const waiting = await json('/api/start', { settings: { feed: 'live', live_port: 1, unit_value: 1, min_chip: 0, start_balance: 1000 } });
+  const waitingState = await waitFor(async () => {
+    const st = await json('/api/state?since=0');
+    return st.status.startsWith('FEED WAITING - Cannot reach') ? st : null;
+  }, 15_000, 'the live feed to say it cannot reach Chrome');
+  check('the live feed explains how to connect when Chrome is not there', waiting.ok === true && waitingState.running === true, waitingState.status);
+  await json('/api/stop', {});
+
+  const inspect = spawn(exe, ['--inspect-table', '--live-port', '1'], { env: { ...process.env, T247_DATA_DIR: dataDir }, windowsHide: true });
+  let inspectOut = '';
+  inspect.stdout.on('data', (d) => (inspectOut += d));
+  inspect.stderr.on('data', (d) => (inspectOut += d));
+  const inspectCode = await new Promise((r) => inspect.on('exit', r));
+  check('--inspect-table without Chrome exits with a clear message', inspectCode === 1 && inspectOut.includes('Cannot reach Chrome'), `exit ${inspectCode}: ${inspectOut.trim()}`);
+
+  const chromePath = findChrome();
+  if (!chromePath) {
+    console.log('SKIP  live feed against a real Chrome (no Chrome or Edge found; set T247_TEST_CHROME)');
+  } else {
+    const live = await liveWithChrome(chromePath, json, waitFor);
+    check('reads a mock table in a real Chrome through the packaged program', live.ok, live.detail);
+  }
 
   check('keeps its settings on disk', existsSync(join(dataDir, 'settings.json')) && readdirSync(dataDir).includes('meta.json'));
   check('never writes a Telegram token into the settings file', !readFileSync(join(dataDir, 'settings.json'), 'utf8').includes('telegram_token'));

@@ -6,14 +6,14 @@ Plan and milestones: [`../docs/trade247-v1-plan.md`](../docs/trade247-v1-plan.md
 
 ## Status
 
-M0 to M5 and M9 are done: the page runs against the local server with the Simulator, Manual and Replay
+M0 to M5 and M9 are done, and M7 in its read-only form: the page runs against the local server with the Simulator, Manual, Replay and read-only Live table
 feeds, the **IHG engine** is verified against the client's IHG document, the **risk layer** (limits, pauses,
 keep-alive, end of shoe) is in place, **reports and Telegram alerts** work, the **Backtest** window runs, and the
 program is **packaged** as a single file for Windows and Apple-silicon macOS (the Windows package is built and
 smoke-tested here; the macOS package is built by CI and has not been run on a Mac yet). See the sections below.
 
 Not built yet, and each says so in the UI: AME-AI, JJ, Manual Sequence Input, the Virtual Bet entry filter and
-the live table. **Start refuses** the first four rather than ignoring them, so a setting can never be silently
+betting on a live table. **Start refuses** the first four rather than ignoring them, so a setting can never be silently
 dropped.
 
 ## IHG engine
@@ -98,6 +98,16 @@ and shows the spread of results (all in units, with a dollar figure beside the a
 - Results are simulation output, not a forecast. No betting system changes the house edge, and the figures
   (especially the "bad day" and "worst drawdown" ones) are the point of running it before real money.
 
+## Live table (read-only)
+
+The **Live table** feed reads the road of a baccarat table open in your own Chrome (started with the launcher script,
+which opens a debugging port on this computer only). It only reads: nothing is clicked or bet, bets stay simulated.
+Code: `src/live/` (Chrome DevTools client, profile, page reader, road tracker) and `src/feeds/live.ts`. Tested against a
+real headless Chrome with a table inside a frame from another site (`test/live.test.ts`, skipped when no Chrome is found).
+**Not yet checked against a real Roobet/Evolution table**: `trade247 --inspect-table` captures what is needed to calibrate
+the selectors, and a `live-profile.json` in the data folder replaces them without a new program.
+Details: [`docs/deployment.md`](docs/deployment.md), section 6.
+
 ## Reports and alerts
 
 **Excel Log button.** Excel (.xlsx) or CSV, complete up to the current hand; the session keeps running.
@@ -122,8 +132,8 @@ and shows the spread of results (all in units, with a dollar figure beside the a
   `secrets.json`, never in the settings file, the page, the logs or the reports.
 - A failed alert never stops the session; the reason appears in the page ("Alert not delivered - ..."). If the
   token or chat ID is half set up, Start still works and says "Telegram alerts are off: ...".
-- Connection-loss alerts are wired to `SessionManager.feedLost()` / `feedRestored()`, which the live table feed
-  (M7) will call. The simulator, Manual and Replay feeds cannot disconnect.
+- Connection-loss alerts are called by the Live table feed (`SessionManager.feedLost()` / `feedRestored()`). The
+  simulator, Manual and Replay feeds cannot disconnect.
 
 ## Run
 

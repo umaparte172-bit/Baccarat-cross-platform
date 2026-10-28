@@ -307,10 +307,15 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
           <option value="simulator">Simulator (8-deck shoes)</option>
           <option value="manual">Manual (enter P / B / T)</option>
           <option value="csv">Replay (P/B/T letters or CSV)</option>
+          <option value="live">Live table (read-only, from your Chrome)</option>
         </select>
         <div id="simBox" class="row2">
           <div><label>Seconds per hand</label><input type="number" data-key="sim_interval" step="0.1" min="0"></div>
           <div><label>Seed (0 = random)</label><input type="number" data-key="sim_seed" min="0"></div>
+        </div>
+        <div id="liveBox" class="hide">
+          <label>Chrome debugging port</label><input type="number" data-key="live_port" min="1" max="65535">
+          <div class="foot">Open Chrome with the TRADE247 Chrome launcher, sign in and open a baccarat table there. Results are read from the page; nothing is ever clicked or bet on the table. The road already on screen when you press Start is history and is not played.</div>
         </div>
         <div id="csvBox" class="hide">
           <label>PBPPT|BBP (| = new shoe)</label>
@@ -324,7 +329,7 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
         <div style="display:flex;gap:6px;align-items:center"><button class="btn-reset-input" id="tgtest">Send test</button><span id="tgmsg" class="foot"></span></div>
       </div>
     </details>
-    <div class="foot">Paper-trading / simulation: no live casino table is connected.<br>Logs: <span id="logdir"></span></div>
+    <div class="foot">Paper trading: bets are simulated and never placed on a casino table.<br>Logs: <span id="logdir"></span></div>
   </div>
 
   <div class="splitter" id="splitter" title="Drag to resize"></div>
@@ -386,6 +391,7 @@ function applyVisibility() {
   const f = $('#feed').value;
   $('#simBox').classList.toggle('hide', f !== 'simulator');
   $('#csvBox').classList.toggle('hide', f !== 'csv');
+  $('#liveBox').classList.toggle('hide', f !== 'live');
   syncModes();
 }
 function syncModes() {

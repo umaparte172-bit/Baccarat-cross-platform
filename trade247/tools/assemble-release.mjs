@@ -30,9 +30,10 @@ const put = (from, to, mode) => {
 put(built, exe, 0o755);
 
 if (os === 'win') {
-  for (const f of ['Start-Trade247.bat', 'install-vps-task.ps1', 'uninstall-vps-task.ps1']) put(join(root, 'packaging/windows', f), f);
+  for (const f of ['Start-Trade247.bat', 'Start-Chrome-for-Trade247.bat', 'install-vps-task.ps1', 'uninstall-vps-task.ps1']) put(join(root, 'packaging/windows', f), f);
 } else if (os === 'macos') {
   put(join(root, 'packaging/macos/Start-Trade247.command'), 'Start-Trade247.command', 0o755);
+  put(join(root, 'packaging/macos/Start-Chrome-for-Trade247.command'), 'Start-Chrome-for-Trade247.command', 0o755);
 }
 put(join(root, 'docs/deployment.md'), 'docs/deployment.md');
 put(join(root, 'README.md'), 'README.md');

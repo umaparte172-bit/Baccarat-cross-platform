@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
+import { join } from 'node:path';
 import { HELP, parseArgs, parsePort } from './cli.js';
+import { inspectTables } from './live/inspect.js';
 import { openWithDefaultApp } from './report/export.js';
 import { VERSION, packaged } from './runtime.js';
 import { buildApp } from './server/app.js';
@@ -28,6 +30,20 @@ async function main(): Promise<void> {
   }
   if (cli.help) {
     console.log(HELP);
+    return;
+  }
+
+  if (cli.inspectTable) {
+    const livePort = cli.livePort ?? 9014;
+    try {
+      const result = await inspectTables(livePort, join(defaultDataDir(), 'inspections'));
+      console.log(`Looked at ${result.tabs} tab(s) and ${result.frames} frame(s); ${result.withRoles} frame(s) have table elements.`);
+      console.log(`Saved: ${result.path}`);
+      console.log('The file lists element names and short labels, and the site of each tab. It has no page addresses beyond the site, and balances and names are not read. Check it, then send it.');
+    } catch (e) {
+      console.error((e as Error).message);
+      process.exit(1);
+    }
     return;
   }
 

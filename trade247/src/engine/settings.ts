@@ -1,6 +1,6 @@
 export type StrategyName = 'IHG' | 'AME' | 'JJ';
 export type Progression = 'recovery' | 'list' | 'flat' | 'dynamic';
-export type FeedName = 'simulator' | 'manual' | 'csv';
+export type FeedName = 'simulator' | 'manual' | 'csv' | 'live';
 
 export interface Settings {
   strategy: StrategyName;
@@ -57,6 +57,8 @@ export interface Settings {
   sim_seed: number;
   csv_text: string;
   csv_path: string;
+  /** Live feed: the remote debugging port of the Chrome the user opened the table in. */
+  live_port: number;
 
   telegram_token: string;
   telegram_chat_id: string;
@@ -118,6 +120,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sim_seed: 0,
   csv_text: '',
   csv_path: '',
+  live_port: 9014,
 
   telegram_token: '',
   telegram_chat_id: '',
@@ -223,11 +226,12 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
     end_shoe_policy: pick(g('end_shoe_policy'), ['no_new_runs', 'cut_run', 'off'], p.end_shoe_policy),
     end_shoe_hand: int(g('end_shoe_hand'), p.end_shoe_hand, 1, 10_000),
 
-    feed: pick(g('feed'), ['simulator', 'manual', 'csv'], p.feed),
+    feed: pick(g('feed'), ['simulator', 'manual', 'csv', 'live'], p.feed),
     sim_interval: num(g('sim_interval'), p.sim_interval, 0, 3600),
     sim_seed: int(g('sim_seed'), p.sim_seed, 0, 2 ** 31 - 1),
     csv_text: text(g('csv_text'), p.csv_text, 200_000),
     csv_path: text(g('csv_path'), p.csv_path, 1024),
+    live_port: int(g('live_port'), p.live_port, 1, 65535),
 
     // The mask means "unchanged"; the real token never round-trips through the page.
     telegram_token: text(g('telegram_token'), p.telegram_token, 256),
