@@ -241,9 +241,10 @@ describe('reports and storage', () => {
     expect(history).toEqual(lines);
   });
 
-  it('offers CSV only for now and rejects unknown formats', async () => {
+  it('rejects unknown formats and reports an empty log for both real ones', async () => {
     const h = harness();
-    expect((await h.post('/api/report/open', { fmt: 'xlsx' })).json.ok).toBe(false);
+    expect((await h.post('/api/report/open', { fmt: 'xlsx' })).json).toEqual({ ok: false, error: 'No log yet - press START first' });
+    expect((await h.post('/api/report/open', { fmt: 'csv' })).json).toEqual({ ok: false, error: 'No log yet - press START first' });
     expect((await h.post('/api/report/open', { fmt: 'pdf' })).json).toEqual({ ok: false, error: 'Unknown report format' });
   });
 
@@ -376,9 +377,8 @@ describe('settings the bot cannot honour yet', () => {
 });
 
 describe('placeholder endpoints', () => {
-  it('answers Telegram and Backtest honestly until they are built', async () => {
+  it('answers Backtest honestly until it is built', async () => {
     const h = harness();
-    expect((await h.post('/api/telegram_test')).json.ok).toBe(false);
     expect((await h.post('/api/backtest/start', {})).json.ok).toBe(false);
     expect((await h.get('/api/backtest/status?id=1')).json.finished).toBe(true);
   });

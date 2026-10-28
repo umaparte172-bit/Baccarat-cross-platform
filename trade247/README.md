@@ -5,13 +5,13 @@ Plan and milestones: [`../docs/trade247-v1-plan.md`](../docs/trade247-v1-plan.md
 
 ## Status
 
-M0 to M3 are done: the page runs against the local server with the Simulator, Manual and Replay feeds, the
-**IHG engine** is verified against the client's IHG document, and the **risk layer** (limits, pauses,
-keep-alive, end of shoe) is in place. See the two sections below.
+M0 to M4 are done: the page runs against the local server with the Simulator, Manual and Replay feeds, the
+**IHG engine** is verified against the client's IHG document, the **risk layer** (limits, pauses, keep-alive,
+end of shoe) is in place, and **reports and Telegram alerts** work. See the sections below.
 
 Not built yet, and each says so in the UI: AME-AI, JJ, Manual Sequence Input, the Virtual Bet entry filter,
-Telegram, Excel (.xlsx), Backtest and the live table. **Start refuses** the first four rather than ignoring
-them, so a setting can never be silently dropped.
+Backtest and the live table. **Start refuses** the first four rather than ignoring them, so a setting can never
+be silently dropped.
 
 ## IHG engine
 
@@ -71,6 +71,33 @@ WAIT PATTERN is a full reset including pattern history.
 it apply once at the start of a session, or before every run (wait for a cold streak, bet one run, wait again)?
 The two readings behave very differently, so it is not guessed.
 
+## Reports and alerts
+
+**Excel Log button.** Excel (.xlsx) or CSV, complete up to the current hand; the session keeps running.
+- Each press saves a snapshot to `reports/` (newest 20 kept, each with its own name so a file still open in
+  Excel is never overwritten) and opens it in the default application. With `T247_OPEN_REPORTS=0` (servers,
+  VPS) nothing is launched and the page downloads the file instead.
+- The report is the live session, or after a restart or Reset the latest session rebuilt from the history file
+  (`logs/trade247_session_history.csv`, appended on every hand).
+- The workbook has one `Trades` sheet: bold frozen header, filter, money and counts as real numbers (so Excel can
+  sum and chart them), everything else as text (text that looks like a formula stays text).
+- The `.xlsx` is written by a small built-in writer (no Excel library at runtime). It is read back by ExcelJS in
+  the tests, and was checked with Microsoft's Open XML SDK validator (0 schema errors on a live session and on a
+  5,000-row session; the same validator flags deliberately broken files). **No copy of Excel was available while
+  building this, so please open one in real Excel once and confirm.**
+
+**Telegram alerts** (bot token and chat ID in Advanced settings; "Send test" shows the exact result):
+- Triggers: daily stop loss hit, daily take profit hit, table connection lost, shoe change. Each message carries
+  the session, strategy, hands, session profit/loss and balance. The first shoe of a session does not alert; a
+  fast simulator sends at most one pending shoe-change alert; connection loss alerts once per outage.
+- The token goes only into the request URL to `api.telegram.org` (HTTPS, no redirects, 8 s timeout). Its format is
+  checked first so it cannot change the request path, and it is stripped from any error message. It is stored in
+  `secrets.json`, never in the settings file, the page, the logs or the reports.
+- A failed alert never stops the session; the reason appears in the page ("Alert not delivered - ..."). If the
+  token or chat ID is half set up, Start still works and says "Telegram alerts are off: ...".
+- Connection-loss alerts are wired to `SessionManager.feedLost()` / `feedRestored()`, which the live table feed
+  (M7) will call. The simulator, Manual and Replay feeds cannot disconnect.
+
 ## Run
 
 Requires Node 22 or newer.
@@ -84,7 +111,7 @@ npm run typecheck
 ```
 
 Environment variables: `T247_PORT` (default 8247), `T247_DATA_DIR` (default: `%APPDATA%\Trade247` on Windows,
-`~/Library/Application Support/Trade247` on macOS).
+`~/Library/Application Support/Trade247` on macOS), `T247_OPEN_REPORTS=0` (do not launch applications).
 
 ## Data folder
 
@@ -93,6 +120,7 @@ Environment variables: `T247_PORT` (default 8247), `T247_DATA_DIR` (default: `%A
 | `settings.json` | Last-used settings (no secrets) |
 | `secrets.json` | Telegram bot token, mode 0600, never sent to the page (the page sees `********`) |
 | `meta.json` | Session counter |
+| `reports/` | Report snapshots opened from the Excel Log button (newest 20) |
 | `day.json` | Today's profit/loss across all sessions (for the daily limits) |
 | `logs/trade247_session_history.csv` | Every hand, appended as it happens |
 
@@ -109,7 +137,8 @@ src/engine/       pure logic: settings, money, dealer, strategy interface, IHG e
 src/feeds/        simulator, manual, replay
 src/session.ts    session state the page polls
 src/server/       HTTP routes (the /api contract the page calls)
-src/report/       CSV log
+src/report/       CSV history log, report table, .xlsx writer, snapshots
+src/notify/       Telegram client and alert queue
 src/store/        settings, secrets, session counter
 test/             Vitest
 ```

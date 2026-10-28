@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
-import { SessionManager } from '../session.js';
+import { writeSnapshot } from '../report/export.js';
+import { XLSX_MIME } from '../report/xlsx.js';
+import { SessionManager, type SessionOptions } from '../session.js';
 import { SettingsStore } from '../store/files.js';
 
 export interface AppOptions {
@@ -11,6 +13,10 @@ export interface AppOptions {
   uiPath?: string;
   logger?: boolean;
   manager?: SessionManager;
+  /** Opens a saved report in the user's default application. Without it the page downloads the file instead. */
+  openFile?: (path: string) => void;
+  /** Test hooks for the Telegram client. */
+  telegram?: SessionOptions['telegram'];
 }
 
 const CSP = [
@@ -31,7 +37,7 @@ const body = (req: FastifyRequest): Record<string, unknown> =>
   req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
 
 export function buildApp(options: AppOptions): FastifyInstance {
-  const manager = options.manager ?? new SessionManager(new SettingsStore(options.dataDir));
+  const manager = options.manager ?? new SessionManager(new SettingsStore(options.dataDir), { telegram: options.telegram });
   const uiPath = options.uiPath ?? fileURLToPath(new URL('../../ui/index.html', import.meta.url));
   const page = readFileSync(uiPath, 'utf8');
   const allowedHosts = new Set([`127.0.0.1:${options.port}`, `localhost:${options.port}`, `[::1]:${options.port}`]);
@@ -92,31 +98,58 @@ export function buildApp(options: AppOptions): FastifyInstance {
   const formatOf = (raw: unknown): ReportFormat | null =>
     (REPORT_FORMATS as readonly unknown[]).includes(raw) ? (raw as ReportFormat) : null;
 
+  // The BOM makes Excel read the file as UTF-8 (the log uses the "·" character).
+  const BOM = String.fromCodePoint(0xfeff);
+  const csvBytes = (csv: string): string => BOM + csv;
+
   app.post('/api/report/open', async (req) => {
     const fmt = formatOf(body(req).fmt);
     if (!fmt) return { ok: false, error: 'Unknown report format' };
-    if (fmt === 'xlsx') return { ok: false, error: 'Excel (.xlsx) export is not available yet - use CSV' };
-    if (manager.reportCsv() === null) return { ok: false, error: 'No log yet - press START first' };
+    const data = fmt === 'csv' ? manager.reportCsv() : manager.reportXlsx();
+    if (data === null) return { ok: false, error: 'No log yet - press START first' };
+
+    let path: string;
+    try {
+      path = writeSnapshot(options.dataDir, fmt, typeof data === 'string' ? csvBytes(data) : data, new Date());
+    } catch (e) {
+      return { ok: false, error: `Could not save the report: ${(e as Error).message}` };
+    }
+    if (options.openFile) {
+      try {
+        options.openFile(path);
+        return { ok: true, opened: true, path };
+      } catch {
+        // fall through: the page downloads the same snapshot instead
+      }
+    }
     // opened: false makes the page download the same snapshot through GET /api/report.
-    return { ok: true, opened: false, path: manager.historyPath };
+    return { ok: true, opened: false, path };
   });
 
   app.get('/api/report', async (req, reply) => {
     const fmt = formatOf((req.query as { fmt?: string }).fmt);
+    if (fmt === 'xlsx') {
+      const xlsx = manager.reportXlsx();
+      if (xlsx === null) return reply.code(404).send({ ok: false, error: 'No report available' });
+      return reply.header('Content-Disposition', 'attachment; filename="trade247_report.xlsx"').type(XLSX_MIME).send(xlsx);
+    }
     const csv = fmt === 'csv' ? manager.reportCsv() : null;
     if (csv === null) return reply.code(404).send({ ok: false, error: 'No report available' });
     return reply
       .header('Content-Disposition', 'attachment; filename="trade247_report.csv"')
       .type('text/csv; charset=utf-8')
-      .send('﻿' + csv);
+      .send(csvBytes(csv));
   });
 
-  app.post('/api/telegram_test', async () => ({ ok: false, error: 'Telegram alerts are not available yet' }));
+  app.post('/api/telegram_test', async () => manager.telegramTest());
 
   app.post('/api/backtest/start', async () => ({ ok: false, error: 'Backtest is not available yet' }));
   app.get('/api/backtest/status', async () => ({ ok: false, finished: true, done: 0, total: 1, seconds: 0, error: 'Backtest is not available yet' }));
   app.post('/api/backtest/cancel', async () => ({ ok: true }));
 
-  app.addHook('onClose', async () => manager.stop());
+  app.addHook('onClose', async () => {
+    manager.stop();
+    await manager.flushAlerts();
+  });
   return app;
 }

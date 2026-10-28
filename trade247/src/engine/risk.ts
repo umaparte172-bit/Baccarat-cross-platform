@@ -73,6 +73,8 @@ export interface Stop {
   status: string;
   message: string;
   locked: boolean;
+  /** The Telegram alert this stop triggers, if any. */
+  alert?: 'daily_stop_loss' | 'daily_take_profit';
 }
 
 export interface SettledInfo {
@@ -200,10 +202,10 @@ export class RiskGovernor {
   private limitStop(i: SettledInfo): Stop | null {
     const c = this.cfg;
     if (c.dailyStopLossMicro > 0 && i.dayPnlMicro <= -c.dailyStopLossMicro) {
-      return { status: 'LOCKED (daily stop loss)', message: `Daily stop loss reached (${money(i.dayPnlMicro)})`, locked: true };
+      return { status: 'LOCKED (daily stop loss)', message: `Daily stop loss reached (${money(i.dayPnlMicro)})`, locked: true, alert: 'daily_stop_loss' };
     }
     if (c.dailyTakeProfitMicro > 0 && i.dayPnlMicro >= c.dailyTakeProfitMicro) {
-      return { status: 'LOCKED (daily take profit)', message: `Daily take profit reached (+${money(i.dayPnlMicro)})`, locked: true };
+      return { status: 'LOCKED (daily take profit)', message: `Daily take profit reached (+${money(i.dayPnlMicro)})`, locked: true, alert: 'daily_take_profit' };
     }
     if (c.stopLossMicro > 0 && i.sessionPnlMicro <= -c.stopLossMicro) {
       return { status: 'STOPPED (stop loss)', message: `Stop loss reached (${money(i.sessionPnlMicro)})`, locked: false };

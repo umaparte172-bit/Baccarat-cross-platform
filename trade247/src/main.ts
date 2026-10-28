@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { openWithDefaultApp } from './report/export.js';
 import { buildApp } from './server/app.js';
 import { defaultDataDir } from './store/paths.js';
 
@@ -10,7 +11,9 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 }
 
 const dataDir = defaultDataDir();
-const app = buildApp({ dataDir, port, logger: false });
+// T247_OPEN_REPORTS=0: never launch a desktop application (servers, VPS); the page downloads reports instead.
+const openFile = process.env.T247_OPEN_REPORTS === '0' ? undefined : openWithDefaultApp;
+const app = buildApp({ dataDir, port, logger: false, openFile });
 const url = `http://${HOST}:${port}/`;
 
 function openBrowser(target: string): void {

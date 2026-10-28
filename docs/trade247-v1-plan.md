@@ -206,6 +206,7 @@ total, depending mostly on the client's answers and table access.
 | M0 Alignment and setup | Done (scaffold, tests, README). The client's questions in section 11 are still unanswered. |
 | M1 Skeleton and UI wiring | Done. |
 | M2 IHG engine | Done. 315-hand oracle passes; 88 tests in total; six deliberate engine mutations are all caught. |
+| M4 Persistence, reports, Telegram | Done. Excel and CSV reports (from the live session or the history file), report snapshots, four Telegram alert triggers verified against a fake API, plus one live call to the real Telegram API that correctly returned "Unauthorized" for a made-up token. 165 tests; 16 deliberate mutations all caught. The .xlsx passes Microsoft's Open XML validator but has not been opened in real Excel: please confirm on a machine that has it. |
 | M3 Risk and operations layer | Done except the Virtual Bet entry filter, which waits for the client's answer (once per session or before every run?). 110 tests; ten deliberate mutations of the risk layer are all caught. |
 
 Section 11 updates from M2: question 5 is answered by the document itself (Example 4 keeps the run's debt after

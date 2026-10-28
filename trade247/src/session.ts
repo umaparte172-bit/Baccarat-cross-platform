@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEngine, unsupportedReason } from './engine/factory.js';
 import { fmt2, toMicro } from './engine/money.js';
@@ -6,7 +7,10 @@ import { normalizeSettings, publicSettings, type Settings } from './engine/setti
 import type { BetPlan, StrategyEngine } from './engine/strategy.js';
 import { isResult, type NextBet, type Row } from './engine/types.js';
 import { ManualFeed, ReplayFeed, SimulatorFeed, parseReplay, type Feed, type HandEvent } from './feeds/feed.js';
+import { TelegramNotifier, configProblem, type Notifier, type SendResult, type TelegramOptions } from './notify/telegram.js';
 import { LOG_FILE_NAME, appendHistory, buildCsv, type HandRecord } from './report/csv.js';
+import { latestSessionFromHistory, tableFromRecords, type Table } from './report/table.js';
+import { buildXlsx } from './report/xlsx.js';
 import { localDay, type DayTotal, type SettingsStore } from './store/files.js';
 
 const pad = (n: number): string => String(n).padStart(2, '0');
@@ -24,6 +28,14 @@ export interface StartReply {
   ok: boolean;
   status: string;
 }
+
+export interface SessionOptions {
+  now?: () => Date;
+  /** Test hooks for the Telegram client (a local fake server, no pauses). */
+  telegram?: Pick<TelegramOptions, 'baseUrl' | 'timeoutMs' | 'minGapMs' | 'fetch'>;
+}
+
+const signed = (micro: number): string => `${micro > 0 ? '+' : ''}${fmt2(micro)}`;
 
 function toNextBet(plan: BetPlan, reason?: string): NextBet {
   return {
@@ -65,13 +77,28 @@ export class SessionManager {
   private dayWrittenAt = 0;
   private dayDirty = false;
 
+  private readonly now: () => Date;
+  private readonly notifier: Notifier;
+  private shoeNo = 1;
+  private feedIsLost = false;
+
   constructor(
     private readonly store: SettingsStore,
-    private readonly now: () => Date = () => new Date(),
+    options: SessionOptions = {},
   ) {
+    this.now = options.now ?? (() => new Date());
     this.settings = store.load();
     this.risk = riskConfig(this.settings);
-    this.day = store.loadDay(localDay(now()));
+    this.day = store.loadDay(localDay(this.now()));
+    this.notifier = new TelegramNotifier(
+      () => ({ token: this.settings.telegram_token, chatId: this.settings.telegram_chat_id }),
+      {
+        ...options.telegram,
+        onError: (message) => {
+          this.error = `Alert not delivered - ${message}`;
+        },
+      },
+    );
   }
 
   get historyPath(): string {
@@ -154,11 +181,19 @@ export class SessionManager {
     this.risk = risk;
     this.store.save(settings);
     this.beginSession();
+    this.error = this.alertsWarning(settings);
     this.engine = made.engine;
     this.governor = new RiskGovernor(risk);
     this.feed = this.createFeed();
     this.feed.start();
     return { ok: true, status: this.status };
+  }
+
+  /** Alerts that are half set up would silently do nothing, so say so (without blocking the session). */
+  private alertsWarning(s: Settings): string {
+    if (!s.telegram_token && !s.telegram_chat_id) return '';
+    const problem = configProblem({ token: s.telegram_token, chatId: s.telegram_chat_id });
+    return problem ? `Telegram alerts are off: ${problem}` : '';
   }
 
   apply(raw: unknown): { ok: boolean; live: boolean } {
@@ -240,8 +275,61 @@ export class SessionManager {
     return { ok: this.apply(raw).ok };
   }
 
+  // ---- reports: the live session if there is one, otherwise the latest session in the history file
+
+  private historyReport() {
+    try {
+      return latestSessionFromHistory(readFileSync(this.historyPath, 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+
   reportCsv(): string | null {
-    return this.records.length === 0 ? null : buildCsv(this.records);
+    return this.records.length > 0 ? buildCsv(this.records) : (this.historyReport()?.csv ?? null);
+  }
+
+  reportTable(): Table | null {
+    return this.records.length > 0 ? tableFromRecords(this.records) : (this.historyReport()?.table ?? null);
+  }
+
+  reportXlsx(): Buffer | null {
+    const table = this.reportTable();
+    return table ? buildXlsx(table, this.now()) : null;
+  }
+
+  // ---- alerts
+
+  telegramTest(): Promise<SendResult> {
+    return this.notifier.test();
+  }
+
+  /** Lets queued alerts finish before the process exits. */
+  async flushAlerts(): Promise<void> {
+    await this.notifier.idle();
+  }
+
+  private summary(): string {
+    const balance = toMicro(this.settings.start_balance) + this.pnlMicro;
+    return `Session #${this.sessionNo} (${this.settings.strategy}), ${this.records.length} hands, session ${signed(this.pnlMicro)}, balance ${fmt2(balance)}`;
+  }
+
+  /** Called by a live table feed when the connection to the table drops. Alerts once per outage. */
+  feedLost(reason: string): boolean {
+    if (!this.running) return false;
+    this.status = `FEED LOST - ${reason}`.slice(0, 80);
+    if (!this.feedIsLost) {
+      this.feedIsLost = true;
+      this.notifier.notify('disconnected', `TRADE247: connection to the table lost (${reason}). ${this.summary()}.`);
+    }
+    return true;
+  }
+
+  feedRestored(): boolean {
+    if (!this.running || !this.feedIsLost) return false;
+    this.feedIsLost = false;
+    this.status = this.paused ? 'PAUSED' : 'RUNNING';
+    return true;
   }
 
   // ---------------------------------------------------------------- internals
@@ -256,6 +344,8 @@ export class SessionManager {
     this.status = 'RUNNING';
     this.error = '';
     this.logWarned = false;
+    this.shoeNo = 1;
+    this.feedIsLost = false;
   }
 
   private clearSession(): void {
@@ -332,6 +422,10 @@ export class SessionManager {
     if (event.newShoe) {
       engine.newShoe();
       governor.newShoe();
+      if (this.records.length > 0) {
+        this.shoeNo++;
+        this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
+      }
     }
 
     const hand = governor.prepare(engine, this.paused);
@@ -396,7 +490,15 @@ export class SessionManager {
       sessionPnlMicro: this.pnlMicro, dayPnlMicro: dayMicro,
     });
     if (verdict.resetEngine) engine.reset();
-    if (verdict.stop) this.finish(verdict.stop.status);
+    if (verdict.stop) {
+      this.finish(verdict.stop.status);
+      if (verdict.stop.alert) {
+        this.notifier.notify(
+          verdict.stop.alert,
+          `TRADE247: ${verdict.stop.message}. The day is locked: no new session until the limit is raised or tomorrow. ${this.summary()}, today ${signed(dayMicro)}.`,
+        );
+      }
+    }
   }
 
   private writeHistory(record: HandRecord): void {
