@@ -221,7 +221,7 @@ describe('what is refused before anything runs', () => {
     ['empty paste', { source: 'paste', text: 'xyz 123 -- !' }, undefined, /Paste P \/ B \/ T results to test/],
     ['a base unit of zero', {}, { unit_value: '0' }, /Base Unit must be above 0/],
     ['a strategy that is not built', {}, { strategy: 'AME' }, /AME-AI is not available yet/],
-    ['manual sequence', {}, { progression: 'list', chain: [1, 2] }, /Manual Sequence Input is not available yet/],
+    ['manual sequence', {}, { progression: 'list', chain: [1, 2] }, /Manual Sequence Input is not available for IHG/],
     ['the entry filter', {}, { entry_loss_filter: 3 }, /Virtual Bet entry filter is not available yet/],
   ];
 

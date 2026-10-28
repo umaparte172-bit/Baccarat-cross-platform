@@ -1,6 +1,12 @@
-export type StrategyName = 'IHG' | 'AME' | 'JJ';
+export const CLASSIC_STRATEGIES = ['MARTINGALE', 'GRINDING', 'SEQUENCE', 'ODD_EVEN', 'ODD_DIFF', 'ODD_LOOSER', 'ODD_IS_GOD'] as const;
+export type ClassicStrategy = (typeof CLASSIC_STRATEGIES)[number];
+export type StrategyName = 'IHG' | 'AME' | 'JJ' | ClassicStrategy;
+export const STRATEGY_NAMES: readonly StrategyName[] = ['IHG', 'AME', 'JJ', ...CLASSIC_STRATEGIES];
+export const isClassic = (s: StrategyName): s is ClassicStrategy => (CLASSIC_STRATEGIES as readonly string[]).includes(s);
 export type Progression = 'recovery' | 'list' | 'flat' | 'dynamic';
 export type FeedName = 'simulator' | 'manual' | 'csv' | 'live';
+/** paper: every bet is simulated. confirm: each bet waits for a click on "Place bet". auto: bets are placed by the program. */
+export type BetMode = 'paper' | 'confirm' | 'auto';
 
 export interface Settings {
   strategy: StrategyName;
@@ -10,6 +16,12 @@ export interface Settings {
   keepalive_enabled: boolean;
   keepalive_amount: number;
   entry_loss_filter: number;
+  /** Classic strategies: the first bet's side (Odd Even: the side bet on odd-numbered results). */
+  first_side: 'P' | 'B';
+  /** Martingale: stake multiplier after a loss. */
+  martingale_multiplier: number;
+  /** Sequence: the sides to bet, in order, e.g. "B,P,P,B". */
+  sequence_sides: string;
   take_profit: number;
   stop_loss: number;
 
@@ -60,6 +72,17 @@ export interface Settings {
   /** Live feed: the remote debugging port of the Chrome the user opened the table in. */
   live_port: number;
 
+  bet_mode: BetMode;
+  /** Real betting: the largest single bet, in dollars. Betting is refused until it is set. */
+  bet_max_stake: number;
+  /** Real betting: the most that may be staked in one session, in dollars. */
+  bet_max_session: number;
+  /** Real betting: a random pause between the window opening and the bet, in seconds. */
+  bet_delay_min: number;
+  bet_delay_max: number;
+  /** Confirm mode: how long a bet waits for approval before it is skipped, in seconds. */
+  bet_confirm_seconds: number;
+
   telegram_token: string;
   telegram_chat_id: string;
 }
@@ -73,6 +96,9 @@ export const DEFAULT_SETTINGS: Settings = {
   keepalive_enabled: false,
   keepalive_amount: 0.1,
   entry_loss_filter: 0,
+  first_side: 'P',
+  martingale_multiplier: 2,
+  sequence_sides: 'B,P,P,B,B,P,B,P',
   take_profit: 0,
   stop_loss: 0,
 
@@ -122,6 +148,13 @@ export const DEFAULT_SETTINGS: Settings = {
   csv_path: '',
   live_port: 9014,
 
+  bet_mode: 'paper',
+  bet_max_stake: 0,
+  bet_max_session: 0,
+  bet_delay_min: 0.5,
+  bet_delay_max: 2.5,
+  bet_confirm_seconds: 20,
+
   telegram_token: '',
   telegram_chat_id: '',
 };
@@ -160,6 +193,13 @@ function chainOf(raw: unknown, fallback: number[]): number[] {
   return out.slice(0, 64);
 }
 
+/** "B, P ,p" -> ['B','P','P']; null when empty, too long, or anything else is in the list. */
+export function parseSides(raw: string): Array<'P' | 'B'> | null {
+  const parts = raw.split(/[\s,;]+/).filter(Boolean).map((x) => x.toUpperCase());
+  if (parts.length < 1 || parts.length > 64 || parts.some((x) => x !== 'P' && x !== 'B')) return null;
+  return parts as Array<'P' | 'B'>;
+}
+
 export interface Normalized {
   settings: Settings;
   errors: string[];
@@ -177,13 +217,16 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
   const g = <K extends keyof Settings>(k: K): unknown => (has(k) ? r[k] : p[k]);
 
   const s: Settings = {
-    strategy: pick(g('strategy'), ['IHG', 'AME', 'JJ'], p.strategy),
+    strategy: pick(g('strategy'), STRATEGY_NAMES, p.strategy),
     progression: pick(g('progression'), ['recovery', 'list', 'flat', 'dynamic'], p.progression),
     unit_value: num(g('unit_value'), p.unit_value, 0, 1_000_000),
     chain: chainOf(g('chain'), p.chain),
     keepalive_enabled: flag(g('keepalive_enabled'), p.keepalive_enabled),
     keepalive_amount: num(g('keepalive_amount'), p.keepalive_amount, 0, 1_000_000),
     entry_loss_filter: int(g('entry_loss_filter'), p.entry_loss_filter, 0, 99),
+    first_side: pick(g('first_side'), ['P', 'B'], p.first_side),
+    martingale_multiplier: num(g('martingale_multiplier'), p.martingale_multiplier, 1.01, 100),
+    sequence_sides: text(g('sequence_sides'), p.sequence_sides, 400),
     take_profit: num(g('take_profit'), p.take_profit, 0, 1e9),
     stop_loss: num(g('stop_loss'), p.stop_loss, 0, 1e9),
 
@@ -232,6 +275,12 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
     csv_text: text(g('csv_text'), p.csv_text, 200_000),
     csv_path: text(g('csv_path'), p.csv_path, 1024),
     live_port: int(g('live_port'), p.live_port, 1, 65535),
+    bet_mode: pick(g('bet_mode'), ['paper', 'confirm', 'auto'], p.bet_mode),
+    bet_max_stake: num(g('bet_max_stake'), p.bet_max_stake, 0, 10_000),
+    bet_max_session: num(g('bet_max_session'), p.bet_max_session, 0, 1_000_000),
+    bet_delay_min: num(g('bet_delay_min'), p.bet_delay_min, 0, 30),
+    bet_delay_max: num(g('bet_delay_max'), p.bet_delay_max, 0, 30),
+    bet_confirm_seconds: int(g('bet_confirm_seconds'), p.bet_confirm_seconds, 3, 120),
 
     // The mask means "unchanged"; the real token never round-trips through the page.
     telegram_token: text(g('telegram_token'), p.telegram_token, 256),
@@ -244,6 +293,8 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
   if (s.progression === 'list' && s.chain.length === 0) errors.push('Enter a progression sequence, e.g. 0.1, 0.2, 0.4, 0.8');
   if (s.cycle_pct_max < s.cycle_pct_min) errors.push('JJ "up to %" must not be below "Increase from %"');
   if (s.pause_consec_loss_count > 0 && s.pause_bet_count === 0) errors.push('Enter how many hands to pause for ("Pause for (hands)")');
+  if (s.strategy === 'SEQUENCE' && parseSides(s.sequence_sides) === null) errors.push('Sequence sides must be P or B separated by commas, e.g. B,P,P,B (at most 64)');
+  if (s.bet_delay_max < s.bet_delay_min) errors.push('The longest bet delay must not be shorter than the shortest');
   if (s.keepalive_enabled && s.keepalive_amount <= 0) errors.push('Keep-Alive amount must be above 0');
   return { settings: s, errors };
 }

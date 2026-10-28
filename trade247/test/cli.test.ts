@@ -8,7 +8,7 @@ const read = (path: string): string => readFileSync(new URL(path, root), 'utf8')
 
 describe('command line', () => {
   it('has sensible defaults', () => {
-    expect(parseArgs([])).toEqual({ help: false, version: false, open: undefined, port: undefined, inspectTable: false, livePort: undefined, errors: [] });
+    expect(parseArgs([])).toEqual({ help: false, version: false, open: undefined, port: undefined, inspectTable: false, checkTable: false, livePort: undefined, errors: [] });
   });
 
   it('understands every option', () => {
@@ -18,6 +18,7 @@ describe('command line', () => {
     expect(parseArgs(['--port', '9100']).port).toBe(9100);
     expect(parseArgs(['--port=9101']).port).toBe(9101);
     expect(parseArgs(['--inspect-table']).inspectTable).toBe(true);
+    expect(parseArgs(['--check-table']).checkTable).toBe(true);
     expect(parseArgs(['--live-port', '9222']).livePort).toBe(9222);
     expect(parseArgs(['--live-port=9223']).livePort).toBe(9223);
     expect(parseArgs(['--version']).version).toBe(true);
@@ -46,7 +47,7 @@ describe('command line', () => {
   });
 
   it('documents every option it accepts', () => {
-    for (const option of ['--open', '--no-open', '--port', '--inspect-table', '--live-port', '--version', '--help', 'T247_PORT', 'T247_DATA_DIR', 'T247_NO_OPEN', 'T247_OPEN_REPORTS']) {
+    for (const option of ['--open', '--no-open', '--port', '--inspect-table', '--check-table', '--live-port', '--version', '--help', 'T247_PORT', 'T247_DATA_DIR', 'T247_NO_OPEN', 'T247_OPEN_REPORTS']) {
       expect(HELP, option).toContain(option);
     }
   });

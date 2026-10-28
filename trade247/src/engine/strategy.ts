@@ -3,8 +3,10 @@ import type { Outcome, Result, Side } from './types.js';
 
 /** What the strategy intends to do on the next hand. */
 export interface BetPlan {
-  mode: 'REAL' | 'VIRTUAL';
-  side: Side;
+  /** NONE: no pick this hand (the strategy waits to observe); the hand is neither bet nor virtual. */
+  mode: 'REAL' | 'VIRTUAL' | 'NONE';
+  /** null only when mode is NONE. */
+  side: Side | null;
   /** Stake in base units (0 is never used; virtual plans still carry the stake they would have had). */
   units: number;
   /** Money actually placed, after rounding up to the minimum chip. Only meaningful for REAL plans. */

@@ -1,8 +1,9 @@
 import { createEngine } from './factory.js';
+import { roundUpToChip } from './money.js';
 import { RiskGovernor, keepAliveBet, riskConfig, type HandPlan, type RiskConfig, type Verdict } from './risk.js';
 import type { Settings } from './settings.js';
 import type { HandResult, StrategyEngine } from './strategy.js';
-import type { Mode, Outcome, Result } from './types.js';
+import type { Mode, Outcome, Result, Side } from './types.js';
 
 export interface PlayEvent {
   result: Result;
@@ -16,12 +17,22 @@ export interface PlayedHand {
   hand: HandPlan;
   /** REAL, VIRTUAL, or MIN (a keep-alive bet riding on a hand the strategy sat out). */
   mode: Mode;
+  /** The side shown for the hand: the strategy's pick, the keep-alive bet's side, or '' for an observed hand. */
+  pick: Side | '';
   outcome: Outcome;
   pnlMicro: number;
   /** Money staked on this hand (0 for virtual hands). */
   stakeMicro: number;
   keepAliveNote: string;
   verdict: Verdict;
+}
+
+/** A real bet the program is about to place, or has placed. */
+export interface IntendedBet {
+  side: Side;
+  stakeMicro: number;
+  /** The bet is the keep-alive minimum, not the strategy's own. */
+  keepAlive: boolean;
 }
 
 export interface PlayCoreOptions {
@@ -78,6 +89,39 @@ export class PlayCore {
     this.governor.configure(this.risk);
   }
 
+  /** A new shoe is starting: apply the shoe-change policy now (a live table announces it before the first hand). */
+  shoeChange(): void {
+    this.engine.newShoe();
+    this.governor.newShoe();
+  }
+
+  /**
+   * The real bet the next hand will carry (the strategy's bet or a keep-alive bet), or null when it carries none.
+   * The program places exactly this on a live table, and checks that what it settles is the same. Pure: the engine is
+   * left as it was.
+   */
+  intendedBet(paused: boolean): IntendedBet | null {
+    if (paused) return null;
+    const { engine, governor } = this;
+    const hand = governor.prepare(engine, false);
+    let plan;
+    if (hand.cutRun) {
+      // The near-shoe-end policy drops the open run before the hand is played, so the bet is what is left after that.
+      const before = engine.snapshot();
+      engine.cutRun();
+      plan = engine.plan(hand.watchOnly);
+      engine.restore(before);
+    } else {
+      plan = engine.plan(hand.watchOnly);
+    }
+    if (hand.keepAlive) {
+      const side = plan.side ?? 'P';
+      return { side, stakeMicro: roundUpToChip(this.risk.keepAliveMicro, this.risk.chipMicro), keepAlive: true };
+    }
+    if (!hand.watchOnly && plan.mode === 'REAL' && plan.side !== null) return { side: plan.side, stakeMicro: plan.stakeMicro, keepAlive: false };
+    return null;
+  }
+
   /** Is the next hand the first of a new shoe in a session that has already started? */
   startsNewShoe(event: PlayEvent): boolean {
     return event.newShoe === true && this.hands > 0;
@@ -89,10 +133,7 @@ export class PlayCore {
    */
   play(event: PlayEvent, paused: boolean, dayBeforeMicro: number): PlayedHand {
     const { engine, governor } = this;
-    if (event.newShoe) {
-      engine.newShoe();
-      governor.newShoe();
-    }
+    if (event.newShoe) this.shoeChange();
 
     const hand = governor.prepare(engine, paused);
     if (hand.cutRun) engine.cutRun();
@@ -104,8 +145,11 @@ export class PlayCore {
     let pnlMicro = res.pnlMicro;
     let stakeMicro = res.plan.mode === 'REAL' ? res.plan.stakeMicro : 0;
     let keepAliveNote = '';
+    let pick: Side | '' = res.plan.side ?? '';
     if (hand.keepAlive) {
-      const k = keepAliveBet(res.plan.side, event.result, this.risk);
+      // With no pick of its own the strategy keeps the seat alive on Player (no commission).
+      pick = res.plan.side ?? 'P';
+      const k = keepAliveBet(pick, event.result, this.risk);
       mode = 'MIN';
       outcome = k.outcome;
       pnlMicro = k.pnlMicro;
@@ -134,6 +178,6 @@ export class PlayCore {
       sessionPnlMicro: this.pnlMicro, dayPnlMicro: dayBeforeMicro + pnlMicro,
     });
     if (verdict.resetEngine) engine.reset();
-    return { res, hand, mode, outcome, pnlMicro, stakeMicro, keepAliveNote, verdict };
+    return { res, hand, mode, pick, outcome, pnlMicro, stakeMicro, keepAliveNote, verdict };
   }
 }

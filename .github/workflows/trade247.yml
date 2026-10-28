@@ -77,3 +77,52 @@ jobs:
             trade247/release/*.zip
             trade247/release/*.tar.gz
           if-no-files-found: error
+
+  desktop:
+    name: Desktop app (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x64, os: windows-latest }
+          - { name: macos-arm64, os: macos-14 }
+    runs-on: ${{ matrix.os }}
+    env:
+      # Ad-hoc signing only: no Apple Developer certificate is used or looked for.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trade247/package-lock.json
+      - run: npm ci
+      - run: npm run electron:dist
+
+      # Starts the packaged app without a window and drives it: the page, the API, a replay and a backtest on worker threads.
+      - name: Smoke test the packaged app (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:T247_DATA_DIR = Join-Path $env:RUNNER_TEMP 't247-smoke'
+          & 'release/desktop/win-unpacked/TRADE247.exe' --smoke
+          if ($LASTEXITCODE -ne 0) { throw "smoke test failed ($LASTEXITCODE)" }
+
+      - name: Smoke test and verify the signature (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          export T247_DATA_DIR="$RUNNER_TEMP/t247-smoke"
+          app=release/desktop/mac-arm64/TRADE247.app
+          # The ad-hoc signature must verify, or Apple Silicon will not run the app.
+          codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/MacOS/TRADE247" --smoke
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trade247-desktop-${{ matrix.name }}
+          path: |
+            trade247/release/desktop/*.exe
+            trade247/release/desktop/*.dmg
+            trade247/release/desktop/*.zip
+          if-no-files-found: error

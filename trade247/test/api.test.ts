@@ -347,7 +347,7 @@ describe('settings the bot cannot honour yet', () => {
   const refused: Array<[string, Record<string, unknown>, RegExp]> = [
     ['AME-AI', { strategy: 'AME' }, /AME-AI is not available yet/],
     ['JJ', { strategy: 'JJ' }, /JJ is not available yet/],
-    ['manual sequence', { progression: 'list', chain: [1, 2, 3] }, /Manual Sequence Input is not available yet/],
+    ['manual sequence', { progression: 'list', chain: [1, 2, 3] }, /Manual Sequence Input is not available for IHG/],
     ['virtual entry filter', { entry_loss_filter: 3 }, /Virtual Bet entry filter is not available yet/],
   ];
 

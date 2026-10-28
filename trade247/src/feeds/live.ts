@@ -1,4 +1,6 @@
+import type { Side } from '../engine/types.js';
 import { listPages } from '../live/cdp.js';
+import { TableBettor, type Placement } from '../live/bettor.js';
 import { PageSession } from '../live/page.js';
 import type { LiveProfile } from '../live/profile.js';
 import { RoadTracker } from '../live/road.js';
@@ -14,6 +16,14 @@ export interface LiveOptions {
   scanMs?: number;
   /** The table counts as lost when its road cannot be found for this long. */
   lostAfterMs?: number;
+  /** Watch the betting window and report when it opens (needs a profile with a "betting" block). */
+  watchWindow?: boolean;
+  /** The road must have been still for this long before a new window is reported (the last result is in). */
+  settleMs?: number;
+  /** Pause between chip clicks, in milliseconds [min, max]. */
+  clickGapMs?: [number, number];
+  /** How long the table has to show a placed bet. */
+  confirmMs?: number;
 }
 
 export interface LiveHooks {
@@ -23,6 +33,10 @@ export interface LiveHooks {
   waiting(reason: string): void;
   /** A table that was attached has gone. Called once per outage. */
   lost(reason: string): void;
+  /** The table started a new shoe (reported before the first hand of that shoe). */
+  shoeChange(): void;
+  /** Bets are open for a new round (once per round, after the previous result is in). */
+  windowOpen?(): void;
 }
 
 /**
@@ -41,6 +55,10 @@ export class LiveFeed implements Feed {
   private running = false;
   private wakeRequested = false;
   private wake: (() => void) | null = null;
+  /** Hands and shoe changes seen so far: identifies the round a window belongs to. */
+  private round = 0;
+  private armedRound = -1;
+  private lastChangeAt = 0;
 
   constructor(
     private readonly handler: HandHandler,
@@ -70,6 +88,18 @@ export class LiveFeed implements Feed {
 
   push(): boolean {
     return false;
+  }
+
+  /**
+   * Places a bet on the connected table. The result says whether the table shows it; nothing is retried.
+   * `shouldAbort` is checked between clicks.
+   */
+  async place(side: Side, stake: number, shouldAbort?: () => boolean): Promise<Placement> {
+    const betting = this.options.profile.betting;
+    const page = this.page;
+    if (!betting) return { kind: 'rejected', reason: 'This table profile has no betting settings' };
+    if (!page || page.closed) return { kind: 'rejected', reason: 'The table is not connected' };
+    return new TableBettor(page, betting, { shouldAbort, clickGapMs: this.options.clickGapMs, confirmMs: this.options.confirmMs }).place(side, stake);
   }
 
   // ----------------------------------------------------------------
@@ -149,7 +179,24 @@ export class LiveFeed implements Feed {
     }
     this.missingSince = null;
     if (reading.unreadable) return; // a cell was not recognised: wait for a clean reading rather than guess
-    for (const hand of this.road.consume(reading.items)) this.handler(hand);
+    for (const event of this.road.consume(reading.items)) {
+      this.round++;
+      this.lastChangeAt = now;
+      if (event.kind === 'shoe') this.hooks.shoeChange();
+      else this.handler({ result: event.result, cards: null });
+    }
+    await this.watchWindow(page, now);
+  }
+
+  /** Tells the session when bets open for a round it has not been told about yet. */
+  private async watchWindow(page: PageSession, now: number): Promise<void> {
+    const betting = this.options.profile.betting;
+    if (!this.options.watchWindow || !betting || !this.hooks.windowOpen || this.armedRound === this.round) return;
+    if (now - this.lastChangeAt < (this.options.settleMs ?? 800)) return;
+    const snap = await page.readWindow(betting).catch(() => null);
+    if (!this.active || this.page !== page || !snap?.reading.open) return;
+    this.armedRound = this.round;
+    this.hooks.windowOpen();
   }
 
   /** Looks through the open tabs for one that has the table. */

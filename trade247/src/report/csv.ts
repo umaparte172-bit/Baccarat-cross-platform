@@ -16,6 +16,12 @@ export const LOG_FILE_NAME = 'trade247_session_history.csv';
 
 const NAMES = { P: 'PLAYER', B: 'BANKER', T: 'TIE' } as const;
 
+/** The "Bet" column: the side, with a note for virtual and keep-alive bets; a hand the strategy only observed says so. */
+export function betLabel(row: Row): string {
+  if (row.pick === '') return 'NO BET';
+  return NAMES[row.pick] + (row.mode === 'VIRTUAL' ? ' (virtual)' : row.mode === 'MIN' ? ' (keep-alive)' : '');
+}
+
 function cell(value: string | number): string {
   const text = String(value);
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -23,7 +29,7 @@ function cell(value: string | number): string {
 
 export function csvLine(r: HandRecord): string {
   const { row } = r;
-  const bet = NAMES[row.pick] + (row.mode === 'VIRTUAL' ? ' (virtual)' : row.mode === 'MIN' ? ' (keep-alive)' : '');
+  const bet = betLabel(row);
   const rule = [row.pattern, row.note].filter(Boolean).join(' · ');
   return [
     row.time, row.session, row.n, r.strategy, bet, row.mode, row.stake, NAMES[row.result], row.outcome,

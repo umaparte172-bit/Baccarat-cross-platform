@@ -6,6 +6,8 @@ export interface CliOptions {
   port: number | undefined;
   /** Calibration capture of the table open in Chrome instead of starting the server. */
   inspectTable: boolean;
+  /** Read the road and the betting window of the open table with the current profile (clicks nothing). */
+  checkTable: boolean;
   /** Chrome debugging port for --inspect-table. */
   livePort: number | undefined;
   errors: string[];
@@ -19,7 +21,8 @@ Usage: trade247 [options]
   --no-open        Do not open the browser (servers, VPS, scheduled tasks)
   --port <number>  Port to listen on (default 8247; also T247_PORT)
   --inspect-table  Save a description of the table open in Chrome (for calibration), then exit
-  --live-port <n>  Chrome debugging port for --inspect-table (default 9014)
+  --check-table    Show what the table profile can read from the open table (clicks nothing), then exit
+  --live-port <n>  Chrome debugging port for --inspect-table and --check-table (default 9014)
   --version, -v    Print the version and exit
   --help, -h       Print this help and exit
 
@@ -38,7 +41,7 @@ export function parsePort(value: string | undefined): number | undefined {
 }
 
 export function parseArgs(argv: readonly string[]): CliOptions {
-  const out: CliOptions = { help: false, version: false, open: undefined, port: undefined, inspectTable: false, livePort: undefined, errors: [] };
+  const out: CliOptions = { help: false, version: false, open: undefined, port: undefined, inspectTable: false, checkTable: false, livePort: undefined, errors: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === '--help' || arg === '-h') out.help = true;
@@ -46,6 +49,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     else if (arg === '--open') out.open = true;
     else if (arg === '--no-open') out.open = false;
     else if (arg === '--inspect-table') out.inspectTable = true;
+    else if (arg === '--check-table') out.checkTable = true;
     else if (arg === '--live-port' || arg.startsWith('--live-port=')) {
       const value = arg === '--live-port' ? argv[++i] : arg.slice('--live-port='.length);
       const port = parsePort(value);

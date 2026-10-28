@@ -22,7 +22,7 @@ const play = (e: IhgEngine, results: string, paused = false): HandResult[] =>
   [...results].map((r) => e.settle(r as Result, paused));
 const one = (e: IhgEngine, result: string, paused = false): HandResult => e.settle(result as Result, paused);
 /** Settle a hand in which the engine's own prediction wins. */
-const winNow = (e: IhgEngine): HandResult => e.settle(e.plan(false).side, false);
+const winNow = (e: IhgEngine): HandResult => e.settle(e.plan(false).side!, false);
 /** Settle a hand in which the engine's own prediction loses. */
 const loseNow = (e: IhgEngine): HandResult => e.settle(e.plan(false).side === 'P' ? 'B' : 'P', false);
 
@@ -60,7 +60,7 @@ describe('selection', () => {
     expect(e.plan(false)).toMatchObject({ side: 'P', pattern: '2-2' });
     const sides: string[] = [];
     for (const r of 'PPBBPP') {
-      sides.push(e.plan(false).side);
+      sides.push(e.plan(false).side!);
       e.settle(r as Result, false);
     }
     expect(sides).toEqual(['P', 'P', 'B', 'B', 'P', 'P']);

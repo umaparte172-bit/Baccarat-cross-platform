@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { BetCoordinator, type BetHost } from './betting.js';
 import { unsupportedReason } from './engine/factory.js';
 import { fmt2, toMicro } from './engine/money.js';
 import { PlayCore } from './engine/play.js';
@@ -43,7 +44,7 @@ const signed = (micro: number): string => `${micro > 0 ? '+' : ''}${fmt2(micro)}
 function toNextBet(plan: BetPlan, reason?: string): NextBet {
   return {
     mode: plan.mode,
-    pick: plan.side === 'P' ? 'PLAYER' : 'BANKER',
+    pick: plan.side === null ? '' : plan.side === 'P' ? 'PLAYER' : 'BANKER',
     units: plan.units,
     stake: plan.stakeMicro / 1_000_000,
     final: plan.final,
@@ -77,6 +78,7 @@ export class SessionManager {
   private shoeNo = 1;
   private feedIsLost = false;
   private liveProfile: LiveProfile | null = null;
+  private readonly bets: BetCoordinator;
 
   constructor(
     private readonly store: SettingsStore,
@@ -85,6 +87,7 @@ export class SessionManager {
     this.now = options.now ?? (() => new Date());
     this.settings = store.load();
     this.day = store.loadDay(localDay(this.now()));
+    this.bets = new BetCoordinator(this.betHost());
     this.notifier = new TelegramNotifier(
       () => ({ token: this.settings.telegram_token, chatId: this.settings.telegram_chat_id }),
       {
@@ -133,6 +136,7 @@ export class SessionManager {
       logs_dir: this.store.logsDir,
       total_rows: this.records.length,
       rows: this.records.slice(since).map((r) => r.row),
+      bet: this.bets.view(),
     };
   }
 
@@ -141,9 +145,9 @@ export class SessionManager {
     const hand = core.governor.prepare(core.engine, this.paused);
     const plan = core.engine.plan(this.paused || hand.watchOnly);
     if (hand.keepAlive) {
-      const stakeMicro = keepAliveBet(plan.side, 'T', core.risk).stakeMicro;
+      const stakeMicro = keepAliveBet(plan.side ?? 'P', 'T', core.risk).stakeMicro;
       return {
-        mode: 'REAL', pick: plan.side === 'P' ? 'PLAYER' : 'BANKER', units: round2(stakeMicro / toMicro(this.settings.unit_value)),
+        mode: 'REAL', pick: (plan.side ?? 'P') === 'P' ? 'PLAYER' : 'BANKER', units: round2(stakeMicro / toMicro(this.settings.unit_value)),
         stake: stakeMicro / 1_000_000, final: false, pattern: 'keep-alive', reason: 'Keep-alive minimum bet',
       };
     }
@@ -171,6 +175,14 @@ export class SessionManager {
       const profile = loadProfile(this.store.dataDir);
       if ('error' in profile) return { ok: false, status: profile.error };
       this.liveProfile = profile;
+    }
+    if (settings.bet_mode !== 'paper') {
+      if (settings.feed !== 'live') return { ok: false, status: 'Betting needs the Live table feed' };
+      if (!this.liveProfile?.betting) {
+        return { ok: false, status: 'The table profile has no "betting" settings, so this table cannot be bet on (see docs/deployment.md, Betting)' };
+      }
+      if (!(settings.bet_max_stake > 0)) return { ok: false, status: 'Set the largest allowed stake before betting' };
+      if (!(settings.bet_max_session >= settings.bet_max_stake)) return { ok: false, status: 'The session staking limit must be at least the largest stake' };
     }
     const made = PlayCore.create(settings);
     if ('error' in made) return { ok: false, status: made.error };
@@ -205,6 +217,7 @@ export class SessionManager {
       // The feed and the money baseline cannot change under a running session.
       settings.feed = this.settings.feed;
       settings.live_port = this.settings.live_port;
+      settings.bet_mode = this.settings.bet_mode;
       settings.sim_seed = this.settings.sim_seed;
       settings.start_balance = this.settings.start_balance;
       const reason = unsupportedReason(settings);
@@ -227,6 +240,15 @@ export class SessionManager {
 
   pause(): boolean {
     if (!this.running || this.paused) return this.running;
+    if (this.bets.active) {
+      this.bets.skip();
+      if (this.bets.busy) {
+        // A bet is on the table: pausing now would leave it unaccounted for, so the pause starts after its result.
+        this.bets.requestPauseAfterResult();
+        this.status = 'PAUSING - a bet is on the table';
+        return true;
+      }
+    }
     this.paused = true;
     this.status = 'PAUSED';
     return true;
@@ -234,7 +256,8 @@ export class SessionManager {
 
   resume(): boolean {
     if (!this.running) return false;
-    if (this.paused) {
+    this.bets.takePauseRequest();
+    if (this.paused || this.status.startsWith('PAUSING')) {
       this.paused = false;
       this.status = 'RUNNING';
     }
@@ -351,6 +374,7 @@ export class SessionManager {
 
   private beginSession(): void {
     this.clearSession();
+    this.bets.clear();
     this.sessionNo = this.store.nextSessionNumber();
     this.startedTs = Math.floor(this.now().getTime() / 1000);
     this.stoppedTs = 0;
@@ -371,6 +395,7 @@ export class SessionManager {
 
   private finish(status: string): void {
     this.feed?.stop();
+    this.bets.clear();
     this.running = false;
     this.paused = false;
     this.status = status;
@@ -391,11 +416,13 @@ export class SessionManager {
       case 'live':
         return new LiveFeed(
           handler,
-          { port: this.settings.live_port, profile: this.liveProfile! },
+          { port: this.settings.live_port, profile: this.liveProfile!, watchWindow: this.settings.bet_mode !== 'paper' },
           {
             connected: () => this.feedConnected(),
             waiting: (reason) => this.feedWaiting(reason),
             lost: (reason) => void this.feedLost(reason),
+            shoeChange: () => this.onShoeChange(),
+            windowOpen: () => this.bets.onWindowOpen(),
           },
         );
       default:
@@ -431,6 +458,18 @@ export class SessionManager {
     }
   }
 
+  /** A live table announced a new shoe (simulated and replayed feeds mark it on the first hand instead). */
+  private onShoeChange(): void {
+    const core = this.core;
+    if (!this.running || !core) return;
+    const counted = core.hands > 0;
+    core.shoeChange();
+    if (counted) {
+      this.shoeNo++;
+      this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
+    }
+  }
+
   private onHand(event: HandEvent): void {
     const core = this.core;
     if (!this.running || !core) return;
@@ -440,21 +479,25 @@ export class SessionManager {
       this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
     }
 
+    // On a live table with betting on, what was placed must be what is settled (see betting.ts).
+    const decision = this.bets.beforeHand(core, this.paused);
+    if (decision.action === 'stop') return;
+
     const when = this.now();
-    const played = core.play(event, this.paused, this.dayTotal(when));
+    const played = core.play(event, this.paused || decision.forcePaused, this.dayTotal(when));
     const { res, hand } = played;
     const dayMicro = this.addToDay(played.pnlMicro, when);
 
     const row: Row = {
       n: this.records.length + 1,
       time: localTime(when),
-      pick: res.plan.side,
+      pick: played.pick,
       mode: played.mode,
       stake: fmt2(played.stakeMicro),
       result: event.result,
       outcome: played.outcome,
       pattern: res.pattern,
-      note: [res.note, hand.reason, played.keepAliveNote].filter(Boolean).join(' · '),
+      note: [res.note, hand.reason, played.keepAliveNote, decision.note].filter(Boolean).join(' · '),
       single_wins: res.singleWins,
       run_net_units: round2(res.runNetMicro / toMicro(s.unit_value)),
       session_pnl: fmt2(core.pnlMicro),
@@ -470,6 +513,10 @@ export class SessionManager {
     this.records.push(record);
     this.writeHistory(record);
 
+    if (this.running && this.bets.takePauseRequest()) {
+      this.paused = true;
+      this.status = 'PAUSED';
+    }
     const stop = played.verdict.stop;
     if (stop) {
       this.finish(stop.status);
@@ -480,6 +527,39 @@ export class SessionManager {
         );
       }
     }
+  }
+
+  // ---- real betting (the coordinator does the work; see betting.ts)
+
+  approveBet(): { ok: boolean; error?: string } {
+    return this.bets.approve();
+  }
+
+  skipBet(): { ok: boolean; error?: string } {
+    return this.bets.skip();
+  }
+
+  private betHost(): BetHost {
+    return {
+      settings: () => this.settings,
+      core: () => this.core,
+      now: () => this.now().getTime(),
+      running: () => this.running,
+      paused: () => this.paused,
+      feedLost: () => this.feedIsLost,
+      handsRecorded: () => this.records.length,
+      random: () => Math.random(),
+      place: (side, stake, shouldAbort) =>
+        this.feed instanceof LiveFeed
+          ? this.feed.place(side, stake, shouldAbort)
+          : Promise.resolve({ kind: 'rejected' as const, reason: 'The table is not connected' }),
+      stopForBet: (status, message) => {
+        const summary = this.summary();
+        this.finish(status);
+        this.error = `Bet problem: ${message}`;
+        this.notifier.notify('bet_problem', `TRADE247: ${message}. The session was stopped; check the table. ${summary}.`);
+      },
+    };
   }
 
   private writeHistory(record: HandRecord): void {

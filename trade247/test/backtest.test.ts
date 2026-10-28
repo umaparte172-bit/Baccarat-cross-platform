@@ -202,7 +202,7 @@ describe('a backtest session equals a live session', () => {
         const h = harness();
         const started = (await h.post('/api/start', { settings: { unit_value: 1, min_chip: 0, start_balance: 1000, feed: 'csv', csv_text: text, ...over } })).json;
         expect(started.ok, started.status).toBe(true);
-        await vi.waitFor(async () => expect((await h.get('/api/state')).json.running).toBe(false), { timeout: 10_000, interval: 10 });
+        await vi.waitFor(async () => expect((await h.get('/api/state')).json.running).toBe(false), { timeout: 40_000, interval: 10 });
         const live = (await h.get('/api/state?since=0')).json;
         await h.close();
 

@@ -87,6 +87,7 @@ describe.skipIf(!chrome)('reading a table in a real Chrome', () => {
       connected: () => log.push('connected'),
       waiting: (r) => log.push(`waiting:${r}`),
       lost: (r) => log.push(`lost:${r}`),
+      shoeChange: () => log.push('shoe'),
     };
     return { hands, log, hooks };
   };
@@ -113,13 +114,13 @@ describe.skipIf(!chrome)('reading a table in a real Chrome', () => {
       await until(() => hands.length === 3);
       await new Promise((r) => setTimeout(r, 300));
       expect(results(hands)).toBe('TPP');
-      expect(hands.every((h) => !h.newShoe)).toBe(true);
+      expect(log.includes('shoe')).toBe(false);
     } finally {
       feed.stop();
     }
   }, 20_000);
 
-  it('treats a shorter road as a new shoe once two readings agree, and flags only its first hand', async () => {
+  it('treats a shorter road as a new shoe once two readings agree, and announces it once', async () => {
     table.state.cells = ['P', 'B', 'T', 'P'];
     const { hands, log, hooks } = collect();
     const feed = new LiveFeed((e) => hands.push(e), { port: browser.port, profile: EVOLUTION_BEAD_ROAD, pollMs: 40, scanMs: 100 }, hooks);
@@ -129,11 +130,14 @@ describe.skipIf(!chrome)('reading a table in a real Chrome', () => {
       table.state.cells = [];
       await new Promise((r) => setTimeout(r, 400));
       expect(hands).toHaveLength(0);
+      // The shoe is announced as soon as the empty road is confirmed, before any hand of the new shoe.
+      await until(() => log.includes('shoe'));
       table.state.cells = ['B'];
       await until(() => hands.length === 1);
       table.state.cells = ['B', 'P'];
       await until(() => hands.length === 2);
-      expect(hands.map((h) => [h.result, !!h.newShoe])).toEqual([['B', true], ['P', false]]);
+      expect(hands.map((h) => h.result)).toEqual(['B', 'P']);
+      expect(log.filter((l) => l === 'shoe')).toHaveLength(1);
     } finally {
       feed.stop();
     }

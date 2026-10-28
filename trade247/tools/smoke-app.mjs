@@ -6,7 +6,7 @@
 
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -151,6 +151,84 @@ async function liveWithChrome(chromePath, json, waitFor) {
   }
 }
 
+/**
+ * Real betting through the packaged program: a mock table (in a frame from another site) in a real headless Chrome.
+ * The program must click a chip and the Player spot with real mouse events and see the table show the stake.
+ */
+async function bettingWithChrome(chromePath, json, waitFor, dataFolder) {
+  const state = { total: 0, selected: null, clicks: [] };
+  const inner = createHttpServer((req, res) => {
+    if (req.url === '/state') return void res.end(JSON.stringify(state));
+    if (req.url === '/click' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (d) => (body += d));
+      req.on('end', () => {
+        const c = JSON.parse(body);
+        state.clicks.push(c);
+        if (c.target === 'chip') state.selected = Number(c.value);
+        else if (c.target === 'player' && state.selected !== null) state.total += state.selected;
+        res.end('ok');
+      });
+      return;
+    }
+    res.setHeader('content-type', 'text/html');
+    res.end(`<body><div data-role="Bead-road"></div><div data-role="status">PLACE YOUR BETS</div>
+      <div data-role="chip" data-value="1" style="display:inline-block;width:40px;height:40px;background:#ccc;margin:5px">1</div>
+      <div data-role="chip" data-value="5" style="display:inline-block;width:40px;height:40px;background:#ccc;margin:5px">5</div>
+      <div data-role="player" style="width:200px;height:60px;background:#9cf;margin:10px">PLAYER</div>
+      <div data-role="banker" style="width:200px;height:60px;background:#f99;margin:10px">BANKER</div>
+      <div data-role="total">0</div>
+      <script>
+        const send = (target, value, e) => fetch('/click', {method: 'POST', body: JSON.stringify({target, value, trusted: e.isTrusted})});
+        document.querySelectorAll('[data-role=chip]').forEach(c => c.addEventListener('click', e => send('chip', c.dataset.value, e)));
+        document.querySelector('[data-role=player]').addEventListener('click', e => send('player', undefined, e));
+        setInterval(async () => { try { const s = await (await fetch('/state')).json(); document.querySelector('[data-role=total]').textContent = String(s.total); } catch (e) {} }, 40);
+      </script></body>`);
+  });
+  await new Promise((r) => inner.listen(0, '127.0.0.1', r));
+  const outer = createHttpServer((_q, res) => {
+    res.setHeader('content-type', 'text/html');
+    res.end(`<body style="margin:0"><div style="height:30px">lobby</div><iframe src="http://localhost:${inner.address().port}/" style="margin:20px;border:4px solid red;padding:6px;width:420px;height:420px"></iframe></body>`);
+  });
+  await new Promise((r) => outer.listen(0, '127.0.0.1', r));
+  const profilePath = join(dataFolder, 'live-profile.json');
+  writeFileSync(profilePath, JSON.stringify({
+    name: 'smoke', containerSelector: '[data-role="Bead-road"]', itemSelector: '[data-role="x"]', hostContains: '',
+    rules: [{ exact: 'P', result: 'P' }],
+    betting: {
+      statusSelector: '[data-role="status"]', openText: 'PLACE YOUR BETS', chipSelector: '[data-role="chip"]', chipValueFrom: 'data-value',
+      playerSelector: '[data-role="player"]', bankerSelector: '[data-role="banker"]', betTotalSelector: '[data-role="total"]', balanceSelector: '',
+    },
+  }));
+  const profile = mkdtempSync(join(tmpdir(), 't247-smoke-bet-'));
+  const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--disable-gpu', ...(process.platform === 'linux' ? ['--no-sandbox'] : []), 'about:blank'], { stdio: 'ignore', windowsHide: true });
+  try {
+    let port = 0;
+    for (let i = 0; i < 100 && !port; i++) {
+      await sleep(100);
+      try { port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0]); } catch { /* not yet */ }
+    }
+    if (!port) return { ok: false, detail: 'Chrome did not start' };
+    await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(`http://127.0.0.1:${outer.address().port}/`)}`, { method: 'PUT' });
+    const started = await json('/api/start', { settings: { feed: 'live', live_port: port, bet_mode: 'auto', bet_max_stake: 10, bet_max_session: 50, bet_delay_min: 0, bet_delay_max: 0, unit_value: 1, min_chip: 1, start_balance: 1000 } });
+    if (!started.ok) return { ok: false, detail: JSON.stringify(started) };
+    await waitFor(async () => (state.total === 1 ? true : null), 20_000, 'the bet to appear on the table');
+    const bet = await json('/api/state?since=0');
+    await json('/api/stop', {});
+    const trusted = state.clicks.length >= 2 && state.clicks.every((c) => c.trusted);
+    return { ok: trusted && bet.bet?.on_table === true, detail: `clicks ${JSON.stringify(state.clicks)}, on_table ${bet.bet?.on_table}` };
+  } finally {
+    chrome.kill();
+    outer.closeAllConnections?.();
+    inner.closeAllConnections?.();
+    outer.close();
+    inner.close();
+    rmSync(profilePath, { force: true });
+    await sleep(300);
+    try { rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* temp folder */ }
+  }
+}
+
 let child;
 try {
   child = start(port, dataDir);
@@ -218,6 +296,8 @@ try {
   } else {
     const live = await liveWithChrome(chromePath, json, waitFor);
     check('reads a mock table in a real Chrome through the packaged program', live.ok, live.detail);
+    const betting = await bettingWithChrome(chromePath, json, waitFor, dataDir);
+    check('places a bet with real clicks on a mock table through the packaged program', betting.ok, betting.detail);
   }
 
   check('keeps its settings on disk', existsSync(join(dataDir, 'settings.json')) && readdirSync(dataDir).includes('meta.json'));

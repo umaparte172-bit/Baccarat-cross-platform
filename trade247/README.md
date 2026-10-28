@@ -6,15 +6,38 @@ Plan and milestones: [`../docs/trade247-v1-plan.md`](../docs/trade247-v1-plan.md
 
 ## Status
 
-M0 to M5 and M9 are done, and M7 in its read-only form: the page runs against the local server with the Simulator, Manual, Replay and read-only Live table
-feeds, the **IHG engine** is verified against the client's IHG document, the **risk layer** (limits, pauses,
-keep-alive, end of shoe) is in place, **reports and Telegram alerts** work, the **Backtest** window runs, and the
-program is **packaged** as a single file for Windows and Apple-silicon macOS (the Windows package is built and
-smoke-tested here; the macOS package is built by CI and has not been run on a Mac yet). See the sections below.
+Done: the page runs against the local server with the Simulator, Manual, Replay and **Live table** feeds; the **IHG
+engine** is verified against the client's IHG document; the **seven classic strategies** of the Windows application
+(Martingale, Grinding, Sequence, Odd Even, ODD Diff, ODD Looser, ODD is God) are verified against the client's written
+cases and the C# reference engine; the **risk layer** (limits, pauses, keep-alive, end of shoe) is in place; **reports and
+Telegram alerts** work; the **Backtest** window runs; **real betting on a live table** exists behind an explicit switch
+(default Paper) and is tested on a mock table in a real Chrome; and the program ships as a **desktop app** (Electron) and as a
+single-file program for Windows and Apple-silicon macOS (the Windows builds are tested here; the Mac builds are made by CI
+and have not been run on a Mac yet). See the sections below.
 
-Not built yet, and each says so in the UI: AME-AI, JJ, Manual Sequence Input, the Virtual Bet entry filter and
-betting on a live table. **Start refuses** the first four rather than ignoring them, so a setting can never be silently
-dropped.
+Not built yet, and each says so in the UI: AME-AI, JJ (waiting for the client's formulas) and the Virtual Bet entry filter
+(waiting for one answer). **Start refuses** them rather than ignoring them, so a setting can never be silently dropped.
+Not checked against a real casino table: the table profile and the betting clicks (they need the client's capture and account).
+Fingerprint spoofing and bot-detection evasion are not part of this program.
+
+## Classic strategies
+
+`src/engine/classic.ts`, selected in the page's strategy list. They follow the decisive results (a tie changes nothing)
+and share everything else with IHG: the risk layer, keep-alive, reports, the Backtest and live betting.
+
+| Strategy | Pick | Stake |
+|---|---|---|
+| Martingale | first side, then the last winner | a loss multiplies the stake (default 2), a win returns to the Base Unit |
+| Grinding | the last winner | a win adds one unit, a loss keeps it; once the run is one unit up, back to one unit |
+| Sequence | the listed sides in order; a loss moves on, a win starts over | steps through the stake list with the sides |
+| Odd Even | alternates between the odd side and its opposite | stake list: a loss steps up, a win returns to the first |
+| ODD Diff | the side that won more of the odd-numbered results; no bet while level | stake list |
+| ODD Looser | the side that won fewer of them | stake list |
+| ODD is God | the winner of the latest odd-numbered result | stake list |
+
+A stake list is the page's **Manual Sequence Input**. Hands with no pick are shown as **NO BET**. Checked by
+`test/classic.reference.test.ts` (the 19 client cases, and 35,000 hands played through the C# reference engine in
+`tools/classic-reference`; how to regenerate them is at the top of `build-fixture.mjs`).
 
 ## IHG engine
 
@@ -98,15 +121,23 @@ and shows the spread of results (all in units, with a dollar figure beside the a
 - Results are simulation output, not a forecast. No betting system changes the house edge, and the figures
   (especially the "bad day" and "worst drawdown" ones) are the point of running it before real money.
 
-## Live table (read-only)
+## Live table and betting
 
 The **Live table** feed reads the road of a baccarat table open in your own Chrome (started with the launcher script,
-which opens a debugging port on this computer only). It only reads: nothing is clicked or bet, bets stay simulated.
-Code: `src/live/` (Chrome DevTools client, profile, page reader, road tracker) and `src/feeds/live.ts`. Tested against a
-real headless Chrome with a table inside a frame from another site (`test/live.test.ts`, skipped when no Chrome is found).
-**Not yet checked against a real Roobet/Evolution table**: `trade247 --inspect-table` captures what is needed to calibrate
-the selectors, and a `live-profile.json` in the data folder replaces them without a new program.
-Details: [`docs/deployment.md`](docs/deployment.md), section 6.
+which opens a debugging port on this computer only). In the default **Paper** bet mode nothing is clicked or bet.
+Code: `src/live/` (Chrome DevTools client, profile, page reader, road tracker, bettor), `src/feeds/live.ts`.
+
+**Betting** (`src/betting.ts`, `src/live/bettor.ts`) is opt-in: **Confirm** (you press PLACE BET) or **Automatic**. Both need a
+largest bet and a session limit; a bet is placed once, only while the table shows bets open and nothing is on the table,
+from the fewest chips, with real mouse clicks, and counts only when the table's own total shows the stake. An unconfirmed bet,
+or a placed bet that differs from what the strategy would bet, **stops the session** with an alert. It never touches deposits,
+tips or withdrawals, and it does not change the browser's identity.
+
+Tested against a real headless Chrome with a mock table whose betting controls sit in frames from another site
+(`test/live.test.ts`, `test/bettor.test.ts`, `test/betting.session.test.ts`; skipped when no Chrome is found).
+**Not yet run on a real Roobet/Evolution table**: `trade247 --inspect-table` and `--check-table` calibrate the selectors, and a
+`live-profile.json` in the data folder supplies them without a new program. Details:
+[`docs/deployment.md`](docs/deployment.md), sections 6 and 10.
 
 ## Reports and alerts
 
@@ -148,6 +179,8 @@ npm run typecheck
 npm run package      # single-file program for THIS operating system -> release/
 npm run smoke        # start the built program and check it end to end (16 checks)
 npm run release      # package + a ready-to-zip folder with scripts, README and SHA256SUMS.txt
+npm run electron:start    # the desktop app, from source
+npm run electron:dist     # the desktop app packaged for THIS operating system -> release/desktop/
 ```
 
 `trade247 --help` lists the command-line options (`--port`, `--no-open`, `--version`).

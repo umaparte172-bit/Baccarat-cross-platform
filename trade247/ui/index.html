@@ -111,6 +111,9 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
 #tip{position:fixed;z-index:50;background:#0b1522;border:1px solid #4ea8de;border-radius:4px;padding:6px 9px;font-size:12px;color:#e0e1dd;pointer-events:none;display:none;max-width:340px;line-height:1.5;box-shadow:0 4px 14px #0008}
 #tip b{color:#90e0ef}
 @media (max-width:820px){body{overflow:auto}.main-container{flex-direction:column}.left-panel{width:100%!important;max-width:none}.splitter{display:none}}
+.bet-bar{display:flex;gap:8px;align-items:center;padding:6px 10px;margin-bottom:6px;background:#3a2a00;border:1px solid #ffb703;border-radius:6px;color:#ffd166;font-size:12px}
+.bet-bar.calm{background:#10223a;border-color:#2a4a7a;color:#9ecbff}
+.bet-bar button{padding:4px 10px}
 </style>
 </head>
 <body>
@@ -130,6 +133,15 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
       <option value="IHG">IHG</option>
       <option value="AME">AME-AI</option>
       <option value="JJ">JJ (cycle stakes)</option>
+      <optgroup label="Classic strategies">
+        <option value="MARTINGALE">Martingale</option>
+        <option value="GRINDING">Grinding</option>
+        <option value="SEQUENCE">Sequence</option>
+        <option value="ODD_EVEN">Odd Even</option>
+        <option value="ODD_DIFF">ODD Diff</option>
+        <option value="ODD_LOOSER">ODD Looser</option>
+        <option value="ODD_IS_GOD">ODD is God</option>
+      </optgroup>
     </select>
 
     <div class="section-title">RISK &amp; CAPITAL MODES</div>
@@ -223,6 +235,18 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
         <label>Daily take profit $ (all sessions today, 0 = off)</label>
         <input type="number" data-key="daily_take_profit" step="0.5" min="0">
 
+        <label>Keep-alive idle hands</label>
+        <input type="number" data-key="keepalive_idle" min="1" title="Minimum bet placed on the Nth consecutive hand without a real bet">
+        <div id="classicBox" class="sub hide">
+          <div class="foot"><b id="classicTitle">Classic strategy</b></div>
+          <div id="firstSideRow"><label id="firstSideLabel">First bet on</label>
+            <select data-key="first_side"><option value="P">Player</option><option value="B">Banker</option></select></div>
+          <div id="multRow"><label>Loss multiplier (stake x this after a loss)</label>
+            <input type="number" data-key="martingale_multiplier" step="0.1" min="1.01"></div>
+          <div id="sidesRow"><label>Sides in order (P or B, e.g. B,P,P,B,B,P,B,P)</label>
+            <input type="text" data-key="sequence_sides"></div>
+          <div class="foot" id="classicHelp"></div>
+        </div>
         <div id="ihgBox" class="sub">
           <div class="foot"><b>IHG</b></div>
           <label title="Single wins (win between two losses) before IHG switches to virtual picks">Single wins limit</label>
@@ -230,8 +254,6 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
             <select data-key="single_wins_mode"><option value="off">No limit</option><option value="doc">IHG document (7)</option><option value="custom">Custom</option></select>
             <input type="number" data-key="single_wins_limit" min="1" placeholder="number">
           </div>
-          <label>Keep-alive idle hands</label>
-          <input type="number" data-key="keepalive_idle" min="1" title="Minimum bet placed on the Nth consecutive hand without a real bet">
           <label>Rounding step (units; recovery stake rounds UP to a multiple, 1 = IHG doc, 0.5, 0.1, 0 = exact)</label>
           <input type="number" data-key="round_step" step="0.1" min="0">
           <button id="ihgDoc" type="button" class="btn-reset-input" title="Set every IHG parameter exactly as in the IHG document, then press APPLY">IHG document settings</button>
@@ -315,7 +337,26 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
         </div>
         <div id="liveBox" class="hide">
           <label>Chrome debugging port</label><input type="number" data-key="live_port" min="1" max="65535">
-          <div class="foot">Open Chrome with the TRADE247 Chrome launcher, sign in and open a baccarat table there. Results are read from the page; nothing is ever clicked or bet on the table. The road already on screen when you press Start is history and is not played.</div>
+          <div class="foot">Open Chrome with the TRADE247 Chrome launcher, sign in and open a baccarat table there. Results are read from the page. The road already on screen when you press Start is history and is not played.</div>
+          <div class="foot"><b>Betting on this table</b></div>
+          <label>Bet mode</label>
+          <select data-key="bet_mode">
+            <option value="paper">Paper - bets are simulated, nothing is clicked</option>
+            <option value="confirm">Confirm - I approve each bet (real money)</option>
+            <option value="auto">Automatic - the program places the bets (real money)</option>
+          </select>
+          <div id="betLimits" class="hide">
+            <div class="row2">
+              <div><label>Largest bet $</label><input type="number" data-key="bet_max_stake" min="0" step="0.5"></div>
+              <div><label>Session limit $</label><input type="number" data-key="bet_max_session" min="0" step="1"></div>
+            </div>
+            <div class="row2">
+              <div><label>Pause before a bet (s) from</label><input type="number" data-key="bet_delay_min" min="0" max="30" step="0.1"></div>
+              <div><label>to</label><input type="number" data-key="bet_delay_max" min="0" max="30" step="0.1"></div>
+            </div>
+            <div id="betConfirmRow"><label>Seconds to approve a bet</label><input type="number" data-key="bet_confirm_seconds" min="3" max="120"></div>
+            <div class="foot" style="color:#ffb703"><b>Real money.</b> A casino may close an account that bets automatically. A bet is placed only if it is within both limits above, once, and only when the table shows bets open. If the table does not show the stake, the session stops and nothing is repeated. Needs a table profile with betting settings (see the guide).</div>
+          </div>
         </div>
         <div id="csvBox" class="hide">
           <label>PBPPT|BBP (| = new shoe)</label>
@@ -329,13 +370,18 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
         <div style="display:flex;gap:6px;align-items:center"><button class="btn-reset-input" id="tgtest">Send test</button><span id="tgmsg" class="foot"></span></div>
       </div>
     </details>
-    <div class="foot">Paper trading: bets are simulated and never placed on a casino table.<br>Logs: <span id="logdir"></span></div>
+    <div class="foot">Bets are simulated (paper trading) unless you choose Confirm or Automatic betting on a live table.<br>Logs: <span id="logdir"></span></div>
   </div>
 
   <div class="splitter" id="splitter" title="Drag to resize"></div>
   <!-- ============================ center panel ============================ -->
   <div class="center-panel">
     <div style="font-size:12px;font-weight:bold;margin-bottom:4px;color:#90e0ef">LIVE TABLE HISTORY</div>
+    <div id="betBar" class="bet-bar hide">
+      <span id="betText"></span>
+      <button class="btn-start" id="betOk">PLACE BET</button>
+      <button class="btn-stop" id="betSkip">SKIP</button>
+    </div>
     <div class="next-bar">
       <span class="foot">NEXT</span><span class="big" id="nextBig">-</span><span class="foot" id="nextSub">Press START</span>
       <span class="manual hide" id="manual">
@@ -370,7 +416,7 @@ const $ = (s) => document.querySelector(s);
 const api = (path, body) => fetch(path, {method: body === undefined ? 'GET' : 'POST',
   headers: {'X-T247': '1', 'Content-Type': 'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)}).then(r => r.json());
 const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); };
-const NAME = {P: 'PLAYER', B: 'BANKER', T: 'TIE'};
+const NAME = {P: 'PLAYER', B: 'BANKER', T: 'TIE', '': 'NO BET'};
 const DEFAULTS = {base_bet: '0.1', keep_alive: '0.1', tp: '', sl: '', sequence: '0.1, 0.2, 0.4, 0.8, 2.0, 5.0'};
 const cls = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
 const fm = (v, d = 2) => { const x = Number(v); if (isNaN(x)) return ''; const s = Math.abs(x).toFixed(d).split('.'); s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (x < 0 && Number(Math.abs(x).toFixed(d)) !== 0 ? '-' : '') + s.join('.'); };   // 1,234.56 (English format)
@@ -379,19 +425,45 @@ let added = 0, view = {n: 0, get: () => null}, sortCache = {key: '', arr: [], t:
 let cur = null, loaded = false, lastHandKey = '', lastRows = [], allRows = [], lastN = 0, curSession = null, skew = 0, dirtyRows = false;
 let sortCol = 0, sortAsc = false;
 
+const CLASSIC = ['MARTINGALE', 'GRINDING', 'SEQUENCE', 'ODD_EVEN', 'ODD_DIFF', 'ODD_LOOSER', 'ODD_IS_GOD'];
+const CLASSIC_HELP = {
+  MARTINGALE: ['Martingale', 'Bets the first side, then the last winner. A loss multiplies the stake, a win returns to the Base Unit. Ties change nothing.'],
+  GRINDING: ['Grinding', 'Follows the last winner. A win adds one unit to the stake, a loss keeps it; once the run is one unit up the stake returns to one unit.'],
+  SEQUENCE: ['Sequence', 'Bets the listed sides in order. A loss moves to the next side and the next stake in the list; a win starts over. Use Manual Sequence Input for the stake list.'],
+  ODD_EVEN: ['Odd Even', 'Alternates between the odd side and its opposite after every result. A loss moves to the next stake in the list (Manual Sequence Input), a win returns to the first.'],
+  ODD_DIFF: ['ODD Diff', 'Looks at odd-numbered results only (1st, 3rd, 5th...) and bets the side that has won more of them; no bet while they are level. Stake list: Manual Sequence Input.'],
+  ODD_LOOSER: ['ODD Looser', 'Like ODD Diff, but bets the side that has won fewer of the odd-numbered results. Stake list: Manual Sequence Input.'],
+  ODD_IS_GOD: ['ODD is God', 'Bets the winner of the latest odd-numbered result and keeps that side until the next one. Stake list: Manual Sequence Input.'],
+};
 const mode = () => document.querySelector('input[name=progMode]:checked').value;
 function applyVisibility() {
   const st = $('#strategy').value;
-  $('#autoLabel').textContent = st === 'IHG' ? 'Auto Progression (IHG Base Unit)' : (st === 'JJ' ? 'Auto Progression (JJ cycle stakes)' : 'Auto Progression (AME Dynamic)');
+  $('#autoLabel').textContent = st === 'IHG' ? 'Auto Progression (IHG Base Unit)' : (st === 'JJ' ? 'Auto Progression (JJ cycle stakes)' : (st === 'AME' ? 'Auto Progression (AME Dynamic)' : 'Auto Progression (Base Unit)'));
   $('#autoBox').classList.toggle('hide', mode() !== 'auto');
   $('#manualBox').classList.toggle('hide', mode() !== 'manual');
   $('#ihgBox').classList.toggle('hide', st !== 'IHG');
+  const classic = CLASSIC.includes(st);
+  $('#classicBox').classList.toggle('hide', !classic);
+  $('#firstSideRow').classList.toggle('hide', !['MARTINGALE', 'GRINDING', 'ODD_EVEN'].includes(st));
+  $('#multRow').classList.toggle('hide', st !== 'MARTINGALE');
+  $('#sidesRow').classList.toggle('hide', st !== 'SEQUENCE');
+  $('#firstSideLabel').textContent = st === 'ODD_EVEN' ? 'Side bet on odd-numbered results' : 'First bet on';
+  $('#classicTitle').textContent = classic ? CLASSIC_HELP[st][0] : '';
+  $('#classicHelp').textContent = classic ? CLASSIC_HELP[st][1] : '';
+  // Martingale and Grinding use one Base Unit; the others can step through a stake list (Manual Sequence Input).
+  const noList = st === 'MARTINGALE' || st === 'GRINDING';
+  const manualRadio = document.querySelector('input[name=progMode][value=manual]');
+  manualRadio.disabled = noList;
+  if (noList && manualRadio.checked) document.querySelector('input[name=progMode][value=auto]').checked = true;
   $('#ameBox').classList.toggle('hide', st !== 'AME');
   $('#jjBox').classList.toggle('hide', st !== 'JJ');
   const f = $('#feed').value;
   $('#simBox').classList.toggle('hide', f !== 'simulator');
   $('#csvBox').classList.toggle('hide', f !== 'csv');
   $('#liveBox').classList.toggle('hide', f !== 'live');
+  const bm = document.querySelector('[data-key=bet_mode]').value;
+  $('#betLimits').classList.toggle('hide', bm === 'paper');
+  $('#betConfirmRow').classList.toggle('hide', bm !== 'confirm');
   syncModes();
 }
 function syncModes() {
@@ -417,6 +489,7 @@ $('#jjPreset').onchange = () => {
 };
 $('#strategy').onchange = applyVisibility;
 $('#feed').onchange = applyVisibility;
+document.querySelector('[data-key=bet_mode]').onchange = applyVisibility;
 document.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { $('#' + b.dataset.reset).value = b.dataset.val; });
 
 // ---------------------------------------------------------------- backtest
@@ -554,6 +627,8 @@ $('#apply').onclick = guarded(async (d) => {
   toast(r.live ? 'Applied to the running session' + (d.strategy !== (cur && cur.settings.strategy) ? ' - strategy switched, new strategy starts from the next hand' : '') : 'Settings saved');
 });
 $('#stop').onclick = () => api('/api/stop', {});
+$('#betOk').onclick = async () => { const r = await api('/api/bet/approve', {}); if (!r.ok) toast(r.error || 'Could not place the bet'); };
+$('#betSkip').onclick = async () => { await api('/api/bet/skip', {}); };
 $('#pause').onclick = async () => { const r = await api(cur && cur.paused ? '/api/resume' : '/api/pause', {}); if (!r.ok) toast('Nothing to pause - session not running'); };
 $('#retry').onclick = async () => { const r = await api('/api/retry', {}); toast(r.ok ? 'Table feed reconnected' : 'Nothing to reconnect - session not running'); };
 $('#resetAll').onclick = async () => {
@@ -756,12 +831,32 @@ function render(st) {
     if (nx.mode === 'REAL') {
       $('#nextBig').innerHTML = '<span class="' + nx.pick[0] + '">' + nx.pick + '</span>';
       $('#nextSub').textContent = nx.units + ' unit' + (nx.units == 1 ? '' : 's') + ' · $' + fm(nx.stake) + (nx.final ? ' · last of run' : '') + (nx.pattern ? ' · ' + nx.pattern : '');
+    } else if (nx.mode === 'NONE') {
+      $('#nextBig').textContent = 'NO BET';
+      $('#nextSub').textContent = (nx.reason || '') + (nx.pattern ? ' · ' + nx.pattern : '');
     } else {
       $('#nextBig').innerHTML = 'WAIT <span class="' + nx.pick[0] + '" style="font-size:12px">(' + nx.pick + ' virtual)</span>';
       $('#nextSub').textContent = (nx.reason || '') + (nx.pattern ? ' · ' + nx.pattern : '');
     }
   } else { $('#nextBig').textContent = '-'; $('#nextSub').textContent = run ? 'Waiting for next result' : 'Press START'; }
   $('#manual').classList.toggle('hide', !(run && s.feed === 'manual'));
+
+  // real betting: the bet waiting for approval, or where betting stands
+  const bt = st.bet, bar = $('#betBar');
+  if (run && bt && bt.mode !== 'paper') {
+    bar.classList.remove('hide');
+    const waiting = !!bt.pending;
+    bar.classList.toggle('calm', !waiting);
+    $('#betOk').classList.toggle('hide', !waiting);
+    $('#betSkip').classList.toggle('hide', !waiting);
+    if (waiting) {
+      const left = Math.max(0, Math.round(bt.pending.expires_ts - (Date.now() + skew) / 1000));
+      $('#betText').innerHTML = 'BET WAITING: <b>' + bt.pending.pick + ' $' + fm(bt.pending.stake) + '</b>' + (bt.pending.keep_alive ? ' (keep-alive)' : '') + ' · skipped in ' + left + 's';
+    } else {
+      $('#betText').textContent = (bt.mode === 'auto' ? 'Automatic betting' : 'Confirm betting') + ' · ' + (bt.on_table ? 'a bet is on the table' : 'no bet on the table') +
+        ' · staked $' + fm(bt.staked) + ' of $' + fm(bt.max_session) + (bt.note ? ' · ' + bt.note : '');
+    }
+  } else bar.classList.add('hide');
 
   // cards + balance
   const last = allRows.length ? allRows[allRows.length - 1] : null;
@@ -799,6 +894,7 @@ function stateLine(st) {
   if (!st.running) return '';
   if (st.strategy === 'JJ') return 'JJ: cycle ' + (ss.cycle_pos || '-') + ' · x' + (ss.multiplier || 1) + ' · cycle result ' + (ss.run_net_units || 0) + 'u';
   if (st.strategy === 'IHG') return 'IHG: run ' + (ss.run_net_units || 0) + 'u · single wins ' + (ss.single_wins || 0) + '/' + ({doc: '7', off: '∞'}[st.settings.single_wins_mode] || st.settings.single_wins_limit) + (ss.virtual_mode ? ' · <span class="neg">virtual until 2 wins in a row</span>' : '');
+  if (st.strategy !== 'AME') return (CLASSIC_HELP[st.strategy] ? CLASSIC_HELP[st.strategy][0] : st.strategy) + ': run ' + (ss.run_net_units || 0) + 'u' + (ss.run_open ? ' · progression open' : '');
   return 'AME: confidence ' + (ss.confidence || 0) + '% (entry ' + (ss.threshold || 0) + '%) · ' + (ss.rhythm || '-') + (ss.freeze_left > 0 ? ' · <span class="neg">chaos freeze ' + ss.freeze_left + '</span>' : '');
 }
 
@@ -824,7 +920,7 @@ setInterval(paintTimer, 1000);
 function longest(rows, label) {          // longest run of `label` among real WIN/LOSS hands (ties are neutral)
   let best = 0, run = 0;
   for (const h of rows) {
-    if (h.mode === 'VIRTUAL' || h.outcome === 'TIE') continue;
+    if (h.mode === 'VIRTUAL' || h.mode === 'NONE' || h.outcome === 'TIE') continue;
     if (h.outcome === label) { run++; if (run > best) best = run; } else run = 0;
   }
   return best;
@@ -834,7 +930,7 @@ function statsFor(c) {
   const cnt = (f) => R.reduce((a, h) => a + (f(h) ? 1 : 0), 0);
   const real = R.filter(h => h.mode === 'REAL' || h.mode === 'MIN');
   switch (c) {
-    case 0: return '<b>Hands</b> ' + R.length + '<br>real ' + cnt(h => h.mode === 'REAL') + ' · virtual ' + cnt(h => h.mode === 'VIRTUAL') + ' · keep-alive ' + cnt(h => h.mode === 'MIN');
+    case 0: return '<b>Hands</b> ' + R.length + '<br>real ' + cnt(h => h.mode === 'REAL') + ' · virtual ' + cnt(h => h.mode === 'VIRTUAL') + ' · keep-alive ' + cnt(h => h.mode === 'MIN') + ' · no bet ' + cnt(h => h.mode === 'NONE');
     case 1: return '<b>First</b> ' + ddmmyyyy(R[0].time) + '<br><b>Last</b> ' + ddmmyyyy(R[R.length - 1].time);
     case 2: return '<b>Banker</b> ' + cnt(h => h.pick === 'B') + ' · <b>Player</b> ' + cnt(h => h.pick === 'P') + '<br>virtual ' + cnt(h => h.mode === 'VIRTUAL') + ' · keep-alive ' + cnt(h => h.mode === 'MIN');
     case 3: { const st = real.map(h => parseFloat(h.stake)); const sum = st.reduce((a, b) => a + b, 0); const rs = R.filter(h => h.mode === 'REAL').map(h => parseFloat(h.stake));
@@ -877,7 +973,7 @@ function ingest(rows, s) {
     const sno = h.n;
     const bal = +(s.start_balance + parseFloat(h.session_pnl)).toFixed(2);
     const action = NAME[h.pick] + (h.mode === 'VIRTUAL' ? ' (virtual)' : (h.mode === 'MIN' ? ' (keep-alive)' : ''));
-    const amount = h.mode === 'VIRTUAL' ? 0 : parseFloat(h.stake);
+    const amount = h.mode === 'VIRTUAL' || h.mode === 'NONE' ? 0 : parseFloat(h.stake);
     const rule = [h.pattern, h.note].filter(Boolean).join(' · ');
     const isSW = h.single_wins !== '' && h.single_wins != null;
     const count = isSW ? h.single_wins : (h.run_net_units !== '' ? h.run_net_units : '');
@@ -889,10 +985,10 @@ function ingest(rows, s) {
 function rowHtml(r) {   // one <tr>, built only when it is on screen
   const stc = r.outcome === 'WIN' ? '#52b788' : (r.outcome === 'LOSS' ? '#ff4d6d' : '#ffd166');
   const cells = ['<td>' + r.sno + '</td>', '<td>' + ddmmyyyy(r.time) + '</td>', '<td><span class="' + r.pick + '">' + r.action + '</span></td>',
-    '<td>' + (r.mode === 'VIRTUAL' ? '-' : fm(r.amount)) + '</td>', '<td><span class="' + r.result + '">' + NAME[r.result] + '</span></td>',
+    '<td>' + (r.mode === 'VIRTUAL' || r.mode === 'NONE' ? '-' : fm(r.amount)) + '</td>', '<td><span class="' + r.result + '">' + NAME[r.result] + '</span></td>',
     '<td style="color:' + stc + '">' + r.outcome + '</td>', '<td class="rule" title="' + r.rule.replace(/"/g, '&quot;') + '">' + r.rule + '</td>',
     '<td' + (r.isSW ? ' data-cnt="' + r.count + '"' : '') + '>' + (r.count === '' ? '' : (Number.isInteger(+r.count) ? r.count : fm(r.count))) + '</td>', '<td>' + fm(r.bal) + '</td>'];
-  return '<tr class="' + (r.mode === 'VIRTUAL' ? 'virt' : '') + '">' + order.map(c => cells[c]).join('') + '</tr>';
+  return '<tr class="' + (r.mode === 'VIRTUAL' || r.mode === 'NONE' ? 'virt' : '') + '">' + order.map(c => cells[c]).join('') + '</tr>';
 }
 
 async function tick() {

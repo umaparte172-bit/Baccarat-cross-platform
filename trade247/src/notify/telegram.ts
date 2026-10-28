@@ -1,4 +1,4 @@
-export type AlertKind = 'daily_stop_loss' | 'daily_take_profit' | 'disconnected' | 'shoe_change' | 'test';
+export type AlertKind = 'daily_stop_loss' | 'daily_take_profit' | 'disconnected' | 'shoe_change' | 'bet_problem' | 'test';
 
 export interface TelegramConfig {
   token: string;

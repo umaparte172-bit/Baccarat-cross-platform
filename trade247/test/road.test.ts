@@ -3,7 +3,7 @@ import type { Result } from '../src/engine/types.js';
 import { RoadTracker } from '../src/live/road.js';
 
 const r = (s: string): Result[] => s.split('') as Result[];
-const play = (t: RoadTracker, s: string) => t.consume(r(s)).map((h) => h.result + (h.newShoe ? '*' : '')).join(' ');
+const play = (t: RoadTracker, s: string) => t.consume(r(s)).map((e) => (e.kind === 'shoe' ? '|' : e.result)).join(' ');
 
 describe('road tracker', () => {
   it('treats the first reading as history', () => {
@@ -28,12 +28,12 @@ describe('road tracker', () => {
     expect(play(t, 'PBTPB')).toBe('B');
   });
 
-  it('starts a new shoe only when two readings in a row agree, and flags its first hand only', () => {
+  it('starts a new shoe only when two readings in a row agree, and announces it once, before its hands', () => {
     const t = new RoadTracker();
     play(t, 'PBTP');
     expect(play(t, '')).toBe('');
-    expect(play(t, '')).toBe('');
-    expect(play(t, 'B')).toBe('B*');
+    expect(play(t, '')).toBe('|'); // announced as soon as two readings agree, before any hand of the new shoe
+    expect(play(t, 'B')).toBe('B');
     expect(play(t, 'BP')).toBe('P');
   });
 
@@ -41,7 +41,7 @@ describe('road tracker', () => {
     const t = new RoadTracker();
     play(t, 'PBTP');
     expect(play(t, 'BB')).toBe('');
-    expect(play(t, 'BB')).toBe('B* B');
+    expect(play(t, 'BB')).toBe('| B B');
   });
 
   it('two different short readings do not confirm each other', () => {

@@ -1,5 +1,5 @@
 import { fmt2 } from '../engine/money.js';
-import { CSV_HEADER, type HandRecord } from './csv.js';
+import { CSV_HEADER, betLabel, type HandRecord } from './csv.js';
 
 export type CellKind = 'text' | 'int' | 'money';
 export type Cell = string | number;
@@ -37,7 +37,7 @@ const NAMES = { P: 'PLAYER', B: 'BANKER', T: 'TIE' } as const;
 
 export function tableFromRecords(records: readonly HandRecord[]): Table {
   const rows = records.map(({ row, strategy, pnlMicro, balanceMicro }): Cell[] => {
-    const bet = NAMES[row.pick] + (row.mode === 'VIRTUAL' ? ' (virtual)' : row.mode === 'MIN' ? ' (keep-alive)' : '');
+    const bet = betLabel(row);
     return [
       row.time, row.session, row.n, strategy, bet, row.mode, Number(row.stake), NAMES[row.result], row.outcome,
       [row.pattern, row.note].filter(Boolean).join(' · '), Number(fmt2(pnlMicro)), Number(row.session_pnl), Number(fmt2(balanceMicro)),

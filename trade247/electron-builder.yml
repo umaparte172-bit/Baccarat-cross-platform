@@ -1,0 +1,35 @@
+# Packaging of the desktop app. Run with: npm run electron:dist (on the OS you are packaging for).
+appId: app.trade247.desktop
+productName: TRADE247
+copyright: TRADE247
+directories:
+  app: build/electron
+  output: release/desktop
+asar: true
+# The server listens on 127.0.0.1 only; nothing is installed system-wide and there is no auto-update.
+electronLanguages: [en-US]
+win:
+  target:
+    - { target: nsis, arch: [x64] }
+    - { target: portable, arch: [x64] }
+  # Unsigned: Windows SmartScreen asks once. Signing needs a paid certificate.
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: TRADE247-Setup-${version}-${arch}.${ext}
+portable:
+  artifactName: TRADE247-Portable-${version}-${arch}.${ext}
+mac:
+  category: public.app-category.finance
+  target:
+    - { target: dmg, arch: [arm64] }
+    - { target: zip, arch: [arm64] }
+  # No Apple Developer account is needed: an ad-hoc signature is enough on Apple silicon for a program you run
+  # yourself. It is not notarized, so the first start needs "Open Anyway" (see docs/deployment.md).
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+dmg:
+  artifactName: TRADE247-${version}-${arch}.${ext}

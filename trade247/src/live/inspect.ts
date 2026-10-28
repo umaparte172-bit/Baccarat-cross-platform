@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { listPages } from './cdp.js';
 import { PageSession } from './page.js';
+import { loadProfile } from './profile.js';
 
 /**
  * A calibration capture: what the table page looks like, so the selectors in the profile can be checked or fixed
@@ -81,4 +82,47 @@ export async function inspectTables(port: number, outDir: string, now = new Date
   const path = join(outDir, `table-inspection-${stamp}.json`);
   writeFileSync(path, JSON.stringify({ tool: 'TRADE247 table inspection', taken: now.toISOString(), tabs }, null, 2), 'utf8');
   return { path, tabs: pages.length, frames, withRoles };
+}
+
+/**
+ * A read-only check of the table profile against the open table: what the program can read of the road and of the
+ * betting window. It clicks nothing. Used to calibrate the selectors before any bet is allowed.
+ */
+export async function checkTable(port: number, dataDir: string): Promise<string[]> {
+  const profile = loadProfile(dataDir);
+  if ('error' in profile) throw new Error(profile.error);
+  const lines: string[] = [`Profile: ${profile.name}${profile.betting ? ' (with betting settings)' : ' (read only: no betting settings)'}`];
+  const pages = await listPages(port);
+  let tables = 0;
+  for (const target of pages) {
+    let session: PageSession | null = null;
+    try {
+      session = await PageSession.attach(target, 700);
+      const road = await session.readRoad(profile);
+      const window = profile.betting ? await session.readWindow(profile.betting) : null;
+      if (!road && !window) continue;
+      tables++;
+      lines.push(`Tab ${tables}: ${site(target.url)}`);
+      if (road) {
+        lines.push(`  Road: ${road.items.length} hands${road.unreadable ? ' (some cells are NOT recognised - fix the rules)' : ''}, last ${road.items.slice(-12).join('') || '-'}`);
+      } else lines.push('  Road: not found (check containerSelector / itemSelector)');
+      if (profile.betting) {
+        if (!window) lines.push('  Betting window: not found (check betting.statusSelector)');
+        else {
+          const w = window.reading;
+          lines.push(`  Status: "${w.text}" -> bets ${w.open ? 'OPEN' : 'closed'}`);
+          lines.push(`  Chips: ${w.chips.filter((c) => c.visible).map((c) => c.value ?? '?').join(', ') || 'none found (check betting.chipSelector / chipValueFrom)'}`);
+          lines.push(`  Spots: Player ${w.hasPlayer ? 'found' : 'NOT found'}, Banker ${w.hasBanker ? 'found' : 'NOT found'}`);
+          lines.push(`  Total on the table: ${w.total ?? 'NOT readable (check betting.betTotalSelector)'}`);
+          lines.push(`  Balance: ${profile.betting.balanceSelector ? (w.balance ?? 'NOT readable') : '(not configured)'}`);
+        }
+      }
+    } catch (e) {
+      lines.push(`A tab could not be inspected: ${(e as Error).message}`);
+    } finally {
+      session?.close();
+    }
+  }
+  if (tables === 0) lines.push('No open tab shows a table that matches the profile. Open a baccarat table in that Chrome window and run this again.');
+  return lines;
 }

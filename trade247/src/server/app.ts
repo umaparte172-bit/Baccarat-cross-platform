@@ -5,7 +5,7 @@ import { writeSnapshot } from '../report/export.js';
 import { uiHtml } from '../runtime.js';
 import { XLSX_MIME } from '../report/xlsx.js';
 import { SessionManager, type SessionOptions } from '../session.js';
-import { SettingsStore } from '../store/files.js';
+import { SettingsStore, type SecretBox } from '../store/files.js';
 
 export interface AppOptions {
   dataDir: string;
@@ -20,6 +20,8 @@ export interface AppOptions {
   telegram?: SessionOptions['telegram'];
   /** Runs backtests; tests pass one that plays on the calling thread. */
   backtest?: BacktestManager;
+  /** Seals the Telegram token on disk (the desktop app passes the system keychain). */
+  secretBox?: SecretBox;
 }
 
 const CSP = [
@@ -41,7 +43,7 @@ const body = (req: FastifyRequest): Record<string, unknown> =>
 
 export function buildApp(options: AppOptions): FastifyInstance {
   const backtest = options.backtest ?? new BacktestManager();
-  const manager = options.manager ?? new SessionManager(new SettingsStore(options.dataDir), { telegram: options.telegram });
+  const manager = options.manager ?? new SessionManager(new SettingsStore(options.dataDir, options.secretBox), { telegram: options.telegram });
   const page = options.uiPath ? readFileSync(options.uiPath, 'utf8') : uiHtml();
   const allowedHosts = new Set([`127.0.0.1:${options.port}`, `localhost:${options.port}`, `[::1]:${options.port}`]);
 
@@ -145,6 +147,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
   });
 
   app.post('/api/telegram_test', async () => manager.telegramTest());
+  app.post('/api/bet/approve', async () => manager.approveBet());
+  app.post('/api/bet/skip', async () => manager.skipBet());
 
   app.post('/api/backtest/start', async (req) => {
     const { settings, params } = body(req);

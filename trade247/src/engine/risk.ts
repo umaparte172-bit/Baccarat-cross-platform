@@ -147,7 +147,7 @@ export class RiskGovernor {
       }
     }
 
-    const noBet = manualPause || watchOnly || engine.plan(false).mode === 'VIRTUAL';
+    const noBet = manualPause || watchOnly || engine.plan(false).mode !== 'REAL';
     const keepAlive = c.keepAliveEnabled && !manualPause && noBet && this.idle + 1 >= c.keepAliveIdle;
     return { watchOnly, reason, cutRun, keepAlive };
   }

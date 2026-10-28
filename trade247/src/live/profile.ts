@@ -14,6 +14,27 @@ export interface LiveRule {
   result: Result;
 }
 
+/**
+ * Where to click and what to read to place a bet. Without it the table is only read. Selectors are CSS and are
+ * calibrated per table (see docs/deployment.md); nothing is guessed.
+ */
+export interface BettingProfile {
+  /** The element whose text says whether bets are open. */
+  statusSelector: string;
+  /** Text (case-insensitive) in the status element while bets are open, e.g. "PLACE YOUR BETS". */
+  openText: string;
+  /** The chips on the table; each carries its value in its text ("25", "1k", "0.5") or in an attribute. */
+  chipSelector: string;
+  /** "text", or the name of the attribute that holds the chip's value. */
+  chipValueFrom: string;
+  playerSelector: string;
+  bankerSelector: string;
+  /** The element showing the total staked on the table: a bet counts as placed only when it shows the stake. */
+  betTotalSelector: string;
+  /** Optional: the balance, to compare with the bot's own books. Empty = not used. */
+  balanceSelector: string;
+}
+
 export interface LiveProfile {
   name: string;
   /** A frame is "the table" when this element exists in it. */
@@ -23,6 +44,8 @@ export interface LiveProfile {
   rules: LiveRule[];
   /** Optional: only tabs whose address contains this text are considered. */
   hostContains: string;
+  /** null = read only: the table cannot be bet on with this profile. */
+  betting: BettingProfile | null;
 }
 
 /** Evolution baccarat bead road, as seen on a Roobet table (text P / B / T per cell, oldest first). Unverified today. */
@@ -36,6 +59,7 @@ export const EVOLUTION_BEAD_ROAD: LiveProfile = {
     { exact: 'T', result: 'T' },
   ],
   hostContains: '',
+  betting: null,
 };
 
 export const PROFILE_FILE = 'live-profile.json';
@@ -71,12 +95,43 @@ export function parseProfile(raw: unknown): LiveProfile | { error: string } {
   }
   const host = o.hostContains === undefined ? '' : o.hostContains;
   if (typeof host !== 'string' || host.length > 200) return { error: '"hostContains" must be text' };
+  const betting = parseBetting(o.betting);
+  if (betting && 'error' in betting) return betting;
   return {
     name: typeof o.name === 'string' && o.name ? o.name.slice(0, 80) : 'Custom profile',
     containerSelector: o.containerSelector as string,
     itemSelector: o.itemSelector as string,
     rules,
     hostContains: host,
+    betting,
+  };
+}
+
+function parseBetting(raw: unknown): BettingProfile | null | { error: string } {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return { error: '"betting" must be an object' };
+  const b = raw as Record<string, unknown>;
+  for (const key of ['statusSelector', 'chipSelector', 'playerSelector', 'bankerSelector', 'betTotalSelector']) {
+    const problem = selectorProblem(`betting.${key}`, b[key]);
+    if (problem) return { error: problem };
+  }
+  const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max;
+  if (!text(b.openText, 80) || b.openText.trim() === '') return { error: '"betting.openText" must be the text shown while bets are open' };
+  const chipValueFrom = b.chipValueFrom === undefined ? 'text' : b.chipValueFrom;
+  if (!text(chipValueFrom, 60) || chipValueFrom.trim() === '' || !/^(text|[A-Za-z_:][-A-Za-z0-9_:.]*)$/.test(chipValueFrom)) {
+    return { error: '"betting.chipValueFrom" must be "text" or an attribute name' };
+  }
+  const balance = b.balanceSelector === undefined ? '' : b.balanceSelector;
+  if (!text(balance, SELECTOR_MAX)) return { error: '"betting.balanceSelector" must be a CSS selector or empty' };
+  return {
+    statusSelector: b.statusSelector as string,
+    openText: b.openText,
+    chipSelector: b.chipSelector as string,
+    chipValueFrom,
+    playerSelector: b.playerSelector as string,
+    bankerSelector: b.bankerSelector as string,
+    betTotalSelector: b.betTotalSelector as string,
+    balanceSelector: balance,
   };
 }
 

@@ -144,10 +144,11 @@ Set the Telegram bot token and chat ID under **Advanced settings** and press **S
 about the daily stop loss, the daily take profit, shoe changes and lost table connections. There is no "program
 started" message yet, so after a reboot check the page (or the scheduled task's *Last Run Result*).
 
-## 6. Live table (read-only)
+## 6. Live table
 
-The **Live table** result feed reads the results of a baccarat table you have open in your own Chrome. It never
-clicks, types or bets there: bets stay simulated (paper trading), and the page says so.
+The **Live table** result feed reads the results of a baccarat table you have open in your own Chrome. In the default
+**Paper** bet mode it never clicks, types or bets there: bets stay simulated, and the page says so. Real betting is a
+separate, opt-in step (section 10).
 
 1. Double-click `Start-Chrome-for-Trade247.bat` (Windows) or `Start-Chrome-for-Trade247.command` (Mac). It opens a Chrome
    window with its own profile and a debugging port on this computer only (default 9014).
@@ -197,7 +198,8 @@ trade247 --help
   --open / --no-open   open the page in the browser (default: yes when packaged, no from source)
   --port <number>      port to listen on (default 8247)
   --inspect-table      save a description of the table open in Chrome (calibration), then exit
-  --live-port <n>      Chrome debugging port for --inspect-table (default 9014)
+  --check-table        show what the table profile can read from the open table (clicks nothing), then exit
+  --live-port <n>      Chrome debugging port for --inspect-table and --check-table (default 9014)
   --version, -v        print the version
 ```
 
@@ -221,10 +223,91 @@ trade247 --help
 | "Could not write the session log" | The data folder is read-only or the disk is full; set `T247_DATA_DIR` to a writable folder |
 | A backtest says "Could not start the backtest" | Report it with the version from `--version`; backtests use worker threads |
 
-## 9. What is not included yet
+## 9. Desktop app (Electron)
+
+The same program as a normal application window: **TRADE247** for Windows (installer and portable `.exe`) and for Apple-silicon
+Macs (`.dmg`). It runs the same local server inside the app and shows the page in its own window, so it behaves exactly like
+the command-line program, with these differences:
+
+* The Telegram token is stored in the system keychain (Keychain on macOS, DPAPI on Windows), not as a readable file.
+* Closing the window while a session is running asks first, because closing stops the bot.
+* Only one copy runs at a time; starting a second brings the first forward.
+* Settings, logs and reports use the same data folder as the command-line program (`File > Open data folder`).
+
+```bash
+npm run electron:start     # build and open the app from source
+npm run electron:smoke     # build and check it end to end (page, API, replay, backtest), without a window
+npm run electron:dist      # package it for THIS operating system into release/desktop/
+```
+
+A Mac app has to be built on a Mac (CI does that) and a Windows app on Windows. The app is not code-signed: Windows
+SmartScreen asks once ("More info > Run anyway"); on a Mac the app is signed ad hoc and not notarized, so the first start
+needs **System Settings > Privacy & Security > Open Anyway** (or `xattr -dr com.apple.quarantine /Applications/TRADE247.app`).
+There is no auto-update. For a Windows VPS that runs 24/7 without a signed-in desktop, keep using the single-file
+program with the scheduled task (section 5): the desktop app needs a desktop session.
+
+## 10. Betting on a live table
+
+**Off by default.** With the **Live table** feed you can choose a **Bet mode** (Advanced settings > Result feed):
+
+| Mode | What happens |
+|---|---|
+| **Paper** (default) | Every bet is simulated. Nothing is clicked on the table. |
+| **Confirm** | When bets open, the bet the strategy wants appears in the page ("BET WAITING: PLAYER $2.00") and is placed only when you press **PLACE BET**. Not approved within the time you set: skipped. |
+| **Automatic** | The program places the bet after a short random pause (default 0.5 to 2.5 seconds). |
+
+It is **real money**, and a casino may close an account that bets automatically; that risk is yours. What the program does to protect you:
+
+* **Limits come first.** You must set the **largest bet** and a **session limit**. A bet above either is never placed and ends the session.
+* **One bet, placed once.** It starts only when the table says bets are open and nothing is on the table. It builds the stake from the
+  fewest chips, clicks them with a real mouse, and waits for the table's **own total** to show exactly the stake. If the table does not
+  show it (or shows a different amount), the session **stops** with an alert; nothing is retried.
+* **The books match the table.** When the result arrives, what was placed must equal what the strategy would have bet; if not, the
+  session stops. A bet the strategy wanted but that could not be placed is recorded as a hand that was only watched.
+* **PAUSE** while a bet is on the table starts after its result. **STOP** ends everything immediately.
+* It never goes near deposits, tips, withdrawals or any account page.
+* It does not change your browser's identity or imitate a person's mouse movements; the pause before a bet is only a delay.
+
+### Calibrating a table
+
+Betting needs a **table profile with a `betting` block**, because the page's selectors differ by table and change over time.
+The built-in profile only reads the road. In the data folder, `live-profile.json`:
+
+```json
+{
+  "name": "My table",
+  "containerSelector": "[data-role=\"Bead-road\"]",
+  "itemSelector": "[data-role=\"roadItem\"]",
+  "rules": [ { "exact": "P", "result": "P" }, { "exact": "B", "result": "B" }, { "exact": "T", "result": "T" } ],
+  "hostContains": "",
+  "betting": {
+    "statusSelector": "...CSS of the element that says PLACE YOUR BETS...",
+    "openText": "PLACE YOUR BETS",
+    "chipSelector": "...CSS of the chips...",
+    "chipValueFrom": "text",
+    "playerSelector": "...CSS of the Player spot...",
+    "bankerSelector": "...CSS of the Banker spot...",
+    "betTotalSelector": "...CSS of the element showing the total staked...",
+    "balanceSelector": ""
+  }
+}
+```
+
+1. Open the table in the launcher's Chrome and run `trade247 --inspect-table`; the file lists the element names on the page.
+2. Fill in the profile, then run `trade247 --check-table` with the table open. It **clicks nothing**; it prints what it can read:
+   the road, whether bets are open, the chips and their values, whether both spots are found, and the total on the table.
+3. Fix whatever says "NOT found" or "NOT readable" and run it again, until every line is right in both a betting round and a closed one.
+4. Start with **Paper**, then **Confirm** with a tiny bet and a small balance (or a demo table), and watch the first bets yourself.
+   Move to **Automatic** only after that.
+
+The click logic is tested against a mock table in a real Chrome, including a table inside frames from another site. It has **not** been
+run on a real casino table, which needs your account.
+
+## 11. What is not included yet
 
 * AME-AI and JJ (waiting for the formulas), and the *Virtual Bet - start after N losses* filter (waiting for one answer).
-* Betting on a live table. The Live feed (section 6) reads results; every bet is simulated.
+* Fingerprint spoofing and bot-detection evasion (not built; see the client questions document).
+* Reconciling the table's balance with the bot's books (the profile may name a balance element, but it is not compared yet).
 * Automatic resume of a session after a restart (see section 5).
 * Code signing and notarization. They are optional and cost money; the packages work without them, with the one-time
   prompts described above. If you later buy a Windows code-signing certificate or join the Apple Developer Program,

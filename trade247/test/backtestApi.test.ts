@@ -84,7 +84,7 @@ describe('the Backtest endpoints, driven like the page drives them', () => {
     expect((await h.post('/api/backtest/start', { settings: pageSettings(), params: pageParams({ shoes: 0 }) })).json)
       .toEqual({ ok: false, error: 'Shoes per session must be between 1 and 5000' });
     expect((await h.post('/api/backtest/start', { settings: pageSettings({ strategy: 'JJ' }), params: pageParams() })).json)
-      .toEqual({ ok: false, error: 'JJ is not available yet - choose IHG' });
+      .toEqual({ ok: false, error: 'JJ is not available yet - choose IHG or one of the classic strategies' });
     expect((await h.post('/api/backtest/start', { settings: pageSettings(), params: pageParams({ source: 'paste', text: '' }) })).json.ok).toBe(false);
     expect((await h.post('/api/backtest/start', {})).json.ok).toBe(true); // empty request: defaults (500 shoes x 100 sessions)
   });

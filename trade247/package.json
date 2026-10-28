@@ -15,18 +15,25 @@
     "test": "vitest run",
     "package": "node tools/build-app.mjs",
     "smoke": "node tools/smoke-app.mjs",
-    "release": "node tools/build-app.mjs && node tools/assemble-release.mjs"
+    "release": "node tools/build-app.mjs && node tools/assemble-release.mjs",
+    "electron:build": "node tools/build-electron.mjs",
+    "electron:start": "node tools/build-electron.mjs && electron build/electron/main.cjs",
+    "electron:smoke": "node tools/build-electron.mjs && electron build/electron/main.cjs --smoke",
+    "electron:dist": "node tools/build-electron.mjs --dist"
   },
   "dependencies": {
     "fastify": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "exceljs": "^4.4.0",
     "postject": "^1.0.0-alpha.6",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
-  }
+  },
+  "main": "build/electron/main.cjs"
 }

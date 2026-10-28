@@ -60,6 +60,8 @@ export function harness(dirOrOptions?: string | HarnessOptions): Harness {
       return { status: r.statusCode, json: parse(r.body), text: r.body };
     },
     async close() {
+      // A session left running (a failed test) must not keep polling or clicking after its test.
+      manager.stop();
       await app.close();
     },
   };

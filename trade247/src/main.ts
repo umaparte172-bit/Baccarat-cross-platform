@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { HELP, parseArgs, parsePort } from './cli.js';
-import { inspectTables } from './live/inspect.js';
+import { checkTable, inspectTables } from './live/inspect.js';
 import { openWithDefaultApp } from './report/export.js';
 import { VERSION, packaged } from './runtime.js';
 import { buildApp } from './server/app.js';
@@ -33,6 +33,15 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (cli.checkTable) {
+    try {
+      for (const line of await checkTable(cli.livePort ?? 9014, defaultDataDir())) console.log(line);
+    } catch (e) {
+      console.error((e as Error).message);
+      process.exit(1);
+    }
+    return;
+  }
   if (cli.inspectTable) {
     const livePort = cli.livePort ?? 9014;
     try {

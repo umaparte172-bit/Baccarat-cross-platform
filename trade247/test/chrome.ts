@@ -34,7 +34,10 @@ export async function startChrome(executable: string): Promise<TestChrome> {
     executable,
     [
       '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run',
-      '--no-default-browser-check', '--disable-gpu', '--disable-extensions', 'about:blank',
+      '--no-default-browser-check', '--disable-gpu', '--disable-extensions',
+      // CI containers and recent Ubuntu images do not allow Chrome's sandbox; this is a throwaway test browser.
+      ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
+      'about:blank',
     ],
     { stdio: 'ignore', windowsHide: true },
   );
