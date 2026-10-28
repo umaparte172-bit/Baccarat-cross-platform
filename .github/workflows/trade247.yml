@@ -1,0 +1,79 @@
+name: TRADE247 packages
+
+# Builds the single-file programs for Windows and Apple-silicon macOS. A single-file program contains the Node.js
+# binary of the machine that built it, so each package is built on its own operating system.
+on:
+  push:
+    paths: ['trade247/**', '.github/workflows/trade247.yml']
+  pull_request:
+    paths: ['trade247/**', '.github/workflows/trade247.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: trade247
+
+jobs:
+  verify:
+    name: Typecheck and tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trade247/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  package:
+    name: Package (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x64, os: windows-latest, archive: zip }
+          - { name: macos-arm64, os: macos-14, archive: tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trade247/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package
+      # Starts the built program and drives it over HTTP (page, replay, Excel report, backtest on worker threads).
+      - run: npm run smoke
+      - run: node tools/assemble-release.mjs
+
+      - name: Archive (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $dir = Get-ChildItem release -Directory | Where-Object Name -like 'trade247-win-*' | Select-Object -First 1
+          Compress-Archive -Path $dir.FullName -DestinationPath "release/$($dir.Name).zip"
+          Get-ChildItem release/*.zip
+
+      - name: Archive (macOS)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          dir=$(ls -d release/trade247-macos-*/ | head -n 1)
+          name=$(basename "$dir")
+          tar -czf "release/$name.tar.gz" -C release "$name"
+          ls -l release/*.tar.gz
+          # The ad-hoc signature must verify, or Apple Silicon will not run the program.
+          codesign --verify --verbose "release/$name/trade247-macos-arm64"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trade247-${{ matrix.name }}
+          path: |
+            trade247/release/*.zip
+            trade247/release/*.tar.gz
+          if-no-files-found: error

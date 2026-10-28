@@ -2,13 +2,15 @@
 
 Local baccarat strategy bot. The UI is the client's `index.html`; this folder is the backend behind it.
 Plan and milestones: [`../docs/trade247-v1-plan.md`](../docs/trade247-v1-plan.md).
+**Installing, building and running 24/7 on a VPS: [`docs/deployment.md`](docs/deployment.md).**
 
 ## Status
 
-M0 to M5 are done: the page runs against the local server with the Simulator, Manual and Replay feeds, the
-**IHG engine** is verified against the client's IHG document, the **risk layer** (limits, pauses, keep-alive,
-end of shoe) is in place, **reports and Telegram alerts** work, and the **Backtest** window runs. See the
-sections below.
+M0 to M5 and M9 are done: the page runs against the local server with the Simulator, Manual and Replay
+feeds, the **IHG engine** is verified against the client's IHG document, the **risk layer** (limits, pauses,
+keep-alive, end of shoe) is in place, **reports and Telegram alerts** work, the **Backtest** window runs, and the
+program is **packaged** as a single file for Windows and Apple-silicon macOS (the Windows package is built and
+smoke-tested here; the macOS package is built by CI and has not been run on a Mac yet). See the sections below.
 
 Not built yet, and each says so in the UI: AME-AI, JJ, Manual Sequence Input, the Virtual Bet entry filter and
 the live table. **Start refuses** the first four rather than ignoring them, so a setting can never be silently
@@ -129,11 +131,19 @@ Requires Node 22 or newer.
 
 ```bash
 cd trade247
-npm install
+npm ci               # install the exact dependencies
 npm start            # http://127.0.0.1:8247/   (add -- --open to open the browser)
-npm test             # unit and API tests
+npm test             # unit and API tests (about 40 s)
 npm run typecheck
+npm run package      # single-file program for THIS operating system -> release/
+npm run smoke        # start the built program and check it end to end (16 checks)
+npm run release      # package + a ready-to-zip folder with scripts, README and SHA256SUMS.txt
 ```
+
+`trade247 --help` lists the command-line options (`--port`, `--no-open`, `--version`).
+A single-file program contains the Node runtime of the machine that built it, so the Windows and macOS packages are
+built on their own systems; `.github/workflows/trade247.yml` does that in CI. Details, the macOS first-run steps and
+the Windows VPS runbook are in [`docs/deployment.md`](docs/deployment.md).
 
 Environment variables: `T247_PORT` (default 8247), `T247_DATA_DIR` (default: `%APPDATA%\Trade247` on Windows,
 `~/Library/Application Support/Trade247` on macOS), `T247_OPEN_REPORTS=0` (do not launch applications).
@@ -166,5 +176,10 @@ src/server/       HTTP routes (the /api contract the page calls)
 src/report/       CSV history log, report table, .xlsx writer, snapshots
 src/notify/       Telegram client and alert queue
 src/store/        settings, secrets, session counter
+src/cli.ts        command-line options
+src/runtime.ts    version, embedded page and worker when packaged
+tools/            build-app (single-file program), assemble-release, smoke-app
+packaging/        Windows scripts (start, VPS scheduled task), macOS launcher, run instructions
+docs/             deployment guide
 test/             Vitest
 ```

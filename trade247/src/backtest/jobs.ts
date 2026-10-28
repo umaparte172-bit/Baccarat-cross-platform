@@ -3,6 +3,7 @@ import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { randomSeed } from '../engine/dealer.js';
 import { unsupportedReason } from '../engine/factory.js';
+import { embeddedWorkerSource } from '../runtime.js';
 import { normalizeSettings, type Settings } from '../engine/settings.js';
 import { aggregate, type BacktestResult } from './stats.js';
 import { parsePastedShoes, type TrialResult } from './trial.js';
@@ -40,10 +41,11 @@ export type Executor = (spec: RunSpec, onProgress: (done: number) => void) => Ex
 export function workerExecutor(maxWorkers = Math.max(1, Math.min(8, availableParallelism() - 1))): Executor {
   return (spec, onProgress) => {
     const count = Math.max(1, Math.min(maxWorkers, spec.trials));
-    // Under tsx (development, tests) the worker is the TypeScript file, loaded through a small bootstrap;
-    // after "npm run build" it is plain JavaScript.
+    // Three ways to start a worker: from the code embedded in the packaged program; under tsx (development,
+    // tests) through a small bootstrap for the TypeScript file; or the plain JavaScript file after "npm run build".
+    const embedded = embeddedWorkerSource();
     const ts = import.meta.url.endsWith('.ts');
-    const file = new URL(ts ? './worker-dev.mjs' : './worker.js', import.meta.url);
+    const file = embedded === null ? new URL(ts ? './worker-dev.mjs' : './worker.js', import.meta.url) : null;
     const workers: Worker[] = [];
     let cancelled = false;
 
@@ -59,7 +61,7 @@ export function workerExecutor(maxWorkers = Math.max(1, Math.min(8, availablePar
           settings: spec.settings, seed: spec.seed, trials: spec.trials, index, workers: count,
           shoes: spec.shoes, bankrollUnits: spec.bankrollUnits, curvePoints: LIMITS.curvePoints,
         };
-        const worker = new Worker(file, { workerData: input });
+        const worker = file ? new Worker(file, { workerData: input }) : new Worker(embedded!, { eval: true, workerData: input });
         workers.push(worker);
         worker.on('message', (m: WorkerMessage) => {
           if (m.type === 'progress') onProgress(m.done);

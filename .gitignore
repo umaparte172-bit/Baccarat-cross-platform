@@ -23,3 +23,6 @@ obj/
 # Node (trade247)
 node_modules/
 trade247/dist/
+
+trade247/build/
+trade247/release/

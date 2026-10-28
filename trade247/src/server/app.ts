@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { BacktestManager } from '../backtest/jobs.js';
 import { writeSnapshot } from '../report/export.js';
+import { uiHtml } from '../runtime.js';
 import { XLSX_MIME } from '../report/xlsx.js';
 import { SessionManager, type SessionOptions } from '../session.js';
 import { SettingsStore } from '../store/files.js';
@@ -42,8 +42,7 @@ const body = (req: FastifyRequest): Record<string, unknown> =>
 export function buildApp(options: AppOptions): FastifyInstance {
   const backtest = options.backtest ?? new BacktestManager();
   const manager = options.manager ?? new SessionManager(new SettingsStore(options.dataDir), { telegram: options.telegram });
-  const uiPath = options.uiPath ?? fileURLToPath(new URL('../../ui/index.html', import.meta.url));
-  const page = readFileSync(uiPath, 'utf8');
+  const page = options.uiPath ? readFileSync(options.uiPath, 'utf8') : uiHtml();
   const allowedHosts = new Set([`127.0.0.1:${options.port}`, `localhost:${options.port}`, `[::1]:${options.port}`]);
 
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 1_048_576 });
