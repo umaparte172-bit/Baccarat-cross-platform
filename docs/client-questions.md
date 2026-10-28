@@ -62,7 +62,7 @@ understands the casino can still detect and ban the account.
 | Take profit / stop loss | Per session and per day | The PRD says "Daily" only. |
 | Ties | Count as hands for pauses and keep-alive; ignored when choosing a side | Not specified. |
 | Classic strategies | Martingale multiplier 2; stake lists in units of the Base Unit; a stake cap drops the progression back to the base stake | The old app's defaults were stakes of 100, 200, 300. |
-| Keep-Alive | One minimum bet after N idle hands | The old app's defaults were amount **1** and **5** idle hands; our page defaults to 0.1 and 10. Which does he want? |
+| Keep-Alive | One minimum bet after N idle hands; placed by itself even in Confirm mode (it is the anti-kick bet) | The old app's defaults were amount **1** and **5** idle hands; our page defaults to 0.1 and 10. Which does he want? |
 | History at start | The road already on the table is not played | The old app read the table's history first. Should the pattern start from what is on screen? |
 | After an outage | The hands missed are skipped, not replayed; a lost table alerts once | Confirm. |
 | Restart after a crash | The bot restarts idle and waits for START, and never resumes betting by itself | Confirm (we advise against automatic resume with real money). |

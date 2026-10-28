@@ -12,7 +12,7 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 SOURCE = ROOT / 'Baccarat (Evolution).exe'
 if not SOURCE.exists():
-    SOURCE = ROOT / 'Original Application' / 'Wetalkbet (CProgram Files (x86))' / 'Baccarat(Evolution)' / 'Baccarat (Evolution).exe'
+    SOURCE = ROOT.parent / 'Original Application' / 'Wetalkbet (CProgram Files (x86))' / 'Baccarat(Evolution)' / 'Baccarat (Evolution).exe'
 
 
 @unittest.skipUnless(SOURCE.exists(), 'Local executable is not distributed with repository')

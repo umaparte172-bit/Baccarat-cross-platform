@@ -4,7 +4,7 @@ Status: draft for client sign-off. Supersedes the Wetalkbet clone direction in `
 for new work. The existing .NET code under `src/` stays as an archive; nothing there is deleted.
 
 Sources: the client PRD, the client's `Original Application/index.html` (the UI reference and the de-facto
-API contract), the IHG evidence in `docs/strategy-9-ihg-evidence.md`, and the 315 extracted IHG hands in
+API contract), the IHG evidence in `analysis/docs/strategy-9-ihg-evidence.md`, and the 315 extracted IHG hands in
 `artifacts/ihg-review/reference.json` (local, git-ignored).
 
 ## 1. Scope

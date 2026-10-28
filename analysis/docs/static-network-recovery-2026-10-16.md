@@ -6,7 +6,7 @@ were submitted and the original executable was not run.
 
 ## New recovery evidence
 
-`tools/recover_static_strings.py` interprets only the audited string decoder's
+`analysis/tools/recover_static_strings.py` interprets only the audited string decoder's
 data operations in Python, with an instruction limit, bounded arrays and an
 explicit call allowlist. It does not load the CLR image or invoke native methods.
 The input is pinned to SHA-256

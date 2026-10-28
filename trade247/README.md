@@ -82,7 +82,8 @@ it decides whether a hand is bet, only watched, or ends the session.
   run exactly as it was.
 - **Keep-Alive**: on every Nth consecutive hand without a bet the strategy's own pick is bet at the minimum
   amount (real money, shown as `MIN`). Applies while the strategy sits out (single-win pause, loss pause,
-  wait-for-pattern, end of shoe), not during a manual PAUSE.
+  wait-for-pattern, end of shoe), not during a manual PAUSE. On a live table in Confirm mode it is placed
+  without asking for approval: it is the anti-kick minimum bet, and waiting for a click would defeat it.
 - **Near shoe end** (from hand #N of the shoe, needs a feed that reports shoe boundaries: Simulator, or `|` in
   Replay): `No new runs` lets an open run finish and then only watches; `Cut open run` drops the open run at hand N
   and then only watches. A new shoe resumes betting.

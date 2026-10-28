@@ -1,7 +1,7 @@
 # What the original Windows app (Baccarat (Evolution) 2.0) tells us for TRADE247
 
 Date: 2026-10-28. Static analysis only: nothing from the supplied package was run. Sources: the string table recovered
-earlier by `tools/recover_static_strings.py` (582 strings, pinned to the installed executable's SHA-256), the
+earlier by `analysis/tools/recover_static_strings.py` (582 strings, pinned to the installed executable's SHA-256), the
 strategy files, the configuration files, the batch files and the empty bets CSV. The main program's logic is protected,
 so **no formulas or method bodies were recovered**: this document lists what the strings and files establish, and says
 what they do not. Credential-like literals that sit among the strings are not repeated here.

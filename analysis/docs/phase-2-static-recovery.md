@@ -11,7 +11,7 @@ Phase completed: 2026-10-13. Source: installed version 2 client with SHA-256 `B0
 
 The version 2 client is a protected .NET Framework 4.7.2 WinForms application. Ordinary metadata remains readable, but the protector replaces application method bodies with small stubs and restores behavior at runtime. Static recovery therefore produced a reliable structural specification, startup branch, configuration call sites, and workflow inventory, but not the original event-handler logic or plaintext service contracts.
 
-The reproducible analyzer is `tools/phase2_metadata.py`. Its ignored JSON output is `artifacts/phase2-metadata.json`.
+The reproducible analyzer is `analysis/tools/phase2_metadata.py`. Its ignored JSON output is `artifacts/phase2-metadata.json`.
 
 ## Application structure
 
@@ -101,7 +101,7 @@ Version 2 contains five CLR resources:
 
 None has a standard PE, ZIP, gzip, PNG, JSON, XML or OLE signature. None decompresses directly as zlib, gzip, bzip2 or LZMA/XZ. Four have near-random entropy and all have low printable-text ratios. They are best classified as encrypted/protected opaque blobs. There is no static evidence that they contain ordinary embedded dependency assemblies.
 
-The classifier is `tools/classify_resources.py`; ignored results are stored in `artifacts/phase2-resource-classification.json`.
+The classifier is `analysis/tools/classify_resources.py`; ignored results are stored in `artifacts/phase2-resource-classification.json`.
 
 ## Recoverable workflow state machines
 

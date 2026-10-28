@@ -236,6 +236,26 @@ describe('confirm mode', () => {
     expect(h.coordinator.approve().ok).toBe(false);
   });
 
+  it('a keep-alive bet needs no approval: it is the anti-kick minimum bet, so it is placed by itself, while a strategy bet still waits', async () => {
+    const f = fake({ bet_mode: 'confirm', strategy: 'ODD_DIFF', keepalive_enabled: true, keepalive_amount: 0.5, keepalive_idle: 1 });
+    // Idle hands (the strategy has no pick yet) until the minimum bet is due.
+    for (let i = 0; i < 8 && !f.core.intendedBet(false)?.keepAlive; i++) {
+      f.core.play({ result: i % 2 ? 'B' : 'P' }, false, 0);
+      f.state.hands++;
+    }
+    expect(f.core.intendedBet(false)).toMatchObject({ keepAlive: true });
+    f.coordinator.onWindowOpen();
+    expect(f.coordinator.view().pending).toBeNull();
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(f.calls).toEqual([{ side: expect.any(String), stake: 1 }]);
+
+    const g = fake({ bet_mode: 'confirm' }); // a real strategy bet in the same mode is held for approval
+    g.coordinator.onWindowOpen();
+    expect(g.coordinator.view().pending).toMatchObject({ keep_alive: false });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(g.calls).toHaveLength(0);
+  });
+
   it('a pause is held back while a bet is on the table', async () => {
     const f = fake();
     f.coordinator.onWindowOpen();

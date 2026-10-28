@@ -1,28 +1,23 @@
-.uv-cache/
-.venv/
+# Local material that never goes into the repository: the supplied original application, analysis output, captures, secrets
+Original Application/
+artifacts/
 .tools/
+.venv/
+.uv-cache/
 __pycache__/
 *.pyc
 *.exe
 *.dll
-Original Application/
-artifacts/
-static-analysis.json
-selected-il.txt
-bin/
-obj/
-.DS_Store
-*.user
-.env
 *.pcap
 *.pcapng
 *.saz
 *.har
 *.keylog
+.env
+.DS_Store
 
 # Node (trade247)
 node_modules/
 trade247/dist/
-
 trade247/build/
 trade247/release/

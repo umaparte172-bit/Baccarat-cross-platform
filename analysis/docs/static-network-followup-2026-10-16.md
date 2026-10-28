@@ -69,7 +69,7 @@ has been completed here. No new method-body plaintext was recovered in this pass
 ## Reproduce and verification
 
 ```text
-python tools/recover_network_evidence.py "Original Application/Wetalkbet (CProgram Files (x86))/Baccarat(Evolution)/Baccarat (Evolution).exe"
+python analysis/tools/recover_network_evidence.py "Original Application/Wetalkbet (CProgram Files (x86))/Baccarat(Evolution)/Baccarat (Evolution).exe"
 python -m unittest discover -s tests -p "test_*.py"
 ```
 

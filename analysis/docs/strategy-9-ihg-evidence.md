@@ -72,7 +72,7 @@ user exposure limits in the application must remain distinct from the IHG rule.
 
 ## Reference audit
 
-`tools/audit_ihg_reference.py` extracts example rows, keeps their page/shoe/hand
+`analysis/tools/audit_ihg_reference.py` extracts example rows, keeps their page/shoe/hand
 identity, and uses Decimal arithmetic to check payouts, cumulative net, run net,
 adjacent stake changes and adjacent selection consistency. Selection checks use
 the preceding table pattern label; they are not an independent full strategy
@@ -95,7 +95,7 @@ a count of at least seven isolated wins: shoe 146, hands 3 and 4.
 Reproduce with Python and `requirements-strategy-evidence.txt` installed:
 
 ```sh
-python tools/audit_ihg_reference.py "/path/to/IHG (1).pdf"
+python analysis/tools/audit_ihg_reference.py "/path/to/IHG (1).pdf"
 ```
 
 Optionally use `--output artifacts/ihg-review/reference.json` to save all extracted

@@ -165,10 +165,11 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
       </div>
     </div>
 
-    <label class="radio-item" title="Place a minimum bet when the seat would become inactive after several hands without a bet"><input type="checkbox" id="ka_on"> Keep-Alive (avoid inactive)</label>
+    <label class="radio-item" title="Anti-Kick: during Virtual Bets (standby mode), the bot places a minimum bet every N idle hands to prevent the casino from ending the session for inactivity. Auto-placed even in Confirm mode."><input type="checkbox" id="ka_on"> Keep-Alive (Anti-Kick)</label>
     <div class="input-row">
       <input type="number" id="keep_alive" step="0.1" min="0" placeholder="Amount $">
       <button class="btn-reset-input" data-reset="keep_alive" data-val="0.1">Reset</button>
+      <span class="foot" style="white-space:nowrap">every&nbsp;<input type="number" data-key="keepalive_idle" min="1" style="width:50px;display:inline-block" title="Place the minimum bet after this many consecutive hands without a real bet">&nbsp;idle hands</span>
     </div>
     <label class="radio-item" title="Run virtual bets first; real stakes start only after N consecutive virtual losses"><input type="checkbox" id="vb_on"> Virtual Bet - start after</label>
     <div class="input-row">
@@ -277,8 +278,6 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
         <label>Daily take profit $ (all sessions today, 0 = off)</label>
         <input type="number" data-key="daily_take_profit" step="0.5" min="0">
 
-        <label>Keep-alive idle hands</label>
-        <input type="number" data-key="keepalive_idle" min="1" title="Minimum bet placed on the Nth consecutive hand without a real bet">
         <div id="classicBox" class="sub hide">
           <div class="foot"><b id="classicTitle">Classic strategy</b></div>
           <div id="firstSideRow"><label id="firstSideLabel">First bet on</label>

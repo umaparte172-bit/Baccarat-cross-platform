@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from recover_static_strings import Decoder, signed
 
-SOURCE = ROOT / "Original Application/Wetalkbet (CProgram Files (x86))/Baccarat(Evolution)/Baccarat (Evolution).exe"
+SOURCE = ROOT.parent / "Original Application/Wetalkbet (CProgram Files (x86))/Baccarat(Evolution)/Baccarat (Evolution).exe"
 
 
 class StaticStringChecks(unittest.TestCase):

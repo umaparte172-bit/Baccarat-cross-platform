@@ -144,7 +144,8 @@ export class BetCoordinator {
       expiresAt: host.now() + s.bet_confirm_seconds * 1000,
     };
     this.note = '';
-    if (s.bet_mode === 'confirm') {
+    // Keep-alive bets are anti-kick minimum bets and must fire automatically even in confirm mode.
+    if (s.bet_mode === 'confirm' && !intended.keepAlive) {
       this.pending = order;
       this.cancelTimer();
       this.timer = setTimeout(() => {

@@ -1,17 +1,24 @@
-# TRADE247-V1 workspace
+# TRADE247-V1
 
-The product is in **[`trade247/`](trade247/README.md)**: a local baccarat strategy bot with the client's page as its
-interface, shipped as a desktop app (Electron) and as a single-file program for Windows and Apple-silicon macOS.
-Start there: how to run it, build it, and what it does and does not do.
+A local baccarat strategy bot with the client's page as its interface, shipped as a desktop app (Electron) and as a
+single-file program for Windows and Apple-silicon macOS. Starting the app starts its own local server and opens the
+window; the bot itself waits for START.
 
-| Where | What |
+```
+trade247/    The product: engine, strategies, risk layer, live table, betting, reports, Telegram, backtest, packaging.
+docs/        The delivery plan, what is still needed from the client, what the original application tells us.
+analysis/    Python tools, tests and evidence from studying the original Windows application (not part of the product).
+.github/     CI: verify, package, desktop builds.
+```
+
+| Start here | |
 |---|---|
-| [`trade247/`](trade247/README.md) | The program: engine, strategies, risk layer, live table, betting, reports, Telegram, backtest, packaging. |
+| [`trade247/README.md`](trade247/README.md) | How to run it, build it, and what it does and does not do. |
+| [`trade247/docs/deployment.md`](trade247/docs/deployment.md) | Install, desktop app, live table, betting, 24/7 on a VPS. |
 | [`docs/trade247-v1-plan.md`](docs/trade247-v1-plan.md) | The delivery plan and its progress table. |
-| [`docs/client-questions.md`](docs/client-questions.md) | What is still needed from the client. |
-| [`docs/original-app-reverse-engineering.md`](docs/original-app-reverse-engineering.md) | What the original Windows application (Baccarat (Evolution) 2.0) tells us, from static analysis only. |
-| `docs/` (the rest) | Evidence records: the original application's analysis, the recovered strings and network findings, the IHG and PATTERN evidence, the video reference cases. |
-| `tools/`, `tests/`, `analyze_exe.py`, `dump_il.py` | Python tools that analyse the supplied original executable **without running it**, and their tests. They need the original files, which are not in the repository. |
+| [`docs/client-questions.md`](docs/client-questions.md) | What is still needed from the client, and why. |
+| [`docs/original-app-reverse-engineering.md`](docs/original-app-reverse-engineering.md) | What the original application (Baccarat (Evolution) 2.0) tells us, from static analysis only. |
+| [`analysis/README.md`](analysis/README.md) | The evidence behind it. |
 
 ## History
 

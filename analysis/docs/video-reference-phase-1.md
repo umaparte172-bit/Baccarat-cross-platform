@@ -201,15 +201,15 @@ failed to write `.git/index`; read-only ACL inspection found write-deny entries.
 No repository permissions were modified, and no commit or push was completed.
 
 ```powershell
-python tools/extract_video_reference.py `
+python analysis/tools/extract_video_reference.py `
   'Original Application/VID-20261016-WA0002.mp4' artifacts/video-phase1 `
   --ffmpeg '<path-to-ffmpeg.exe>' `
   --seconds 0 30 65 95 125 180 210 250 270 290 310 330 350 390 410 430 450 490 510 550 590 610 650 663
-python tools/extract_video_reference.py `
+python analysis/tools/extract_video_reference.py `
   'Original Application/VID-20261016-WA0002.mp4' artifacts/video-phase1-detail `
   --ffmpeg '<path-to-ffmpeg.exe>' `
   --seconds 190 200 220 230 240 260 280 360 440 460 470 520 620 640
-python tools/audit_video_reference.py
+python analysis/tools/audit_video_reference.py
 python -m unittest discover -s tests -p test_video_reference.py
 ```
 
