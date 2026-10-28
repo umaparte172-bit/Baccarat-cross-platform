@@ -185,6 +185,47 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
       <button class="btn-reset-input" data-reset="sl" data-val="">Clear</button>
     </div>
 
+    <div class="section-title">RESULT FEED &amp; BETTING</div>
+    <label>Result feed</label>
+    <select id="feed" data-key="feed">
+      <option value="simulator">Simulator (8-deck shoes)</option>
+      <option value="manual">Manual (enter P / B / T)</option>
+      <option value="csv">Replay (P/B/T letters or CSV)</option>
+      <option value="live">Live table (read-only, from your Chrome)</option>
+    </select>
+    <div id="simBox" class="row2">
+      <div><label>Seconds per hand</label><input type="number" data-key="sim_interval" step="0.1" min="0"></div>
+      <div><label>Seed (0 = random)</label><input type="number" data-key="sim_seed" min="0"></div>
+    </div>
+    <div id="liveBox" class="hide">
+      <label>Chrome debugging port</label><input type="number" data-key="live_port" min="1" max="65535">
+      <div class="foot">Open Chrome with the TRADE247 Chrome launcher, sign in and open a baccarat table there. Results are read from the page. The road already on screen when you press Start is history and is not played.</div>
+      <div class="foot"><b>Betting on this table</b></div>
+      <label>Bet mode</label>
+      <select data-key="bet_mode">
+        <option value="paper">Paper - bets are simulated, nothing is clicked</option>
+        <option value="confirm">Confirm - I approve each bet (real money)</option>
+        <option value="auto">Automatic - the program places the bets (real money)</option>
+      </select>
+      <div id="betLimits" class="hide">
+        <div class="row2">
+          <div><label>Largest bet $</label><input type="number" data-key="bet_max_stake" min="0" step="0.5"></div>
+          <div><label>Session limit $</label><input type="number" data-key="bet_max_session" min="0" step="1"></div>
+        </div>
+        <div class="row2">
+          <div><label>Pause before a bet (s) from</label><input type="number" data-key="bet_delay_min" min="0" max="30" step="0.1"></div>
+          <div><label>to</label><input type="number" data-key="bet_delay_max" min="0" max="30" step="0.1"></div>
+        </div>
+        <div id="betConfirmRow"><label>Seconds to approve a bet</label><input type="number" data-key="bet_confirm_seconds" min="3" max="120"></div>
+        <div class="foot" style="color:#ffb703"><b>Real money.</b> A casino may close an account that bets automatically. A bet is placed only if it is within both limits above, once, and only when the table shows bets open. If the table does not show the stake, the session stops and nothing is repeated. Needs a table profile with betting settings (see the guide).</div>
+      </div>
+    </div>
+    <div id="csvBox" class="hide">
+      <label>PBPPT|BBP (| = new shoe)</label>
+      <textarea data-key="csv_text"></textarea>
+      <input type="text" data-key="csv_path" placeholder="/path/BETS.csv (column 'winner')" style="margin-top:4px">
+    </div>
+
     <div class="section-title">CONTROLS</div>
     <div class="control-btns">
       <button class="btn-start" id="start">START</button>
@@ -322,46 +363,6 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
               <option value="off">Off</option>
             </select></div>
           <div><label>From hand #</label><input type="number" data-key="end_shoe_hand" min="1"></div>
-        </div>
-
-        <label>Result feed</label>
-        <select id="feed" data-key="feed">
-          <option value="simulator">Simulator (8-deck shoes)</option>
-          <option value="manual">Manual (enter P / B / T)</option>
-          <option value="csv">Replay (P/B/T letters or CSV)</option>
-          <option value="live">Live table (read-only, from your Chrome)</option>
-        </select>
-        <div id="simBox" class="row2">
-          <div><label>Seconds per hand</label><input type="number" data-key="sim_interval" step="0.1" min="0"></div>
-          <div><label>Seed (0 = random)</label><input type="number" data-key="sim_seed" min="0"></div>
-        </div>
-        <div id="liveBox" class="hide">
-          <label>Chrome debugging port</label><input type="number" data-key="live_port" min="1" max="65535">
-          <div class="foot">Open Chrome with the TRADE247 Chrome launcher, sign in and open a baccarat table there. Results are read from the page. The road already on screen when you press Start is history and is not played.</div>
-          <div class="foot"><b>Betting on this table</b></div>
-          <label>Bet mode</label>
-          <select data-key="bet_mode">
-            <option value="paper">Paper - bets are simulated, nothing is clicked</option>
-            <option value="confirm">Confirm - I approve each bet (real money)</option>
-            <option value="auto">Automatic - the program places the bets (real money)</option>
-          </select>
-          <div id="betLimits" class="hide">
-            <div class="row2">
-              <div><label>Largest bet $</label><input type="number" data-key="bet_max_stake" min="0" step="0.5"></div>
-              <div><label>Session limit $</label><input type="number" data-key="bet_max_session" min="0" step="1"></div>
-            </div>
-            <div class="row2">
-              <div><label>Pause before a bet (s) from</label><input type="number" data-key="bet_delay_min" min="0" max="30" step="0.1"></div>
-              <div><label>to</label><input type="number" data-key="bet_delay_max" min="0" max="30" step="0.1"></div>
-            </div>
-            <div id="betConfirmRow"><label>Seconds to approve a bet</label><input type="number" data-key="bet_confirm_seconds" min="3" max="120"></div>
-            <div class="foot" style="color:#ffb703"><b>Real money.</b> A casino may close an account that bets automatically. A bet is placed only if it is within both limits above, once, and only when the table shows bets open. If the table does not show the stake, the session stops and nothing is repeated. Needs a table profile with betting settings (see the guide).</div>
-          </div>
-        </div>
-        <div id="csvBox" class="hide">
-          <label>PBPPT|BBP (| = new shoe)</label>
-          <textarea data-key="csv_text"></textarea>
-          <input type="text" data-key="csv_path" placeholder="/path/BETS.csv (column 'winner')" style="margin-top:4px">
         </div>
 
         <div class="foot"><b>Telegram alerts</b></div>
