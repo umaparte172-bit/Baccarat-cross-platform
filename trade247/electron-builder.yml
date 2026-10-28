@@ -4,16 +4,18 @@ productName: TRADE247
 copyright: TRADE247
 directories:
   app: build/electron
+  buildResources: build-resources
   output: release/desktop
 asar: true
 # The server listens on 127.0.0.1 only; nothing is installed system-wide and there is no auto-update.
 electronLanguages: [en-US]
 win:
+  icon: build-resources/icon.ico
   target:
     - { target: nsis, arch: [x64] }
     - { target: portable, arch: [x64] }
   # Unsigned: Windows SmartScreen asks once. Signing needs a paid certificate.
-  signAndEditExecutable: false
+  signExecutable: false
 nsis:
   oneClick: false
   perMachine: false
@@ -22,6 +24,7 @@ nsis:
 portable:
   artifactName: TRADE247-Portable-${version}-${arch}.${ext}
 mac:
+  icon: build-resources/icon.icns
   category: public.app-category.finance
   target:
     - { target: dmg, arch: [arm64] }

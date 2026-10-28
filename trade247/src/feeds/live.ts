@@ -9,7 +9,10 @@ import type { Feed, HandHandler } from './feed.js';
 export interface LiveOptions {
   /** Chrome's remote debugging port. */
   port: number;
+  /** The table profile (the one the session is bet with). */
   profile: LiveProfile;
+  /** Profiles tried on the open tabs, in order (default: just `profile`). The one that finds a road is then used. */
+  profiles?: LiveProfile[];
   /** How often the road is read while a table is attached. */
   pollMs?: number;
   /** How often tabs are searched for a table while none is attached. */
@@ -59,12 +62,16 @@ export class LiveFeed implements Feed {
   private round = 0;
   private armedRound = -1;
   private lastChangeAt = 0;
+  /** The profile that found the table on the page now attached. */
+  private profile: LiveProfile;
 
   constructor(
     private readonly handler: HandHandler,
     private readonly options: LiveOptions,
     private readonly hooks: LiveHooks,
-  ) {}
+  ) {
+    this.profile = options.profile;
+  }
 
   start(): void {
     this.active = true;
@@ -95,7 +102,7 @@ export class LiveFeed implements Feed {
    * `shouldAbort` is checked between clicks.
    */
   async place(side: Side, stake: number, shouldAbort?: () => boolean): Promise<Placement> {
-    const betting = this.options.profile.betting;
+    const betting = this.profile.betting;
     const page = this.page;
     if (!betting) return { kind: 'rejected', reason: 'This table profile has no betting settings' };
     if (!page || page.closed) return { kind: 'rejected', reason: 'The table is not connected' };
@@ -160,7 +167,7 @@ export class LiveFeed implements Feed {
     }
 
     const page = this.page;
-    const reading = page.closed ? null : await page.readRoad(this.options.profile);
+    const reading = page.closed ? null : await page.readRoad(this.profile);
     // Stopped or retried while the page was being read: that page is no longer ours, and nothing is lost.
     if (!this.active || this.page !== page) return;
     if (page.closed) {
@@ -190,7 +197,7 @@ export class LiveFeed implements Feed {
 
   /** Tells the session when bets open for a round it has not been told about yet. */
   private async watchWindow(page: PageSession, now: number): Promise<void> {
-    const betting = this.options.profile.betting;
+    const betting = this.profile.betting;
     if (!this.options.watchWindow || !betting || !this.hooks.windowOpen || this.armedRound === this.round) return;
     if (now - this.lastChangeAt < (this.options.settleMs ?? 800)) return;
     const snap = await page.readWindow(betting).catch(() => null);
@@ -208,19 +215,30 @@ export class LiveFeed implements Feed {
       this.noTable((e as Error).message);
       return null;
     }
-    const wanted = this.options.profile.hostContains.toLowerCase();
+    const candidates = this.options.profiles ?? [this.options.profile];
+    const checked: string[] = [];
+    const providers = new Set<string>();
     for (const target of targets) {
-      if (wanted && !target.url.toLowerCase().includes(wanted)) continue;
+      if (!candidates.some((p) => !p.hostContains || target.url.toLowerCase().includes(p.hostContains.toLowerCase()))) continue;
       let candidate: PageSession | null = null;
       try {
         candidate = await PageSession.attach(target);
-        if (await candidate.readRoad(this.options.profile)) return candidate;
+        for (const profile of this.options.profiles ?? [this.options.profile]) {
+          if (await candidate.readRoad(profile)) {
+            this.profile = profile;
+            return candidate;
+          }
+        }
       } catch {
         /* a tab that cannot be inspected is skipped */
       }
+      if (candidate) {
+        checked.push(siteOf(target.url));
+        for (const p of candidate.providers()) providers.add(p);
+      }
       candidate?.close();
     }
-    this.noTable('Chrome is open but no baccarat table is visible. Open a live table in that window');
+    this.noTable(noTableReason(this.options.port, checked, [...providers]));
     return null;
   }
 
@@ -234,4 +252,23 @@ export class LiveFeed implements Feed {
       this.hooks.waiting(reason);
     }
   }
+}
+
+const siteOf = (url: string): string => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'a tab';
+  }
+};
+
+/** Says what was looked at and what to do, so the user is not left guessing why nothing connects. */
+export function noTableReason(port: number, sites: string[], providers: string[]): string {
+  const where = sites.length
+    ? `Looked at ${sites.length} tab(s) in the Chrome on port ${port}: ${[...new Set(sites)].join(', ')}.`
+    : `The Chrome on port ${port} has no page open.`;
+  if (providers.length) {
+    return `${where} A ${providers.join(' / ')} table is open there, but its road was not recognised: the casino may have changed its page. Run trade247 --inspect-table and send the file it saves in the data folder.`;
+  }
+  return `${where} No baccarat table is open in it. Open the table in THAT window (a table opened in your normal Chrome cannot be read) and wait until the road next to the video shows.`;
 }

@@ -223,6 +223,7 @@ src/store/        settings, secrets, session counter
 src/cli.ts        command-line options
 src/runtime.ts    version, embedded page and worker when packaged
 tools/            build-app (single-file program), assemble-release, smoke-app
+build-resources/  application icon (from the original application): icon.ico, icon.icns, icon.png
 packaging/        Windows scripts (start, VPS scheduled task), macOS launcher, run instructions
 docs/             deployment guide
 test/             Vitest

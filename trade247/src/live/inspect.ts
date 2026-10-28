@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { listPages } from './cdp.js';
 import { PageSession } from './page.js';
-import { loadProfile } from './profile.js';
+import { loadProfiles, type LiveProfile } from './profile.js';
 
 /**
  * A calibration capture: what the table page looks like, so the selectors in the profile can be checked or fixed
@@ -89,20 +89,29 @@ export async function inspectTables(port: number, outDir: string, now = new Date
  * betting window. It clicks nothing. Used to calibrate the selectors before any bet is allowed.
  */
 export async function checkTable(port: number, dataDir: string): Promise<string[]> {
-  const profile = loadProfile(dataDir);
-  if ('error' in profile) throw new Error(profile.error);
-  const lines: string[] = [`Profile: ${profile.name}${profile.betting ? ' (with betting settings)' : ' (read only: no betting settings)'}`];
+  const profiles = loadProfiles(dataDir);
+  if ('error' in profiles) throw new Error(profiles.error);
+  const lines: string[] = [`Profiles tried: ${profiles.map((p) => p.name).join('; ')}`];
   const pages = await listPages(port);
   let tables = 0;
   for (const target of pages) {
     let session: PageSession | null = null;
     try {
       session = await PageSession.attach(target, 700);
-      const road = await session.readRoad(profile);
-      const window = profile.betting ? await session.readWindow(profile.betting) : null;
+      let profile: LiveProfile = profiles[0]!;
+      let road = null;
+      let window = null;
+      for (const candidate of profiles) {
+        road = await session.readRoad(candidate);
+        window = candidate.betting ? await session.readWindow(candidate.betting) : null;
+        if (road || window) {
+          profile = candidate;
+          break;
+        }
+      }
       if (!road && !window) continue;
       tables++;
-      lines.push(`Tab ${tables}: ${site(target.url)}`);
+      lines.push(`Tab ${tables}: ${site(target.url)} (profile: ${profile.name}${profile.betting ? ', with betting settings' : ', read only: no betting settings'})`);
       if (road) {
         lines.push(`  Road: ${road.items.length} hands${road.unreadable ? ' (some cells are NOT recognised - fix the rules)' : ''}, last ${road.items.slice(-12).join('') || '-'}`);
       } else lines.push('  Road: not found (check containerSelector / itemSelector)');

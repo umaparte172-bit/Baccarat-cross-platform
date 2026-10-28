@@ -34,6 +34,7 @@ log(`bundling ${pkg.name} ${pkg.version}`);
 await build({ ...common, entryPoints: [join(root, 'electron/main.ts')], outfile: join(out, 'main.cjs'), external: ['electron'] });
 await build({ ...common, entryPoints: [join(root, 'src/backtest/worker.ts')], outfile: join(out, 'assets/worker.js') });
 copyFileSync(join(root, 'ui/index.html'), join(out, 'assets/index.html'));
+copyFileSync(join(root, 'build-resources/icon.png'), join(out, 'assets/icon.png'));
 
 // What the packager sees: the program only, with no dependencies of its own.
 writeFileSync(

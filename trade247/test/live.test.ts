@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { HandEvent } from '../src/feeds/feed.js';
-import { LiveFeed, type LiveHooks } from '../src/feeds/live.js';
+import { LiveFeed, noTableReason, type LiveHooks } from '../src/feeds/live.js';
 import { listPages } from '../src/live/cdp.js';
 import { PageSession } from '../src/live/page.js';
 import { inspectTables } from '../src/live/inspect.js';
-import { EVOLUTION_BEAD_ROAD, PROFILE_FILE, diffRoad, loadProfile, parseProfile, probeScript } from '../src/live/profile.js';
+import { EVOLUTION_BEAD_ROAD, PRAGMATIC_BEAD_ROAD, PROFILE_FILE, diffRoad, loadProfile, loadProfiles, parseProfile, probeScript } from '../src/live/profile.js';
 import { findChrome, openTab, startChrome, startMockTable, until, type MockTable, type TestChrome } from './chrome.js';
 import { harness, MANUAL } from './helpers.js';
 
@@ -20,6 +20,35 @@ describe('comparing two readings of the road', () => {
     expect(diffRoad(['P', 'B', 'T'], ['P', 'B'])).toEqual({ kind: 'reset' });
     expect(diffRoad(['P', 'B', 'T'], [])).toEqual({ kind: 'reset' });
     expect(diffRoad(['P', 'B'], ['B', 'P', 'T'])).toEqual({ kind: 'reset' });
+  });
+});
+
+describe('which profiles are tried', () => {
+  it('uses the built-in ones of both providers unless the data folder has a profile of its own', () => {
+    const dir = mkdtempSync(join(tmpdir(), 't247-prof-'));
+    try {
+      const builtIn = loadProfiles(dir);
+      expect(Array.isArray(builtIn) && builtIn.map((p) => p.order)).toEqual(['document', 'columns']);
+      expect(Array.isArray(builtIn) && builtIn.every((p) => p.betting === null)).toBe(true);
+      expect(PRAGMATIC_BEAD_ROAD.containerSelector).toBe('.wC_wK');
+      writeFileSync(join(dir, PROFILE_FILE), JSON.stringify({ ...EVOLUTION_BEAD_ROAD, name: 'mine' }));
+      expect(loadProfiles(dir)).toMatchObject([{ name: 'mine' }]);
+      writeFileSync(join(dir, PROFILE_FILE), '{ not json');
+      expect(loadProfiles(dir)).toMatchObject({ error: expect.stringContaining('not valid JSON') });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('says what was looked at and what to do when no table is found', () => {
+    expect(noTableReason(9014, [], [])).toContain('has no page open');
+    const plain = noTableReason(9014, ['roobet.com', 'roobet.com', 'example.org'], []);
+    expect(plain).toContain('Looked at 3 tab(s)');
+    expect(plain).toContain('roobet.com, example.org');
+    expect(plain).toContain('normal Chrome cannot be read');
+    const known = noTableReason(9014, ['roobet.com'], ['Pragmatic Play']);
+    expect(known).toContain('A Pragmatic Play table is open there, but its road was not recognised');
+    expect(known).toContain('--inspect-table');
   });
 });
 
@@ -98,9 +127,9 @@ describe.skipIf(!chrome)('reading a table in a real Chrome', () => {
     table.state.container = true;
     table.state.cells = [];
     table.state.rows = ['BPP...', 'TBB...', 'BT....', 'PB....', 'BB....', 'PT....'];
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 600));
     const target = (await listPages(browser.port)).find((p) => p.url.includes('/lobby'))!;
-    const session = await PageSession.attach(target, 800);
+    const session = await PageSession.attach(target, 1200);
     try {
       const profile = parseProfile({
         name: 'grid', containerSelector: '.row', itemSelector: '.cell', order: 'columns',
@@ -119,6 +148,32 @@ describe.skipIf(!chrome)('reading a table in a real Chrome', () => {
       table.state.rows = null;
     }
   });
+
+  it('tries the profiles in turn and keeps the one that finds the road (a table of another provider, no set-up)', async () => {
+    table.state.container = true;
+    table.state.cells = [];
+    table.state.rows = ['BP....', 'TB....', 'B.....', 'P.....', 'B.....', 'P.....'];
+    const grid = parseProfile({
+      name: 'grid', containerSelector: '.row', itemSelector: '.cell', order: 'columns',
+      rules: [{ exact: 'P', result: 'P' }, { exact: 'B', result: 'B' }, { exact: 'T', result: 'T' }],
+    });
+    if ('error' in grid) throw new Error(grid.error);
+    const { hands, log, hooks } = collect();
+    // The first profile (Evolution) matches nothing on this page; the second is the one that reads it.
+    const feed = new LiveFeed((e) => hands.push(e), { port: browser.port, profile: EVOLUTION_BEAD_ROAD, profiles: [EVOLUTION_BEAD_ROAD, grid], pollMs: 40, scanMs: 100 }, hooks);
+    feed.start();
+    try {
+      await until(() => log.includes('connected'));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(hands).toHaveLength(0); // what is on the screen is history
+      table.state.rows = ['BPT...', 'TB....', 'B.....', 'P.....', 'B.....', 'P.....'];
+      await until(() => hands.length === 1);
+      expect(results(hands)).toBe('T');
+    } finally {
+      feed.stop();
+      table.state.rows = null;
+    }
+  }, 25_000);
 
   it('lists the tab and reads a road inside a frame from another site', async () => {
     const pages = await listPages(browser.port);

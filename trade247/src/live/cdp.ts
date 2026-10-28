@@ -21,7 +21,7 @@ export async function listPages(port: number, timeoutMs = 2500): Promise<CdpTarg
   try {
     response = await fetch(`http://${LOOPBACK}:${port}/json/list`, { signal: AbortSignal.timeout(timeoutMs) });
   } catch {
-    throw new CdpError(`Cannot reach Chrome on port ${port}. Start Chrome with the TRADE247 Chrome launcher and open the table there`);
+    throw new CdpError(`Cannot reach Chrome on port ${port}. Your usual Chrome cannot be read: click "Open Chrome for the table" (or double-click the Start-Chrome-for-Trade247 launcher) and open the table in the window that opens`);
   }
   if (!response.ok) throw new CdpError(`Chrome on port ${port} answered HTTP ${response.status}`);
   const all = (await response.json()) as CdpTarget[];

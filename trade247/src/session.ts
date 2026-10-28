@@ -10,7 +10,7 @@ import type { BetPlan } from './engine/strategy.js';
 import { isResult, type NextBet, type Row } from './engine/types.js';
 import { ManualFeed, ReplayFeed, SimulatorFeed, parseReplay, type Feed, type HandEvent } from './feeds/feed.js';
 import { LiveFeed } from './feeds/live.js';
-import { loadProfile, type LiveProfile } from './live/profile.js';
+import { loadProfiles, type LiveProfile } from './live/profile.js';
 import { TelegramNotifier, configProblem, type Notifier, type SendResult, type TelegramOptions } from './notify/telegram.js';
 import { LOG_FILE_NAME, appendHistory, buildCsv, type HandRecord } from './report/csv.js';
 import { latestSessionFromHistory, tableFromRecords, type Table } from './report/table.js';
@@ -78,6 +78,7 @@ export class SessionManager {
   private shoeNo = 1;
   private feedIsLost = false;
   private liveProfile: LiveProfile | null = null;
+  private liveProfiles: LiveProfile[] = [];
   private readonly bets: BetCoordinator;
 
   constructor(
@@ -172,9 +173,10 @@ export class SessionManager {
       }
     }
     if (settings.feed === 'live') {
-      const profile = loadProfile(this.store.dataDir);
-      if ('error' in profile) return { ok: false, status: profile.error };
-      this.liveProfile = profile;
+      const profiles = loadProfiles(this.store.dataDir);
+      if ('error' in profiles) return { ok: false, status: profiles.error };
+      this.liveProfiles = profiles;
+      this.liveProfile = profiles[0]!;
     }
     if (settings.bet_mode !== 'paper') {
       if (settings.feed !== 'live') return { ok: false, status: 'Betting needs the Live table feed' };
@@ -360,7 +362,7 @@ export class SessionManager {
   /** Still looking for the live table: shown in the status so the user knows what to do. */
   feedWaiting(reason: string): void {
     if (!this.running || this.feedIsLost || this.paused) return;
-    this.status = `FEED WAITING - ${reason}`.slice(0, 140);
+    this.status = `FEED WAITING - ${reason}`.slice(0, 400);
   }
 
   feedRestored(): boolean {
@@ -416,7 +418,7 @@ export class SessionManager {
       case 'live':
         return new LiveFeed(
           handler,
-          { port: this.settings.live_port, profile: this.liveProfile!, watchWindow: this.settings.bet_mode !== 'paper' },
+          { port: this.settings.live_port, profile: this.liveProfile!, profiles: this.liveProfiles, watchWindow: this.settings.bet_mode !== 'paper' },
           {
             connected: () => this.feedConnected(),
             waiting: (reason) => this.feedWaiting(reason),

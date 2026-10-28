@@ -29,7 +29,7 @@ five numbers of each preset (hands per cycle, increase from %, up to %, stake ca
 1. Open `Start-Chrome-for-Trade247` (it opens its own Chrome window), sign in to Roobet and open an Evolution baccarat table.
 2. While a round is open for betting, run `trade247 --inspect-table` in a terminal, and send the small file it saves (element names and
    short labels only: no balances, names or page addresses beyond the site).
-3. Tell us which provider and table (Roobet offers Evolution and Pragmatic Play, for example "Baccarat 5"), and whether a region or VPN is needed. The old app's strings point to Evolution, but a table checked on 2026-10-28 was Pragmatic Play: its road can be read (profile in `trade247/docs/profiles`), betting is not calibrated for it.
+3. Tell us which provider and table (Roobet offers Evolution and Pragmatic Play, for example "Baccarat 5"), and whether a region or VPN is needed. The old app's strings point to Evolution, but a table checked on 2026-10-28 was Pragmatic Play: its road is read by a built-in profile with no set-up (profile file in `trade247/docs/profiles`), betting is not calibrated for it.
 
 With it we write the table profile (road, chips, spots, total) and check it with `trade247 --check-table`, which clicks nothing.
 

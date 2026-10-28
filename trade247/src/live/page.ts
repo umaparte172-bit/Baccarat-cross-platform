@@ -105,6 +105,17 @@ export class PageSession {
     for (const [k, c] of this.contexts) if (c.session === session) this.contexts.delete(k);
   }
 
+  /** Which table providers have a frame in this tab (by the site of the frame). */
+  providers(): string[] {
+    const found = new Set<string>();
+    for (const c of this.contexts.values()) {
+      const o = c.origin.toLowerCase();
+      if (o.includes('pragmaticplay')) found.add('Pragmatic Play');
+      else if (o.includes('evolution') || o.includes('evo-games') || o.includes('evolive')) found.add('Evolution');
+    }
+    return [...found];
+  }
+
   /** Runs a script in every frame; frames that fail (navigating, gone) are skipped. */
   async evaluateEverywhere<T>(expression: string): Promise<Array<{ origin: string; value: T }>> {
     return (await this.evaluateInFrames<T>(expression)).map(({ frame, value }) => ({ origin: frame.origin, value }));

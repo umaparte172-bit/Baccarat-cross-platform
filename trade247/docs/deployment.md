@@ -167,7 +167,7 @@ How it behaves:
 * A cell that is not recognised stops that reading from being used, rather than guessing.
 * Tables inside frames from another site (the usual setup) are supported.
 
-**The selectors have not been checked against a live Roobet/Evolution table yet.** The built-in profile is the Evolution
+**Evolution has not been checked against a live table yet; Pragmatic Play has.** Without a `live-profile.json` in the data folder the program tries both built-in profiles on every open tab: Pragmatic Play (the road grid, checked on a real Roobet table on 2026-10-28) and Evolution's
 bead road (`[data-role="Bead-road"]` with `[data-role="roadItem"]` cells showing P / B / T). If a table is not found, or
 the hands are wrong, run this with the table open and send the file it saves:
 
@@ -276,9 +276,21 @@ Copy one into the data folder as `live-profile.json`, then run `trade247 --check
 | File | Table | Status |
 |---|---|---|
 | `docs/profiles/pragmatic-play-roobet.json` | Pragmatic Play baccarat (for example "Baccarat 5") on Roobet | **Road only** (Paper mode). Checked against a real open table on 2026-10-28: it read the road. No betting settings yet. Its selectors are generated class names (`wC_wK`), which Pragmatic may change; `--check-table` shows when they stop matching. |
-| built-in | Evolution baccarat | Road only, unverified. |
+| built-in | Pragmatic Play and Evolution baccarat | Both are tried automatically when there is no `live-profile.json`, so the Pragmatic file above is only needed to pin or change it. Road only (Paper mode); Evolution is unverified. |
 
 Roobet hosts tables from more than one provider (Evolution, Pragmatic Play, ...), so the profile must match the provider of the table you open. If the status says "no baccarat table is visible" while a table is open, the profile is for another provider.
+
+### The table does not connect: check in this order
+
+The status line under the title says what the program saw. In order of likelihood:
+
+1. **"Cannot reach Chrome on port 9014"**: the table is open in your usual Chrome, which cannot be read. Press **Open Chrome for the table**, sign in to the casino in the window that opens and open the table there (a second Chrome with its own profile can run beside your usual one).
+2. **"The Chrome on port 9014 has no page open" / "No baccarat table is open in it"**: Chrome is the right one but the table is not in it yet, or is still loading. Wait until the road next to the video shows, then **Retry Table**.
+3. **"A Pragmatic Play table is open there, but its road was not recognised"**: the casino changed its page. Run `trade247 --check-table` and `trade247 --inspect-table` and send the result.
+4. The port in the page differs from the one Chrome uses. Both default to 9014.
+5. Another program already uses port 9014: set another port in the page and in the launcher.
+
+To see the same thing from a terminal: `trade247 --check-table` prints, for each tab, the profile that matched and the hands it read, and clicks nothing.
 
 ### Calibrating a table
 

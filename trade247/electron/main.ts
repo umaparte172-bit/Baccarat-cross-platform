@@ -98,6 +98,7 @@ async function start(): Promise<void> {
     minWidth: 980,
     minHeight: 640,
     backgroundColor: '#0b1220',
+    icon: join(__dirname, 'assets', 'icon.png'),
     title: `TRADE247-V1 ${VERSION}`,
     show: !SMOKE,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, devTools: !app.isPackaged },
