@@ -19,3 +19,7 @@ obj/
 *.saz
 *.har
 *.keylog
+
+# Node (trade247)
+node_modules/
+trade247/dist/

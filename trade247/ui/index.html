@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%277%27 fill=%27%234ea8de%27/%3E%3C/svg%3E">
+<title>TRADE247-V1</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:#0d1b2a;color:#e0e1dd;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:6px;overflow:hidden;font-size:13px;display:flex;flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:center;background:#1b263b;padding:6px 12px;border-radius:4px;margin-bottom:6px;height:38px;flex-shrink:0}
+.header-title{font-size:15px;font-weight:bold;color:#4ea8de;display:flex;align-items:center;gap:10px}
+.pill{padding:2px 9px;border-radius:999px;font-weight:600;font-size:11px;background:#27496d;color:#90e0ef}
+.pill.run{background:#14532d;color:#86efac}.pill.stop{background:#5b1a1a;color:#fca5a5}.pill.warn{background:#5a4510;color:#fcd34d}
+.header-btns button{background:#27496d;color:#fff;border:none;padding:4px 10px;margin-left:4px;border-radius:3px;cursor:pointer;font-size:12px;font-weight:bold}
+.header-btns button:hover{background:#4ea8de;color:#0d1b2a}
+.header-btns button:disabled{opacity:.4;cursor:default}
+.main-container{display:flex;gap:6px;flex:1;min-height:0}
+.left-panel{width:290px;min-width:220px;max-width:60vw;flex-shrink:0;background:#1b263b;padding:8px;border-radius:4px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+.left-panel label{font-size:12px;color:#90e0ef;display:block;margin-bottom:2px}
+.left-panel select,.left-panel input[type=text],.left-panel input[type=number],.left-panel input[type=password],.left-panel textarea{width:100%;padding:4px 6px;background:#0d1b2a;color:#fff;border:1px solid #415a77;border-radius:3px;font-size:12px;font-family:inherit}
+.left-panel textarea{min-height:48px;resize:vertical}
+.input-row{display:flex;gap:4px}
+.btn-reset-input{background:#415a77;color:#fff;border:none;padding:4px 8px;font-size:11px;border-radius:3px;cursor:pointer;white-space:nowrap}
+.btn-reset-input:hover{background:#1b263b;outline:1px solid #90e0ef}
+.radio-group{display:flex;flex-direction:column;gap:4px;background:#0d1b2a;padding:5px;border-radius:3px;border:1px solid #415a77;margin-bottom:4px;font-size:12px}
+.radio-item{display:flex!important;align-items:center;gap:6px;cursor:pointer;color:#e0e1dd!important;margin:0!important}
+.radio-item input{width:auto}
+.section-title{font-size:12px;font-weight:bold;color:#00b4d8;border-bottom:1px solid #415a77;padding-bottom:3px;margin-top:3px}
+.control-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.control-btns button{flex:1;color:#fff;border:none;padding:6px 4px;font-size:11px;font-weight:bold;border-radius:3px;cursor:pointer}
+.control-btns button:disabled{opacity:.4;cursor:default}
+.btn-start{background:#2b9348}.btn-start:hover:not(:disabled){background:#55a630}
+.btn-pause{background:#e09f3e}.btn-pause:hover:not(:disabled){background:#f4b860}
+.btn-stop{background:#d90429}.btn-stop:hover:not(:disabled){background:#ef233c}
+.btn-apply{background:#0077b6}.btn-apply:hover:not(:disabled){background:#0096c7}
+.btn-bt{background:#7b2cbf}.btn-bt:hover:not(:disabled){background:#9d4edd}
+.btn-reset-all{background:#6c757d}.btn-reset-all:hover:not(:disabled){background:#adb5bd}
+.score-box{display:flex;gap:6px;margin-top:3px}
+.score-card{flex:1;background:#0d1b2a;text-align:center;padding:6px;border-radius:3px;border:1px solid #415a77}
+.score-card.player{color:#4ea8de;font-weight:bold;font-size:12px}
+.score-card.banker{color:#f72585;font-weight:bold;font-size:12px}
+.cards-val{font-size:11px;color:#adb5bd;margin-top:2px;min-height:14px;font-weight:normal}
+.score-value{font-size:22px;font-weight:bold;margin-top:2px}
+.score-card.flash-player{animation:fp .9s ease 2}.score-card.flash-banker{animation:fb .9s ease 2}
+@keyframes fp{0%,100%{background:#0d1b2a;box-shadow:none}30%,70%{background:#1d3557;border-color:#4ea8de;box-shadow:0 0 10px #4ea8de}}
+@keyframes fb{0%,100%{background:#0d1b2a;box-shadow:none}30%,70%{background:#5a189a;border-color:#f72585;box-shadow:0 0 10px #f72585}}
+.stats-row{display:flex;gap:6px}
+.balance-box{background:#0d1b2a;flex:1;padding:6px;text-align:center;border-radius:3px;border:1px solid #415a77}
+.balance-title{font-size:11px;color:#90e0ef}
+.balance-value{font-size:15px;font-weight:bold;color:#52b788;margin-top:2px}
+.pos{color:#52b788!important}.neg{color:#ff4d6d!important}
+details{border:1px solid #415a77;border-radius:3px;padding:4px 6px;background:#16213a}
+details summary{cursor:pointer;color:#00b4d8;font-weight:bold;font-size:12px}
+details .sub{margin-top:6px;display:flex;flex-direction:column;gap:5px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hide{display:none!important}
+.foot{color:#8fa3bd;font-size:11px;line-height:1.5}
+.center-panel{flex:1;min-width:200px;min-height:0;overflow:hidden;background:#1b263b;padding:8px;border-radius:4px;display:flex;flex-direction:column}
+.next-bar{display:flex;align-items:center;gap:12px;background:#0d1b2a;border:1px solid #415a77;border-radius:3px;padding:5px 10px;margin-bottom:6px;min-height:34px;flex-wrap:wrap}
+.next-bar .big{font-weight:bold;font-size:15px}
+.P{color:#4ea8de}.B{color:#f72585}.T{color:#52b788}
+.next-bar .manual button{border:0;border-radius:3px;color:#fff;font-weight:bold;padding:4px 12px;margin-left:4px;cursor:pointer}
+.table-container{flex:1;min-height:0;overflow:auto;background:#0d1b2a;border-radius:3px;border:1px solid #415a77}
+table{border-collapse:collapse;table-layout:fixed;width:max-content;min-width:100%}
+th,td{padding:5px 8px;border-bottom:1px solid #1b263b;white-space:nowrap;text-align:left;overflow:hidden;text-overflow:ellipsis}
+th{position:sticky;background:#1b263b;color:#90e0ef;position:sticky;top:0;font-size:12.5px;z-index:2;cursor:pointer;user-select:none}
+th:hover{background:#27496d;color:#fff}
+tbody tr:hover td{background:#213856}
+tr.virt td{opacity:.6}
+td.rule{color:#adb5bd;font-size:12px}
+th .rz{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize}
+th .rz:hover,th .rz.on{background:#4ea8de}
+th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
+.splitter{width:6px;flex-shrink:0;cursor:col-resize;border-radius:3px;background:#27496d;opacity:.5}
+.splitter:hover,.splitter.on{background:#4ea8de;opacity:1}
+.table-container{overflow-x:scroll;overflow-y:auto}
+.table-container::-webkit-scrollbar{height:12px;width:12px}.table-container::-webkit-scrollbar-thumb{background:#4ea8de;border-radius:6px}.table-container::-webkit-scrollbar-track{background:#1b263b}
+.table-container td{height:26px;box-sizing:border-box;padding-top:0;padding-bottom:0;line-height:25px}
+.table-container tr.sp td{padding:0;border:0;line-height:0}
+.repmenu{position:fixed;z-index:50;background:#1b263b;border:1px solid #4ea8de;border-radius:5px;padding:8px;display:flex;flex-direction:column;gap:6px;box-shadow:0 6px 20px #000a;min-width:230px}
+.repmenu b{font-size:12px;color:#90e0ef}.repmenu small{font-size:11px;color:#adb5bd;line-height:1.35}
+.repmenu button{border:0;border-radius:3px;color:#fff;font-weight:bold;padding:7px 10px;cursor:pointer;background:#2b9348;text-align:left}
+.repmenu button.alt{background:#0077b6}.repmenu button:hover{filter:brightness(1.15)}
+.msg{margin-top:5px;color:#ff8fa3;font-size:12px;min-height:16px}
+.toast{position:fixed;right:14px;bottom:14px;background:#27496d;color:#fff;padding:8px 12px;border-radius:4px;font-size:12px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:420px}
+.toast.show{opacity:1}
+.sessbar{display:flex;justify-content:center;align-items:baseline;gap:8px;background:#0d1b2a;border:1px solid #415a77;border-radius:3px;padding:5px 8px;font-size:12px;color:#90e0ef}
+.sess-no{font-weight:bold;letter-spacing:.5px}.sess-sep{color:#415a77}
+.sess-timer{font-variant-numeric:tabular-nums;font-size:15px;font-weight:bold;color:#52b788}
+.sessbar.idle .sess-timer{color:#8fa3bd}
+#bt{position:fixed;inset:0;background:#000a;z-index:60;display:flex;align-items:center;justify-content:center;padding:14px}
+.modal-card{background:#1b263b;border:1px solid #415a77;border-radius:6px;width:min(980px,100%);max-height:100%;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.modal-head{display:flex;align-items:center;gap:10px}.modal-head b{color:#4ea8de;font-size:15px}.modal-head .x{margin-left:auto;background:#27496d;color:#fff;border:0;border-radius:3px;padding:3px 9px;cursor:pointer}
+.bt-form{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;align-items:end}
+.bt-form label{font-size:12px;color:#90e0ef;display:block;margin-bottom:2px}
+.bt-form input,.bt-form select,.bt-form textarea{width:100%;padding:4px 6px;background:#0d1b2a;color:#fff;border:1px solid #415a77;border-radius:3px;font-size:12px;font-family:inherit}
+.bt-form textarea{grid-column:1/-1;min-height:54px}
+.bt-btns{display:flex;gap:6px}.bt-btns button{flex:1;border:0;border-radius:3px;color:#fff;font-weight:bold;padding:6px;cursor:pointer;font-size:12px}
+.bt-bar{height:8px;background:#0d1b2a;border-radius:4px;overflow:hidden;border:1px solid #415a77}.bt-bar i{display:block;height:100%;width:0;background:#4ea8de;transition:width .2s}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.kpi{background:#0d1b2a;border:1px solid #415a77;border-radius:3px;padding:6px 8px}
+.kpi small{display:block;color:#8fa3bd;font-size:11px}.kpi b{font-size:15px}
+.bt-charts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bt-charts div{background:#0d1b2a;border:1px solid #415a77;border-radius:3px;padding:6px}
+.bt-charts small{color:#8fa3bd;font-size:11px;display:block;margin-bottom:2px}
+.bt-note{background:#16213a;border-left:3px solid #4ea8de;padding:7px 10px;font-size:12.5px;line-height:1.55}
+.bt-note.warn{border-left-color:#fcd34d}
+@media (max-width:820px){.bt-form{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}.bt-charts{grid-template-columns:1fr}}
+#tip{position:fixed;z-index:50;background:#0b1522;border:1px solid #4ea8de;border-radius:4px;padding:6px 9px;font-size:12px;color:#e0e1dd;pointer-events:none;display:none;max-width:340px;line-height:1.5;box-shadow:0 4px 14px #0008}
+#tip b{color:#90e0ef}
+@media (max-width:820px){body{overflow:auto}.main-container{flex-direction:column}.left-panel{width:100%!important;max-width:none}.splitter{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-title">🔵 TRADE247-V1 <span id="status" class="pill">IDLE</span></div>
+  <div class="header-btns">
+    <button id="retry" title="Reconnect the result feed without losing the session">Retry Table</button>
+    <button id="report" title="Open the full log of the current / latest session as Excel (.xlsx) or CSV - complete up to this moment">Excel Log (Report)</button>
+  </div>
+</header>
+
+<div class="main-container">
+  <!-- ============================ left panel ============================ -->
+  <div class="left-panel">
+    <label>STRATEGY</label>
+    <select id="strategy">
+      <option value="IHG">IHG</option>
+      <option value="AME">AME-AI</option>
+      <option value="JJ">JJ (cycle stakes)</option>
+    </select>
+
+    <div class="section-title">RISK &amp; CAPITAL MODES</div>
+    <div class="radio-group">
+      <label class="radio-item"><input type="radio" name="progMode" value="auto" checked> <span id="autoLabel">Auto Progression (IHG Base Unit)</span></label>
+      <label class="radio-item"><input type="radio" name="progMode" value="manual"> Manual Sequence Input</label>
+    </div>
+
+    <div id="autoBox">
+      <label>Base Unit ($, smallest e.g. 0.1)</label>
+      <div class="input-row">
+        <input type="number" id="base_bet" step="0.05" min="0.01">
+        <button class="btn-reset-input" data-reset="base_bet" data-val="0.1">Reset</button>
+      </div>
+    </div>
+    <div id="manualBox" class="hide">
+      <label>Progression Sequence ($, first = base unit)</label>
+      <div class="input-row">
+        <input type="text" id="sequence" placeholder="0.1, 0.2, 0.4, 0.8, 2.0, 5.0">
+        <button class="btn-reset-input" data-reset="sequence" data-val="">Clear</button>
+      </div>
+    </div>
+
+    <label class="radio-item" title="Place a minimum bet when the seat would become inactive after several hands without a bet"><input type="checkbox" id="ka_on"> Keep-Alive (avoid inactive)</label>
+    <div class="input-row">
+      <input type="number" id="keep_alive" step="0.1" min="0" placeholder="Amount $">
+      <button class="btn-reset-input" data-reset="keep_alive" data-val="0.1">Reset</button>
+    </div>
+    <label class="radio-item" title="Run virtual bets first; real stakes start only after N consecutive virtual losses"><input type="checkbox" id="vb_on"> Virtual Bet - start after</label>
+    <div class="input-row">
+      <input type="number" id="vb_n" min="1" max="99" step="1" value="3" title="Real stakes start after this many consecutive virtual losses (any number, e.g. 3, 8, 20)"> <span class="foot">losses in a row</span>
+    </div>
+    <label>Take Profit ($, empty = off)</label>
+    <div class="input-row">
+      <input type="number" id="tp" min="0">
+      <button class="btn-reset-input" data-reset="tp" data-val="">Clear</button>
+    </div>
+    <label>Stop Loss ($, empty = off)</label>
+    <div class="input-row">
+      <input type="number" id="sl" min="0">
+      <button class="btn-reset-input" data-reset="sl" data-val="">Clear</button>
+    </div>
+
+    <div class="section-title">CONTROLS</div>
+    <div class="control-btns">
+      <button class="btn-start" id="start">START</button>
+      <button class="btn-pause" id="pause" title="Place no real bets but keep watching the table; RESUME continues exactly where it left off">PAUSE</button>
+      <button class="btn-stop" id="stop">STOP</button>
+      <button class="btn-apply" id="apply">APPLY</button>
+      <button class="btn-reset-all" id="resetAll">RESET</button>
+      <button class="btn-bt" id="btBtn" title="Run the strategy and settings on the screen over thousands of simulated shoes and see the distribution of results">BACKTEST</button>
+    </div>
+    <div class="msg" id="err"></div>
+
+    <div class="section-title">LIVE STATUS &amp; CARDS</div>
+    <div class="sessbar"><span class="sess-no" id="sessNo">SESSION -</span><span class="sess-sep">·</span><span id="sessStart" title="Started at">--:--:--</span><span class="sess-sep">·</span><span class="sess-timer" id="sessTimer" title="Running time">00:00:00</span></div>
+    <div class="score-box">
+      <div class="score-card player" id="playerCard">
+        <div>PLAYER</div><div class="cards-val" id="playerCards">-</div><div class="score-value" id="playerScore">-</div>
+      </div>
+      <div class="score-card banker" id="bankerCard">
+        <div>BANKER</div><div class="cards-val" id="bankerCards">-</div><div class="score-value" id="bankerScore">-</div>
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="balance-box"><div class="balance-title">BALANCE</div><div class="balance-value" id="balanceVal">0.00</div></div>
+      <div class="balance-box"><div class="balance-title">PROFIT/LOSS</div><div class="balance-value" id="pnlVal">0.00</div></div>
+    </div>
+    <div class="foot" id="miniStats"></div>
+
+    <details id="adv">
+      <summary>ADVANCED SETTINGS</summary>
+      <div class="sub">
+        <div class="row2">
+          <div><label>Min chip $ (stakes round up to this)</label><input type="number" data-key="min_chip" step="0.05" min="0"></div>
+          <div><label>Start balance $</label><input type="number" data-key="start_balance" step="1"></div>
+        </div>
+        <div class="foot"><b>Bet limits</b> (units)</div>
+        <label title="A stake at or above this is still placed in full, but it is the last stake of its run: win or lose, the run is reset (IHG document: 45)">Run-end stake</label>
+        <div class="row2">
+          <select data-key="max_bet_mode"><option value="off">No limit</option><option value="doc">IHG document (45)</option><option value="custom">Custom</option></select>
+          <input type="number" data-key="max_bet_units" step="1" min="1" placeholder="units">
+        </div>
+        <label title="A stake above this is never placed: the run is dropped (loss accepted) and the stake goes back to base">Hard cap</label>
+        <div class="row2">
+          <select data-key="hard_cap_mode"><option value="off">No limit</option><option value="custom">Custom</option></select>
+          <input type="number" data-key="hard_cap_units" step="1" min="1" placeholder="units">
+        </div>
+        <label>Daily stop loss $ (all sessions today, 0 = off)</label>
+        <input type="number" data-key="daily_stop_loss" step="0.5" min="0">
+
+        <div id="ihgBox" class="sub">
+          <div class="foot"><b>IHG</b></div>
+          <label title="Single wins (win between two losses) before IHG switches to virtual picks">Single wins limit</label>
+          <div class="row2">
+            <select data-key="single_wins_mode"><option value="off">No limit</option><option value="doc">IHG document (7)</option><option value="custom">Custom</option></select>
+            <input type="number" data-key="single_wins_limit" min="1" placeholder="number">
+          </div>
+          <label>Keep-alive idle hands</label>
+          <input type="number" data-key="keepalive_idle" min="1" title="Minimum bet placed on the Nth consecutive hand without a real bet">
+          <label>Rounding step (units; recovery stake rounds UP to a multiple, 1 = IHG doc, 0.5, 0.1, 0 = exact)</label>
+          <input type="number" data-key="round_step" step="0.1" min="0">
+          <button id="ihgDoc" type="button" class="btn-reset-input" title="Set every IHG parameter exactly as in the IHG document, then press APPLY">IHG document settings</button>
+        </div>
+        <div id="jjBox" class="sub hide">
+          <div class="foot"><b>JJ cycle stakes</b> (selection follows IHG patterns)</div>
+          <label>Preset</label>
+          <select id="jjPreset" data-key="cycle_preset">
+            <option value="JJ20">JJ 20</option><option value="JJ30">JJ 30</option><option value="JJ50">JJ 50</option>
+            <option value="JJ70">JJ 70</option><option value="JJ80">JJ 80</option><option value="custom">Custom</option>
+          </select>
+          <div class="row2">
+            <div><label>Hands per cycle</label><input type="number" data-key="cycle_hands" min="1"></div>
+            <div><label>Stake cap (x base, 0 = none)</label><input type="number" data-key="cycle_max_mult" step="0.5" min="0"></div>
+          </div>
+          <div class="row2">
+            <div><label>Increase from %</label><input type="number" data-key="cycle_pct_min" step="1" min="0"></div>
+            <div><label>up to %</label><input type="number" data-key="cycle_pct_max" step="1" min="0"></div>
+          </div>
+          <div class="row2">
+            <div><label>Reset after hands (0 = none)</label><input type="number" data-key="cycle_max_hands" min="0"></div>
+            <div><label>Ramp (cycles)</label><input type="number" data-key="cycle_ramp" min="1"></div>
+          </div>
+        </div>
+        <div id="ameBox" class="sub hide">
+          <div class="foot"><b>AME-AI</b></div>
+          <div class="row2">
+            <div><label>Scan window</label><input type="number" data-key="ame_window" min="6"></div>
+            <div><label>Entry confidence %</label><input type="number" data-key="ame_min_confidence" min="0" max="100"></div>
+          </div>
+          <div class="row2">
+            <div><label>Chaos freeze (hands)</label><input type="number" data-key="ame_freeze_hands" min="1" max="10"></div>
+            <div><label>Base stake (units)</label><input type="number" data-key="ame_stable_units" step="0.5" min="0.5"></div>
+          </div>
+          <div class="row2">
+            <div><label>Recovery rate</label><input type="number" data-key="ame_recovery_rate" step="0.05" min="0"></div>
+            <div><label>Max step (units)</label><input type="number" data-key="ame_max_step" step="0.5" min="0"></div>
+          </div>
+          <div class="row2">
+            <div><label>Chaos entropy ≥</label><input type="number" data-key="ame_chaos_entropy" step="0.01" min="0" max="1"></div>
+            <div><label>Chaos fit below</label><input type="number" data-key="ame_chaos_fit" step="0.01" min="0" max="1"></div>
+          </div>
+          <label class="radio-item"><input type="checkbox" id="ameFlat"> Flat stake (no dynamic progression)</label>
+        </div>
+
+        <div class="foot"><b>Consecutive losses</b> (real stakes, 0 = off)</div>
+        <div class="row2">
+          <div><label>Stop after N losses</label><input type="number" data-key="stop_consec_loss_count" min="0"></div>
+          <div><label>Action</label><select data-key="stop_consec_loss_action"><option value="STOP BET" title="End the session">STOP BET</option><option value="WAIT FOR PATTERN" title="Stop betting, watch with virtual picks, start again from scratch after 2 wins in a row">WAIT PATTERN</option></select></div>
+        </div>
+        <div class="row2">
+          <div><label>Pause after N losses</label><input type="number" data-key="pause_consec_loss_count" min="0"></div>
+          <div><label>Pause for (hands)</label><input type="number" data-key="pause_bet_count" min="0"></div>
+        </div>
+        <label>On shoe change</label>
+        <select data-key="shoe_change_policy">
+          <option value="reset_pattern">Reset pattern history</option>
+          <option value="reset_all">Reset pattern + run</option>
+          <option value="continue">Continue (no reset)</option>
+        </select>
+        <div class="row2">
+          <div><label>Near shoe end</label>
+            <select data-key="end_shoe_policy">
+              <option value="no_new_runs">No new runs</option>
+              <option value="cut_run">Cut open run</option>
+              <option value="off">Off</option>
+            </select></div>
+          <div><label>From hand #</label><input type="number" data-key="end_shoe_hand" min="1"></div>
+        </div>
+
+        <label>Result feed</label>
+        <select id="feed" data-key="feed">
+          <option value="simulator">Simulator (8-deck shoes)</option>
+          <option value="manual">Manual (enter P / B / T)</option>
+          <option value="csv">Replay (P/B/T letters or CSV)</option>
+        </select>
+        <div id="simBox" class="row2">
+          <div><label>Seconds per hand</label><input type="number" data-key="sim_interval" step="0.1" min="0"></div>
+          <div><label>Seed (0 = random)</label><input type="number" data-key="sim_seed" min="0"></div>
+        </div>
+        <div id="csvBox" class="hide">
+          <label>PBPPT|BBP (| = new shoe)</label>
+          <textarea data-key="csv_text"></textarea>
+          <input type="text" data-key="csv_path" placeholder="/path/BETS.csv (column 'winner')" style="margin-top:4px">
+        </div>
+
+        <div class="foot"><b>Telegram alerts</b></div>
+        <label>Bot token</label><input type="password" data-key="telegram_token" autocomplete="off">
+        <label>Chat ID</label><input type="text" data-key="telegram_chat_id" autocomplete="off">
+        <div style="display:flex;gap:6px;align-items:center"><button class="btn-reset-input" id="tgtest">Send test</button><span id="tgmsg" class="foot"></span></div>
+      </div>
+    </details>
+    <div class="foot">Paper-trading / simulation: no live casino table is connected.<br>Logs: <span id="logdir"></span></div>
+  </div>
+
+  <div class="splitter" id="splitter" title="Drag to resize"></div>
+  <!-- ============================ center panel ============================ -->
+  <div class="center-panel">
+    <div style="font-size:12px;font-weight:bold;margin-bottom:4px;color:#90e0ef">LIVE TABLE HISTORY</div>
+    <div class="next-bar">
+      <span class="foot">NEXT</span><span class="big" id="nextBig">-</span><span class="foot" id="nextSub">Press START</span>
+      <span class="manual hide" id="manual">
+        <button style="background:#0077b6" data-r="P">P</button><button style="background:#2b9348" data-r="T">T</button><button style="background:#d90429" data-r="B">B</button>
+      </span>
+    </div>
+    <div class="table-container">
+      <table id="historyTable"><colgroup id="cg"></colgroup><thead><tr id="hr"></tr></thead><tbody id="rows"></tbody></table>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="bt" class="hide"><div class="modal-card">
+  <div class="modal-head"><b>BACKTEST</b><span class="foot">Runs the strategy and every setting currently on the screen (Take Profit / Stop Loss included). Keep-Alive is ignored. Results are in units.</span><button class="x" id="btClose">Close</button></div>
+  <div class="bt-form">
+    <div><label>Source</label><select id="bt_src"><option value="sim">Simulated 8-deck shoes</option><option value="paste">Pasted results (one run)</option></select></div>
+    <div><label>Shoes per session</label><input type="number" id="bt_shoes" min="1" max="5000" value="500"></div>
+    <div><label>Sessions (runs)</label><input type="number" id="bt_trials" min="1" max="2000" value="100"></div>
+    <div><label title="A session counts as wiped out when it loses this many units (0 = unlimited bankroll)">Bankroll (units, 0 = unlimited)</label><input type="number" id="bt_bank" min="0" value="0"></div>
+    <div><label>Seed (0 = random)</label><input type="number" id="bt_seed" min="0" value="0"></div>
+    <textarea id="bt_text" class="hide" placeholder="Paste P / B / T results; use | to mark a new shoe. Example: PBBPT|PPBP..."></textarea>
+  </div>
+  <div class="bt-btns"><button id="btRun" style="background:#2b9348">RUN BACKTEST</button><button id="btCancel" style="background:#d90429" disabled>CANCEL</button></div>
+  <div class="bt-bar"><i id="btProg"></i></div>
+  <div class="foot" id="btMsg"></div>
+  <div id="btOut"></div>
+</div></div>
+<div id="tip"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = (path, body) => fetch(path, {method: body === undefined ? 'GET' : 'POST',
+  headers: {'X-T247': '1', 'Content-Type': 'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)}).then(r => r.json());
+const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); };
+const NAME = {P: 'PLAYER', B: 'BANKER', T: 'TIE'};
+const DEFAULTS = {base_bet: '0.1', keep_alive: '0.1', tp: '', sl: '', sequence: '0.1, 0.2, 0.4, 0.8, 2.0, 5.0'};
+const cls = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+const fm = (v, d = 2) => { const x = Number(v); if (isNaN(x)) return ''; const s = Math.abs(x).toFixed(d).split('.'); s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (x < 0 && Number(Math.abs(x).toFixed(d)) !== 0 ? '-' : '') + s.join('.'); };   // 1,234.56 (English format)
+const money = (v) => (v > 0 ? '+' : '') + fm(v);
+let added = 0, view = {n: 0, get: () => null}, sortCache = {key: '', arr: [], t: 0};
+let cur = null, loaded = false, lastHandKey = '', lastRows = [], allRows = [], lastN = 0, curSession = null, skew = 0, dirtyRows = false;
+let sortCol = 0, sortAsc = false;
+
+const mode = () => document.querySelector('input[name=progMode]:checked').value;
+function applyVisibility() {
+  const st = $('#strategy').value;
+  $('#autoLabel').textContent = st === 'IHG' ? 'Auto Progression (IHG Base Unit)' : (st === 'JJ' ? 'Auto Progression (JJ cycle stakes)' : 'Auto Progression (AME Dynamic)');
+  $('#autoBox').classList.toggle('hide', mode() !== 'auto');
+  $('#manualBox').classList.toggle('hide', mode() !== 'manual');
+  $('#ihgBox').classList.toggle('hide', st !== 'IHG');
+  $('#ameBox').classList.toggle('hide', st !== 'AME');
+  $('#jjBox').classList.toggle('hide', st !== 'JJ');
+  const f = $('#feed').value;
+  $('#simBox').classList.toggle('hide', f !== 'simulator');
+  $('#csvBox').classList.toggle('hide', f !== 'csv');
+  syncModes();
+}
+function syncModes() {
+  [['max_bet_mode', 'max_bet_units'], ['hard_cap_mode', 'hard_cap_units'], ['single_wins_mode', 'single_wins_limit']].forEach(([m, v]) => {
+    const sel = document.querySelector('[data-key=' + m + ']'), inp = document.querySelector('[data-key=' + v + ']');
+    inp.disabled = sel.value !== 'custom';
+  });
+}
+['max_bet_mode', 'hard_cap_mode', 'single_wins_mode'].forEach(k => document.querySelector('[data-key=' + k + ']').addEventListener('change', syncModes));
+$('#ihgDoc').onclick = () => {
+  const set = (k, v) => { document.querySelector('[data-key=' + k + ']').value = v; };
+  set('max_bet_mode', 'doc'); set('hard_cap_mode', 'off'); set('single_wins_mode', 'doc');
+  set('shoe_change_policy', 'continue'); set('end_shoe_policy', 'off'); set('round_step', 1);
+  $('#vb_on').checked = false;
+  syncModes();
+  toast('IHG document settings loaded - press APPLY (or START)');
+};
+document.querySelectorAll('input[name=progMode]').forEach(r => r.onchange = applyVisibility);
+const JJ = {JJ20: [10, 5, 20, 2, 60], JJ30: [10, 10, 350, 10, 100], JJ50: [10, 10, 98, 12, 250], JJ70: [10, 10, 10, 0, 0], JJ80: [100, 20, 20, 0, 0]};
+$('#jjPreset').onchange = () => {
+  const p = JJ[$('#jjPreset').value]; if (!p) return;
+  ['cycle_hands', 'cycle_pct_min', 'cycle_pct_max', 'cycle_max_mult', 'cycle_max_hands'].forEach((k, i) => document.querySelector('[data-key=' + k + ']').value = p[i]);
+};
+$('#strategy').onchange = applyVisibility;
+$('#feed').onchange = applyVisibility;
+document.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { $('#' + b.dataset.reset).value = b.dataset.val; });
+
+// ---------------------------------------------------------------- backtest
+let btJob = null, btTimer = null;
+const unitsFmt = (v, d = 0) => fm(v, d);
+function btShow(open) { $('#bt').classList.toggle('hide', !open); }
+$('#btBtn').onclick = () => btShow(true);
+$('#btClose').onclick = () => btShow(false);
+$('#bt').onclick = (ev) => { if (ev.target.id === 'bt') btShow(false); };
+$('#bt_src').onchange = () => {
+  const paste = $('#bt_src').value === 'paste';
+  $('#bt_text').classList.toggle('hide', !paste);
+  $('#bt_trials').disabled = paste; $('#bt_shoes').disabled = paste;
+};
+$('#btRun').onclick = async () => {
+  let d;
+  try { d = collect(); } catch (e) { $('#btMsg').textContent = e.message; return; }
+  const params = {source: $('#bt_src').value, text: $('#bt_text').value, shoes: num($('#bt_shoes').value, 500),
+    trials: num($('#bt_trials').value, 100), bankroll_units: num($('#bt_bank').value, 0), seed: num($('#bt_seed').value, 0)};
+  const r = await api('/api/backtest/start', {settings: d, params});
+  if (!r.ok) { $('#btMsg').textContent = r.error || 'Could not start'; return; }
+  btJob = r.id; $('#btOut').innerHTML = ''; $('#btRun').disabled = true; $('#btCancel').disabled = false;
+  $('#btMsg').textContent = 'Running...'; $('#btProg').style.width = '0%';
+  clearInterval(btTimer); btTimer = setInterval(btPoll, 700);
+};
+$('#btCancel').onclick = () => { if (btJob) api('/api/backtest/cancel', {id: btJob}); };
+async function btPoll() {
+  if (!btJob) return;
+  const s = await api('/api/backtest/status?id=' + btJob);
+  $('#btProg').style.width = (100 * s.done / Math.max(1, s.total)) + '%';
+  $('#btMsg').textContent = (s.finished ? 'Finished' : 'Running') + ' - ' + s.done + ' / ' + s.total + ' sessions - ' + s.seconds + ' s';
+  if (s.finished) {
+    clearInterval(btTimer); $('#btRun').disabled = false; $('#btCancel').disabled = true;
+    if (s.error) { $('#btMsg').textContent = 'Error: ' + s.error; return; }
+    btRender(s);
+  }
+}
+function svgHist(h) {
+  if (!h.length) return '';
+  const W = 440, H = 150, pad = 18, mx = Math.max(...h.map(b => b.n)), lo = h[0].from, hi = h[h.length - 1].to, sx = (v) => pad + (v - lo) / (hi - lo || 1) * (W - 2 * pad);
+  let o = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">';
+  h.forEach(b => { const bh = (H - 2 * pad) * b.n / (mx || 1); o += '<rect x="' + sx(b.from).toFixed(1) + '" y="' + (H - pad - bh).toFixed(1) + '" width="' + Math.max(1, sx(b.to) - sx(b.from) - 1).toFixed(1) + '" height="' + bh.toFixed(1) + '" fill="' + (b.to <= 0 ? '#ff4d6d' : (b.from >= 0 ? '#52b788' : '#adb5bd')) + '"><title>' + fm(b.from, 0) + ' to ' + fm(b.to, 0) + ': ' + b.n + ' sessions</title></rect>'; });
+  if (lo < 0 && hi > 0) o += '<line x1="' + sx(0) + '" x2="' + sx(0) + '" y1="' + pad / 2 + '" y2="' + (H - pad) + '" stroke="#fcd34d" stroke-dasharray="3 3"/>';
+  o += '<text x="' + pad + '" y="' + (H - 4) + '" fill="#8fa3bd" font-size="10">' + fm(lo, 0) + '</text><text x="' + (W - pad) + '" y="' + (H - 4) + '" fill="#8fa3bd" font-size="10" text-anchor="end">' + fm(hi, 0) + '</text></svg>';
+  return o;
+}
+function svgCurve(c) {
+  const n = c.p50.length; if (n < 2) return '';
+  const W = 440, H = 150, pad = 18, all = c.p10.concat(c.p90), lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+  const sx = (i) => pad + i / (n - 1) * (W - 2 * pad), sy = (v) => H - pad - (v - lo) / (hi - lo || 1) * (H - 2 * pad);
+  const line = (a, col, w) => '<polyline fill="none" stroke="' + col + '" stroke-width="' + w + '" points="' + a.map((v, i) => sx(i).toFixed(1) + ',' + sy(v).toFixed(1)).join(' ') + '"/>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%"><line x1="' + pad + '" x2="' + (W - pad) + '" y1="' + sy(0) + '" y2="' + sy(0) + '" stroke="#fcd34d" stroke-dasharray="3 3"/>' +
+    line(c.p90, '#52b788', 1.2) + line(c.p10, '#ff4d6d', 1.2) + line(c.p50, '#4ea8de', 2) +
+    '<text x="' + pad + '" y="10" fill="#8fa3bd" font-size="10">' + fm(hi, 0) + '</text><text x="' + pad + '" y="' + (H - 4) + '" fill="#8fa3bd" font-size="10">' + fm(lo, 0) + '</text></svg>';
+}
+function btRender(s) {
+  const r = s.result, u = r.unit_value, k = (label, val, cl) => '<div class="kpi"><small>' + label + '</small><b class="' + (cl || '') + '">' + val + '</b></div>';
+  const stops = Object.keys(r.stops).map(x => x + ' ' + r.stops[x]).join(' · ');
+  let h = '<div class="kpis">' +
+    k('Average result (units)', unitsFmt(r.mean, 1), cls(r.mean)) + k('Median', unitsFmt(r.median, 1), cls(r.median)) +
+    k('Bad day (10th percentile)', unitsFmt(r.p10, 0), cls(r.p10)) + k('Good day (90th percentile)', unitsFmt(r.p90, 0), cls(r.p90)) +
+    k('Best / worst', unitsFmt(r.best, 0) + ' / ' + unitsFmt(r.worst, 0)) + k('Sessions in profit', fm(r.profitable_pct, 1) + ' %') +
+    k(r.bankroll_units > 0 ? 'Wiped out (bankroll ' + unitsFmt(r.bankroll_units) + ' u)' : 'Wiped out', r.bankroll_units > 0 ? fm(r.ruin_pct, 1) + ' %' : 'n/a (unlimited)', r.ruin_pct > 0 ? 'neg' : '') +
+    k('Return on money staked', fm(r.return_on_turnover_pct, 2) + ' %', cls(r.return_on_turnover_pct)) +
+    k('Drawdown avg / worst (units)', unitsFmt(r.mdd_avg) + ' / ' + unitsFmt(r.mdd_worst)) + k('Biggest stake avg / worst (units)', unitsFmt(r.max_stake_avg) + ' / ' + unitsFmt(r.max_stake_worst)) +
+    k('Money staked per session (units)', unitsFmt(r.turnover_avg)) + k('Real bets / virtual hands', unitsFmt(r.real_avg) + ' / ' + unitsFmt(r.virtual_avg)) +
+    k('Runs closed / dropped', unitsFmt(r.runs_closed_avg) + ' / ' + unitsFmt(r.runs_cut_avg, 1)) + k('How sessions ended', '<span style="font-size:12px">' + stops + '</span>') +
+    k('Average result ($)', money(r.mean * u)) + k('Worst drawdown ($)', fm(r.mdd_worst * u)) + '</div>';
+  h += '<div class="bt-charts"><div><small>Final result per session (units) - red = loss, green = profit, dashed = zero</small>' + svgHist(r.hist) + '</div>' +
+       '<div><small>Capital over the shoes (units): green = good day (P90), blue = median, red = bad day (P10)</small>' + svgCurve(r.curve) + '</div></div>';
+  let note = 'Over <b>' + r.trials + '</b> session' + (r.trials > 1 ? 's' : '') + ' the average result was <b>' + unitsFmt(r.mean, 1) + ' units</b> (' + fm(r.return_on_turnover_pct, 2) + ' % of the money staked); ' + fm(r.profitable_pct, 0) + ' % of sessions finished in profit. ';
+  note += 'The worst drawdown seen was <b>' + unitsFmt(r.mdd_worst) + ' units</b> and the biggest single stake <b>' + unitsFmt(r.max_stake_worst) + ' units</b>, so surviving every session needs a bankroll above the drawdown figure. ';
+  let warn = false;
+  if (r.bankroll_units <= 0 && r.mean > 0 && (r.max_stake_worst > 150 || r.mdd_worst > 20 * Math.max(1, r.max_stake_avg))) { note += '<br><b>Careful:</b> a positive average with no bankroll limit usually hides a rare, very large loss. Enter a Bankroll above to see how many sessions would be wiped out.'; warn = true; }
+  if (r.bankroll_units > 0 && r.ruin_pct > 0) { note += '<br>With a bankroll of ' + unitsFmt(r.bankroll_units) + ' units, <b>' + fm(r.ruin_pct, 1) + ' %</b> of sessions were wiped out.'; warn = true; }
+  if (s.source === 'sim' && r.trials < 30) note += '<br>Few sessions: the averages are noisy. 100 or more is better.';
+  h += '<div class="bt-note' + (warn ? ' warn' : '') + '">' + note + '</div>';
+  $('#btOut').innerHTML = h;
+}
+
+const num = (v, d) => { const x = parseFloat(v); return isNaN(x) ? d : x; };
+
+function fillForm(s) {
+  $('#strategy').value = s.strategy;
+  const man = s.progression === 'list';
+  document.querySelector('input[name=progMode][value=' + (man ? 'manual' : 'auto') + ']').checked = true;
+  $('#base_bet').value = s.unit_value;
+  $('#sequence').value = (s.chain || []).map(x => +(x * s.unit_value).toFixed(4)).join(', ');
+  $('#keep_alive').value = s.keepalive_amount;
+  $('#ka_on').checked = !!s.keepalive_enabled;
+  $('#vb_on').checked = s.entry_loss_filter > 0;
+  if (s.entry_loss_filter > 0) $('#vb_n').value = String(s.entry_loss_filter);
+  $('#tp').value = s.take_profit > 0 ? s.take_profit : '';
+  $('#sl').value = s.stop_loss > 0 ? s.stop_loss : '';
+  $('#ameFlat').checked = s.progression === 'flat';
+  document.querySelectorAll('[data-key]').forEach(el => { const k = el.dataset.key; if (k in s) el.value = s[k]; });
+  applyVisibility();
+}
+
+function collect() {
+  const d = {};
+  document.querySelectorAll('[data-key]').forEach(el => { d[el.dataset.key] = el.value; });
+  const st = $('#strategy').value;
+  d.strategy = st;
+  d.keepalive_amount = num($('#keep_alive').value, 0.1);
+  d.keepalive_enabled = $('#ka_on').checked;
+  d.entry_loss_filter = $('#vb_on').checked ? Math.max(1, parseInt($('#vb_n').value, 10) || 3) : 0;
+  d.take_profit = num($('#tp').value, 0);
+  d.stop_loss = num($('#sl').value, 0);
+  if (mode() === 'manual') {
+    const seq = $('#sequence').value.split(/[,;\s]+/).map(parseFloat).filter(x => x > 0);
+    if (!seq.length) throw new Error('Enter a progression sequence, e.g. 0.1, 0.2, 0.4, 0.8');
+    d.unit_value = seq[0];
+    d.chain = seq.map(x => +(x / seq[0]).toFixed(4));
+    d.progression = 'list';
+  } else {
+    const u = num($('#base_bet').value, 0);
+    if (u <= 0) throw new Error('Base Unit must be above 0');
+    d.unit_value = u;
+    d.progression = st !== 'AME' ? 'recovery' : ($('#ameFlat').checked ? 'flat' : 'dynamic');
+  }
+  return d;
+}
+
+const guarded = (fn) => async () => {
+  $('#err').textContent = '';
+  try { await fn(collect()); } catch (e) { $('#err').textContent = e.message; }
+};
+$('#start').onclick = guarded(async (d) => {
+  const r = await api('/api/start', {settings: d});
+  if (!r.ok) $('#err').textContent = r.status || 'Could not start';
+});
+$('#apply').onclick = guarded(async (d) => {
+  const r = await api('/api/apply', d);
+  toast(r.live ? 'Applied to the running session' + (d.strategy !== (cur && cur.settings.strategy) ? ' - strategy switched, new strategy starts from the next hand' : '') : 'Settings saved');
+});
+$('#stop').onclick = () => api('/api/stop', {});
+$('#pause').onclick = async () => { const r = await api(cur && cur.paused ? '/api/resume' : '/api/pause', {}); if (!r.ok) toast('Nothing to pause - session not running'); };
+$('#retry').onclick = async () => { const r = await api('/api/retry', {}); toast(r.ok ? 'Table feed reconnected' : 'Nothing to reconnect - session not running'); };
+$('#resetAll').onclick = async () => {
+  for (const [k, v] of Object.entries(DEFAULTS)) $('#' + k).value = v;
+  document.querySelector('input[name=progMode][value=auto]').checked = true;
+  applyVisibility();
+  const r = await api('/api/reset', {});
+  toast(!r.ok ? 'Session is still running - press STOP first. Inputs were reset.' : (r.saved ? 'Reset. Report saved to ' + r.saved : 'Reset'));
+};
+function closeRepMenu() { const m = $('#repMenu'); if (m) m.remove(); }
+async function getReport(fmt) {
+  closeRepMenu();
+  let r;
+  try { r = await api('/api/report/open', {fmt}); } catch (e) { r = {ok: false, error: 'Cannot reach the app'}; }
+  if (!r.ok) { toast(r.error || 'No log yet - press START first'); return; }
+  if (r.opened) { toast('Opened the report as it is right now (' + fmt.toUpperCase() + '). The session keeps running. File: ' + r.path); return; }
+  const resp = await fetch('/api/report?fmt=' + fmt);            // cannot open an app here: download the same snapshot
+  const blob = await resp.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'trade247_report.' + fmt; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('Report downloaded (' + fmt.toUpperCase() + ').');
+}
+$('#report').onclick = (e) => {
+  if ($('#repMenu')) { closeRepMenu(); return; }
+  const rc = $('#report').getBoundingClientRect(), m = document.createElement('div');
+  m.id = 'repMenu'; m.className = 'repmenu';
+  m.style.top = (rc.bottom + 4) + 'px'; m.style.right = Math.max(6, window.innerWidth - rc.right) + 'px';
+  m.innerHTML = '<b>Open the report as ...</b><button data-f="xlsx">Excel (.xlsx)</button><button class="alt" data-f="csv">CSV</button>' +
+    '<small>Complete up to this moment, all hands so far. The session keeps running; use the button again for a newer copy.</small>';
+  document.body.appendChild(m);
+  m.querySelectorAll('button').forEach(b => b.onclick = () => getReport(b.dataset.f));
+  e.stopPropagation();
+};
+document.addEventListener('click', (e) => { const m = $('#repMenu'); if (m && !m.contains(e.target)) closeRepMenu(); });
+$('#tgtest').onclick = guarded(async (d) => {
+  await api('/api/settings', d);
+  const r = await api('/api/telegram_test', {});
+  $('#tgmsg').textContent = r.ok ? 'Sent' : (r.error || 'Failed');
+});
+document.querySelectorAll('#manual button').forEach(b => b.onclick = () => api('/api/manual', {result: b.dataset.r}));
+
+// ---- history table: sort, resize, reorder columns, splitter ----
+const COLS = ['SNo', 'Time (dd/mm/yyyy)', 'Action', 'Amount', 'Winner', 'Status', 'Rule', 'Count', 'Balance'];
+const W0 = [60, 150, 130, 80, 90, 80, 220, 70, 90];
+const store = {get(k, d) { try { const v = localStorage.getItem('t247_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; }},
+               set(k, v) { try { localStorage.setItem('t247_' + k, JSON.stringify(v)); } catch (e) {} }};
+let widths = store.get('w', W0);
+let order = store.get('o', COLS.map((_, i) => i));
+if (widths.length !== 9) widths = W0.slice();
+if (order.length !== 9 || new Set(order).size !== 9) order = COLS.map((_, i) => i);
+
+function countStats() {   // Count column: per value, how many times the counter rose to it ("touches") and how many hands sat on it
+  const key = lastRows.length + '|' + (lastRows.length ? lastRows[lastRows.length - 1].v[0] : 0);
+  if (countStats.key === key) return countStats.val;
+  const touch = {}, hands = {}; let prev = 0, max = 0;
+  for (const r of lastRows) {
+    if (!r.isSW) { prev = 0; continue; }
+    const v = r.v[7];
+    hands[v] = (hands[v] || 0) + 1;
+    for (let k = prev + 1; k <= v; k++) touch[k] = (touch[k] || 0) + 1;
+    if (v > max) max = v;
+    prev = v;
+  }
+  countStats.key = key; countStats.val = {touch, hands, max};
+  return countStats.val;
+}
+function headLabel(c) {
+  let s = COLS[c];
+  if (c === 7) { const m = countStats().max; if (m > 0) s += ' (max ' + m + ')'; }
+  return s + (c === sortCol ? (sortAsc ? ' ▲' : ' ▼') : ' ⬍');
+}
+function refreshCountHead() {
+  const th = document.querySelector('#hr th[data-col="7"]');
+  if (th && th.firstChild && th.firstChild.nodeType === 3) th.firstChild.nodeValue = headLabel(7);
+}
+function buildHead() {
+  $('#cg').innerHTML = order.map(c => '<col style="width:' + widths[c] + 'px">').join('');
+  const hr = $('#hr'); hr.innerHTML = '';
+  order.forEach(c => {
+    const th = document.createElement('th');
+    th.dataset.col = c;
+    th.appendChild(document.createTextNode(headLabel(c)));
+    const rz = document.createElement('span'); rz.className = 'rz';
+    rz.addEventListener('mousedown', e => {          // resize
+      e.preventDefault(); e.stopPropagation();
+      const x0 = e.clientX, w0 = widths[c]; rz.classList.add('on');
+      const mv = ev => { widths[c] = Math.max(40, w0 + ev.clientX - x0); $('#cg').children[order.indexOf(c)].style.width = widths[c] + 'px'; };
+      const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); rz.classList.remove('on'); store.set('w', widths); };
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+    });
+    th.appendChild(rz);
+    th.addEventListener('mouseenter', e => showTip(c, e));
+    th.addEventListener('mousemove', moveTip);
+    th.addEventListener('mouseleave', hideTip);
+    th.addEventListener('mousedown', e => {          // click = sort, drag = reorder (mouse events, works in every browser)
+      if (e.target === rz || e.button !== 0) return;
+      e.preventDefault(); hideTip();
+      const x0 = e.clientX; let moved = false, target = null;
+      const mv = ev => {
+        if (!moved && Math.abs(ev.clientX - x0) < 6) return;
+        moved = true; th.style.opacity = .5;
+        document.querySelectorAll('#hr th').forEach(x => x.classList.remove('dragover'));
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const t2 = el && el.closest ? el.closest('#hr th') : null;
+        target = t2 && t2 !== th ? t2 : null;
+        if (target) target.classList.add('dragover');
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up);
+        if (!moved) {
+          if (sortCol === c) sortAsc = !sortAsc; else { sortCol = c; sortAsc = true; }
+        } else if (target) {
+          const to = +target.dataset.col;
+          order.splice(order.indexOf(c), 1);
+          order.splice(order.indexOf(to), 0, c);
+          store.set('o', order);
+        }
+        buildHead(); drawRows();
+      };
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+    });
+    hr.appendChild(th);
+  });
+}
+buildHead();
+
+(function () {   // splitter between the left panel and the table
+  const sp = $('#splitter'), lp = document.querySelector('.left-panel');
+  const w = store.get('lw', 0); if (w) lp.style.width = w + 'px';
+  sp.addEventListener('mousedown', e => {
+    e.preventDefault(); sp.classList.add('on');
+    const x0 = e.clientX, w0 = lp.getBoundingClientRect().width;
+    const mv = ev => { lp.style.width = Math.min(window.innerWidth * 0.6, Math.max(220, w0 + ev.clientX - x0)) + 'px'; };
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); sp.classList.remove('on'); store.set('lw', Math.round(lp.getBoundingClientRect().width)); };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+})();
+
+function ddmmyyyy(t) { const m = /^(\d{4})-(\d\d)-(\d\d) (.*)$/.exec(t || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4] : t; }
+const ROWH = 26;
+function orderedRows() {
+  const n = lastRows.length;
+  if (sortCol === 0) return {n, get: i => sortAsc ? lastRows[i] : lastRows[n - 1 - i]};   // already in hand order: no sorting needed
+  const key = sortCol + '|' + sortAsc;
+  const stale = sortCache.key === key && Date.now() - sortCache.t < 2000;    // re-sort at most every 2 s while rows stream in
+  if (!(stale && sortCache.arr.length)) {
+    const arr = lastRows.slice(), c = sortCol, dir = sortAsc ? 1 : -1;
+    arr.sort((a, b) => { const x = a.v[c], y = b.v[c]; return (x < y ? -1 : (x > y ? 1 : 0)) * dir; });
+    sortCache = {key, arr, t: Date.now()};
+  }
+  return {n: sortCache.arr.length, get: i => sortCache.arr[i]};
+}
+function drawRows() {
+  refreshCountHead();
+  const tc = document.querySelector('.table-container');
+  const oldN = view.n;
+  view = orderedRows();
+  if (added && sortCol === 0 && !sortAsc && tc.scrollTop > ROWH) tc.scrollTop += added * ROWH;   // keep the rows you are reading in place
+  added = 0;
+  drawWindow();
+}
+function drawWindow() {   // only the rows that are on screen (plus a margin) exist in the page: 15,000 or 150,000 hands feel the same
+  const tc = document.querySelector('.table-container');
+  const total = view.n, H = ROWH;
+  const first = Math.max(0, Math.floor(tc.scrollTop / H) - 12);
+  const last = Math.min(total, Math.ceil((tc.scrollTop + tc.clientHeight) / H) + 12);
+  const sp = (px) => px > 0 ? '<tr class="sp"><td colspan="9" style="height:' + px + 'px"></td></tr>' : '';
+  let html = sp(first * H);
+  for (let i = first; i < last; i++) html += rowHtml(view.get(i));
+  $('#rows').innerHTML = html + sp((total - last) * H);
+}
+(function () {
+  const tc = document.querySelector('.table-container'); let busy = false;
+  tc.addEventListener('scroll', () => { if (busy) return; busy = true; requestAnimationFrame(() => { busy = false; drawWindow(); }); });
+  window.addEventListener('resize', () => drawWindow());
+})();
+
+function score(cards) { return cards.reduce((a, b) => a + b, 0) % 10; }
+const face = (v) => v === 0 ? '10' : String(v);   // 10/J/Q/K all count 0
+
+function render(st) {
+  const s = st.settings;
+  if (!loaded) { fillForm(s); loaded = true; }
+  cur = st;
+  const run = st.running;
+  const pill = $('#status');
+  pill.textContent = st.status;
+  pill.className = 'pill ' + (run ? 'run' : (st.status.startsWith('STOPPED') || st.status.startsWith('LOCKED') ? 'stop' : (st.status.startsWith('FEED') ? 'warn' : '')));
+  if (st.status.startsWith('FEED') || st.paused) pill.className = 'pill warn';
+  $('#start').disabled = run; $('#stop').disabled = !run; $('#retry').disabled = !run;
+  $('#pause').disabled = !run; $('#pause').textContent = st.paused ? 'RESUME' : 'PAUSE';
+  $('#resetAll').disabled = false;
+  skew = (st.now_ts * 1000) - Date.now();
+  if (st.error) $('#err').textContent = st.error;
+
+  // next
+  const nx = st.next;
+  if (run && nx) {
+    if (nx.mode === 'REAL') {
+      $('#nextBig').innerHTML = '<span class="' + nx.pick[0] + '">' + nx.pick + '</span>';
+      $('#nextSub').textContent = nx.units + ' unit' + (nx.units == 1 ? '' : 's') + ' · $' + fm(nx.stake) + (nx.final ? ' · last of run' : '') + (nx.pattern ? ' · ' + nx.pattern : '');
+    } else {
+      $('#nextBig').innerHTML = 'WAIT <span class="' + nx.pick[0] + '" style="font-size:12px">(' + nx.pick + ' virtual)</span>';
+      $('#nextSub').textContent = (nx.reason || '') + (nx.pattern ? ' · ' + nx.pattern : '');
+    }
+  } else { $('#nextBig').textContent = '-'; $('#nextSub').textContent = run ? 'Waiting for next result' : 'Press START'; }
+  $('#manual').classList.toggle('hide', !(run && s.feed === 'manual'));
+
+  // cards + balance
+  const last = allRows.length ? allRows[allRows.length - 1] : null;
+  const key = last ? last.session + '|' + st.hands : '';
+  if (last && last.cards) {
+    $('#playerCards').textContent = '[' + last.cards[0].map(face).join(', ') + ']';
+    $('#bankerCards').textContent = '[' + last.cards[1].map(face).join(', ') + ']';
+    $('#playerScore').textContent = score(last.cards[0]);
+    $('#bankerScore').textContent = score(last.cards[1]);
+  } else if (last) {
+    $('#playerCards').textContent = $('#bankerCards').textContent = '-';
+    $('#playerScore').textContent = last.result === 'P' ? 'W' : '';
+    $('#bankerScore').textContent = last.result === 'B' ? 'W' : '';
+  } else {
+    $('#playerCards').textContent = $('#bankerCards').textContent = '-';
+    $('#playerScore').textContent = $('#bankerScore').textContent = '-';
+  }
+  if (key && key !== lastHandKey) {
+    lastHandKey = key;
+    const c = last.result === 'P' ? $('#playerCard') : (last.result === 'B' ? $('#bankerCard') : null);
+    if (c) { const f = c === $('#playerCard') ? 'flash-player' : 'flash-banker'; c.classList.remove('flash-player', 'flash-banker'); void c.offsetWidth; c.classList.add(f); }
+  }
+  $('#balanceVal').textContent = fm(st.balance);
+  const pv = $('#pnlVal'); pv.textContent = money(st.pnl); pv.className = 'balance-value ' + cls(st.pnl);
+  $('#miniStats').innerHTML = 'Hands ' + st.hands + ' · virtual ' + st.virtual_hands + ' · win rate ' + st.win_rate + '% · today <span class="' + cls(st.day_pnl) + '">' + money(st.day_pnl) + '</span>' +
+    ' · max drawdown ' + fm(st.max_drawdown) + ' · max stake ' + st.max_stake_units + 'u<br>' + stateLine(st);
+  $('#logdir').textContent = st.logs_dir;
+
+  tickTimer(st);
+  if (dirtyRows) { dirtyRows = false; drawRows(); }
+}
+
+function stateLine(st) {
+  const ss = st.strategy_state || {};
+  if (!st.running) return '';
+  if (st.strategy === 'JJ') return 'JJ: cycle ' + (ss.cycle_pos || '-') + ' · x' + (ss.multiplier || 1) + ' · cycle result ' + (ss.run_net_units || 0) + 'u';
+  if (st.strategy === 'IHG') return 'IHG: run ' + (ss.run_net_units || 0) + 'u · single wins ' + (ss.single_wins || 0) + '/' + ({doc: '7', off: '∞'}[st.settings.single_wins_mode] || st.settings.single_wins_limit) + (ss.virtual_mode ? ' · <span class="neg">virtual until 2 wins in a row</span>' : '');
+  return 'AME: confidence ' + (ss.confidence || 0) + '% (entry ' + (ss.threshold || 0) + '%) · ' + (ss.rhythm || '-') + (ss.freeze_left > 0 ? ' · <span class="neg">chaos freeze ' + ss.freeze_left + '</span>' : '');
+}
+
+// ---- session timer ----
+let tm = {start: 0, stop: 0, running: false, no: 0};
+const p2 = (n) => String(n).padStart(2, '0');
+function tickTimer(st) { tm = {start: st.started_ts, stop: st.stopped_ts, running: st.running, no: st.session_no}; paintTimer(); }
+function paintTimer() {
+  const bar = $('.sessbar');
+  if (!tm.start) { $('#sessNo').textContent = 'SESSION -'; $('#sessStart').textContent = '--:--:--'; $('#sessTimer').textContent = '00:00:00'; bar.classList.add('idle'); return; }
+  const end = tm.running ? Date.now() + skew : (tm.stop || tm.start) * 1000;
+  const sec = Math.max(0, (end - tm.start * 1000) / 1000);
+  const d = new Date(tm.start * 1000), today = new Date();
+  const hhmmss = p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+  $('#sessNo').textContent = 'SESSION #' + tm.no;
+  $('#sessStart').textContent = (d.toDateString() === today.toDateString() ? '' : p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + ' ') + hhmmss;
+  $('#sessTimer').textContent = p2(Math.floor(sec / 3600)) + ':' + p2(Math.floor(sec / 60) % 60) + ':' + p2(Math.floor(sec) % 60);
+  bar.classList.toggle('idle', !tm.running);
+}
+setInterval(paintTimer, 1000);
+
+// ---- column statistics shown when hovering a header ----
+function longest(rows, label) {          // longest run of `label` among real WIN/LOSS hands (ties are neutral)
+  let best = 0, run = 0;
+  for (const h of rows) {
+    if (h.mode === 'VIRTUAL' || h.outcome === 'TIE') continue;
+    if (h.outcome === label) { run++; if (run > best) best = run; } else run = 0;
+  }
+  return best;
+}
+function statsFor(c) {
+  const R = allRows; if (!R.length) return 'No hands yet';
+  const cnt = (f) => R.reduce((a, h) => a + (f(h) ? 1 : 0), 0);
+  const real = R.filter(h => h.mode === 'REAL' || h.mode === 'MIN');
+  switch (c) {
+    case 0: return '<b>Hands</b> ' + R.length + '<br>real ' + cnt(h => h.mode === 'REAL') + ' · virtual ' + cnt(h => h.mode === 'VIRTUAL') + ' · keep-alive ' + cnt(h => h.mode === 'MIN');
+    case 1: return '<b>First</b> ' + ddmmyyyy(R[0].time) + '<br><b>Last</b> ' + ddmmyyyy(R[R.length - 1].time);
+    case 2: return '<b>Banker</b> ' + cnt(h => h.pick === 'B') + ' · <b>Player</b> ' + cnt(h => h.pick === 'P') + '<br>virtual ' + cnt(h => h.mode === 'VIRTUAL') + ' · keep-alive ' + cnt(h => h.mode === 'MIN');
+    case 3: { const st = real.map(h => parseFloat(h.stake)); const sum = st.reduce((a, b) => a + b, 0); const rs = R.filter(h => h.mode === 'REAL').map(h => parseFloat(h.stake));
+      return '<b>Total staked</b> ' + fm(sum) + '<br><b>Max</b> ' + fm(rs.reduce((m, x) => x > m ? x : m, 0)) + ' · <b>Avg</b> ' + fm(rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0); }
+    case 4: return cnt(h => h.result === 'B') + 'B, ' + cnt(h => h.result === 'P') + 'P, ' + cnt(h => h.result === 'T') + 'T';
+    case 5: return '<b>Real</b> W' + cnt(h => h.outcome === 'WIN') + ', L' + cnt(h => h.outcome === 'LOSS') + ', T' + cnt(h => h.outcome === 'TIE') +
+      '<br><b>Virtual</b> W' + cnt(h => h.outcome === 'V-WIN') + ', L' + cnt(h => h.outcome === 'V-LOSS') + ', T' + cnt(h => h.outcome === 'V-TIE') +
+      '<br><b>Max losing streak</b> ' + longest(R, 'LOSS') + '<br><b>Max winning streak</b> ' + longest(R, 'WIN');
+    case 6: { const m = {}; R.forEach(h => { if (h.pattern) m[h.pattern] = (m[h.pattern] || 0) + 1; });
+      const top = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5); return top.length ? top.map(x => x[0] + ' ' + x[1]).join('<br>') : '-'; }
+    case 7: { const cs = countStats();
+      if (!cs.max) { let mx = 0; for (const r of lastRows) if (r.v[7] > mx) mx = r.v[7]; return '<b>Max</b> ' + mx; }
+      let o = '<b>Max</b> ' + cs.max + '<br><span style="opacity:.75">times reached / hands at this value</span>';
+      for (let k = cs.max; k >= 1; k--) o += '<br><b>' + k + '</b> &rarr; ' + (cs.touch[k] || 0) + ' times / ' + (cs.hands[k] || 0) + ' hands';
+      return o; }
+    case 8: { let lo = Infinity, hi = -Infinity; for (const r of lastRows) { if (r.v[8] < lo) lo = r.v[8]; if (r.v[8] > hi) hi = r.v[8]; } return '<b>Min</b> ' + fm(lo) + '<br><b>Max</b> ' + fm(hi) + '<br><b>Now</b> ' + fm(lastRows[lastRows.length - 1].v[8]); }
+  }
+  return '';
+}
+const tip = () => $('#tip');
+function showTip(c, e) { const t = tip(); t.innerHTML = statsFor(c); t.style.display = 'block'; moveTip(e); }
+function moveTip(e) { const t = tip(); t.style.left = Math.min(window.innerWidth - t.offsetWidth - 8, e.clientX + 12) + 'px'; t.style.top = (e.clientY + 18) + 'px'; }
+function hideTip() { tip().style.display = 'none'; }
+(function () {   // hovering a Count value: how many times the counter reached it
+  const body = document.getElementById('rows');
+  body.addEventListener('mouseover', e => {
+    const td = e.target.closest ? e.target.closest('td[data-cnt]') : null;
+    if (!td) return;
+    const k = +td.dataset.cnt, cs = countStats(), t = tip();
+    t.innerHTML = '<b>Count ' + k + '</b><br>reached ' + (cs.touch[k] || 0) + ' time' + ((cs.touch[k] || 0) === 1 ? '' : 's') + '<br>' + (cs.hands[k] || 0) + ' hands sat on ' + k + '<br><span style="opacity:.75">max so far ' + cs.max + '</span>';
+    t.style.display = 'block'; moveTip(e);
+  });
+  body.addEventListener('mousemove', e => { if (e.target.closest && e.target.closest('td[data-cnt]')) moveTip(e); });
+  body.addEventListener('mouseout', e => { if (e.target.closest && e.target.closest('td[data-cnt]')) hideTip(); });
+})();
+
+function ingest(rows, s) {
+  for (const h of rows) {
+    allRows.push(h);
+    const sno = h.n;
+    const bal = +(s.start_balance + parseFloat(h.session_pnl)).toFixed(2);
+    const action = NAME[h.pick] + (h.mode === 'VIRTUAL' ? ' (virtual)' : (h.mode === 'MIN' ? ' (keep-alive)' : ''));
+    const amount = h.mode === 'VIRTUAL' ? 0 : parseFloat(h.stake);
+    const rule = [h.pattern, h.note].filter(Boolean).join(' · ');
+    const isSW = h.single_wins !== '' && h.single_wins != null;
+    const count = isSW ? h.single_wins : (h.run_net_units !== '' ? h.run_net_units : '');
+    lastRows.push({isSW, sno, time: h.time, action, amount, bal, rule, count, pick: h.pick, result: h.result, outcome: h.outcome, mode: h.mode,
+      v: [sno, h.time, action, amount, NAME[h.result], h.outcome, rule, count === '' ? -1 : +count, bal]});
+  }
+  if (rows.length) { dirtyRows = true; added += rows.length; }
+}
+function rowHtml(r) {   // one <tr>, built only when it is on screen
+  const stc = r.outcome === 'WIN' ? '#52b788' : (r.outcome === 'LOSS' ? '#ff4d6d' : '#ffd166');
+  const cells = ['<td>' + r.sno + '</td>', '<td>' + ddmmyyyy(r.time) + '</td>', '<td><span class="' + r.pick + '">' + r.action + '</span></td>',
+    '<td>' + (r.mode === 'VIRTUAL' ? '-' : fm(r.amount)) + '</td>', '<td><span class="' + r.result + '">' + NAME[r.result] + '</span></td>',
+    '<td style="color:' + stc + '">' + r.outcome + '</td>', '<td class="rule" title="' + r.rule.replace(/"/g, '&quot;') + '">' + r.rule + '</td>',
+    '<td' + (r.isSW ? ' data-cnt="' + r.count + '"' : '') + '>' + (r.count === '' ? '' : (Number.isInteger(+r.count) ? r.count : fm(r.count))) + '</td>', '<td>' + fm(r.bal) + '</td>'];
+  return '<tr class="' + (r.mode === 'VIRTUAL' ? 'virt' : '') + '">' + order.map(c => cells[c]).join('') + '</tr>';
+}
+
+async function tick() {
+  try {
+    let st = await api('/api/state?since=' + lastN);
+    if (st.session !== curSession || st.total_rows < allRows.length) {    // new session / reset: reload from the start
+      curSession = st.session; allRows = []; lastRows = []; lastN = 0; dirtyRows = true; sortCache = {key: '', arr: [], t: 0}; added = 0;
+      st = await api('/api/state?since=0');
+    }
+    ingest(st.rows || [], st.settings);
+    if (allRows.length) lastN = allRows[allRows.length - 1].n;
+    render(st);
+  } catch (e) { $('#status').textContent = 'DISCONNECTED'; }
+  setTimeout(tick, 700);
+}
+tick();
+</script>
+</body>
+</html>
