@@ -93,7 +93,15 @@ export class IhgEngine implements StrategyEngine {
   private s: State = freshState();
   private hands = 0;
 
+  /** Runs that closed in profit, and runs that were given up (run-end loss, hard cap, cut, reset). */
+  private runsClosed = 0;
+  private runsCut = 0;
+
   constructor(private cfg: IhgConfig) {}
+
+  counters(): { runsClosed: number; runsCut: number } {
+    return { runsClosed: this.runsClosed, runsCut: this.runsCut };
+  }
 
   configure(settings: Settings): void {
     this.cfg = ihgConfig(settings);
@@ -171,7 +179,10 @@ export class IhgEngine implements StrategyEngine {
         note = plan.final ? `run-end stake ${unitsText(plan.units)}u - run closed (${net}u)` : `run closed +${net}u`;
         // The document shows the counter already reset when the run closes in profit, and as it
         // stood when a run-end stake closes the run at a loss.
-        if (s.runMicro > 0) singlesShown = 0;
+        if (s.runMicro > 0) {
+          singlesShown = 0;
+          this.runsClosed++;
+        } else this.runsCut++;
         s.runMicro = 0;
         s.singles = 0;
         s.previousWin = false;
@@ -261,6 +272,7 @@ export class IhgEngine implements StrategyEngine {
 
   cutRun(): void {
     const s = this.s;
+    if (s.runOpen) this.runsCut++;
     s.runMicro = 0;
     s.stakeUnits = UNIT;
     s.previousWin = false;
@@ -271,6 +283,7 @@ export class IhgEngine implements StrategyEngine {
   }
 
   reset(): void {
+    if (this.s.runOpen) this.runsCut++;
     this.s = freshState();
   }
 
@@ -284,12 +297,14 @@ export class IhgEngine implements StrategyEngine {
   }
 
   snapshot(): unknown {
-    return { ...this.s, hands: this.hands };
+    return { ...this.s, hands: this.hands, runsClosed: this.runsClosed, runsCut: this.runsCut };
   }
 
   restore(snapshot: unknown): void {
-    const { hands, ...state } = snapshot as State & { hands: number };
+    const { hands, runsClosed, runsCut, ...state } = snapshot as State & { hands?: number; runsClosed?: number; runsCut?: number };
     this.s = { ...freshState(), ...state };
     this.hands = hands ?? 0;
+    this.runsClosed = runsClosed ?? 0;
+    this.runsCut = runsCut ?? 0;
   }
 }

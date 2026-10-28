@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createEngine, unsupportedReason } from './engine/factory.js';
+import { unsupportedReason } from './engine/factory.js';
 import { fmt2, toMicro } from './engine/money.js';
-import { RiskGovernor, dailyLockReason, keepAliveBet, riskConfig, type RiskConfig } from './engine/risk.js';
+import { PlayCore } from './engine/play.js';
+import { dailyLockReason, keepAliveBet, riskConfig } from './engine/risk.js';
 import { normalizeSettings, publicSettings, type Settings } from './engine/settings.js';
-import type { BetPlan, StrategyEngine } from './engine/strategy.js';
+import type { BetPlan } from './engine/strategy.js';
 import { isResult, type NextBet, type Row } from './engine/types.js';
 import { ManualFeed, ReplayFeed, SimulatorFeed, parseReplay, type Feed, type HandEvent } from './feeds/feed.js';
 import { TelegramNotifier, configProblem, type Notifier, type SendResult, type TelegramOptions } from './notify/telegram.js';
@@ -60,16 +61,8 @@ export class SessionManager {
   private startedTs = 0;
   private stoppedTs = 0;
   private records: HandRecord[] = [];
-  private pnlMicro = 0;
-  private peakMicro = 0;
-  private maxDrawdownMicro = 0;
-  private maxStakeUnits = 0;
-  private virtualHands = 0;
-  private wins = 0;
-  private losses = 0;
-  private engine: StrategyEngine | null = null;
-  private governor: RiskGovernor | null = null;
-  private risk: RiskConfig;
+  /** The engine, the risk layer and the money of the current session (shared with the backtest). */
+  private core: PlayCore | null = null;
   private feed: Feed | null = null;
   private logWarned = false;
 
@@ -88,7 +81,6 @@ export class SessionManager {
   ) {
     this.now = options.now ?? (() => new Date());
     this.settings = store.load();
-    this.risk = riskConfig(this.settings);
     this.day = store.loadDay(localDay(this.now()));
     this.notifier = new TelegramNotifier(
       () => ({ token: this.settings.telegram_token, chatId: this.settings.telegram_chat_id }),
@@ -109,9 +101,10 @@ export class SessionManager {
 
   getState(sinceRaw: number) {
     const since = Number.isInteger(sinceRaw) && sinceRaw > 0 && sinceRaw <= this.records.length ? sinceRaw : 0;
-    const decided = this.wins + this.losses;
+    const core = this.core;
+    const decided = core ? core.wins + core.losses : 0;
     const now = this.now();
-    const live = this.running && this.engine !== null && this.governor !== null;
+    const live = this.running && core !== null;
     return {
       session: this.sessionNo,
       settings: publicSettings(this.settings),
@@ -122,14 +115,14 @@ export class SessionManager {
       strategy: this.settings.strategy,
       next: live ? this.previewNext() : null,
       hands: this.records.length,
-      virtual_hands: this.virtualHands,
-      win_rate: decided === 0 ? 0 : Math.round((this.wins / decided) * 1000) / 10,
+      virtual_hands: core?.virtualHands ?? 0,
+      win_rate: decided === 0 ? 0 : Math.round(((core?.wins ?? 0) / decided) * 1000) / 10,
       day_pnl: dollars(this.dayTotal(now)),
-      max_drawdown: dollars(this.maxDrawdownMicro),
-      max_stake_units: this.maxStakeUnits,
-      strategy_state: this.engine && this.governor ? { ...this.engine.status(), ...this.governor.status() } : {},
-      balance: dollars(toMicro(this.settings.start_balance) + this.pnlMicro),
-      pnl: dollars(this.pnlMicro),
+      max_drawdown: dollars(core?.maxDrawdownMicro ?? 0),
+      max_stake_units: core?.maxStakeUnits ?? 0,
+      strategy_state: core ? { ...core.engine.status(), ...core.governor.status() } : {},
+      balance: dollars(toMicro(this.settings.start_balance) + (core?.pnlMicro ?? 0)),
+      pnl: dollars(core?.pnlMicro ?? 0),
       session_no: this.sessionNo,
       started_ts: this.startedTs,
       stopped_ts: this.stoppedTs,
@@ -141,11 +134,11 @@ export class SessionManager {
   }
 
   private previewNext(): NextBet {
-    const engine = this.engine!;
-    const hand = this.governor!.prepare(engine, this.paused);
-    const plan = engine.plan(this.paused || hand.watchOnly);
+    const core = this.core!;
+    const hand = core.governor.prepare(core.engine, this.paused);
+    const plan = core.engine.plan(this.paused || hand.watchOnly);
     if (hand.keepAlive) {
-      const stakeMicro = keepAliveBet(plan.side, 'T', this.risk).stakeMicro;
+      const stakeMicro = keepAliveBet(plan.side, 'T', core.risk).stakeMicro;
       return {
         mode: 'REAL', pick: plan.side === 'P' ? 'PLAYER' : 'BANKER', units: round2(stakeMicro / toMicro(this.settings.unit_value)),
         stake: stakeMicro / 1_000_000, final: false, pattern: 'keep-alive', reason: 'Keep-alive minimum bet',
@@ -171,19 +164,16 @@ export class SessionManager {
         };
       }
     }
-    const made = createEngine(settings);
+    const made = PlayCore.create(settings);
     if ('error' in made) return { ok: false, status: made.error };
-    const risk = riskConfig(settings);
-    const locked = dailyLockReason(risk, this.dayTotal(this.now()));
+    const locked = dailyLockReason(riskConfig(settings), this.dayTotal(this.now()));
     if (locked) return { ok: false, status: locked };
 
     this.settings = settings;
-    this.risk = risk;
     this.store.save(settings);
     this.beginSession();
     this.error = this.alertsWarning(settings);
-    this.engine = made.engine;
-    this.governor = new RiskGovernor(risk);
+    this.core = made.core;
     this.feed = this.createFeed();
     this.feed.start();
     return { ok: true, status: this.status };
@@ -215,12 +205,8 @@ export class SessionManager {
     }
     this.error = '';
     this.settings = settings;
-    this.risk = riskConfig(settings);
     this.store.save(settings);
-    if (this.running) {
-      this.engine?.configure(settings);
-      this.governor?.configure(this.risk);
-    }
+    if (this.running) this.core?.configure(settings);
     return { ok: true, live: this.running };
   }
 
@@ -271,6 +257,11 @@ export class SessionManager {
     return { ok: true };
   }
 
+  /** The settings as last applied (the Backtest borrows them as defaults; it never changes them). */
+  currentSettings(): Settings {
+    return { ...this.settings };
+  }
+
   saveSettings(raw: unknown): { ok: boolean } {
     return { ok: this.apply(raw).ok };
   }
@@ -310,8 +301,9 @@ export class SessionManager {
   }
 
   private summary(): string {
-    const balance = toMicro(this.settings.start_balance) + this.pnlMicro;
-    return `Session #${this.sessionNo} (${this.settings.strategy}), ${this.records.length} hands, session ${signed(this.pnlMicro)}, balance ${fmt2(balance)}`;
+    const pnl = this.core?.pnlMicro ?? 0;
+    const balance = toMicro(this.settings.start_balance) + pnl;
+    return `Session #${this.sessionNo} (${this.settings.strategy}), ${this.records.length} hands, session ${signed(pnl)}, balance ${fmt2(balance)}`;
   }
 
   /** Called by a live table feed when the connection to the table drops. Alerts once per outage. */
@@ -350,15 +342,7 @@ export class SessionManager {
 
   private clearSession(): void {
     this.records = [];
-    this.pnlMicro = 0;
-    this.peakMicro = 0;
-    this.maxDrawdownMicro = 0;
-    this.maxStakeUnits = 0;
-    this.virtualHands = 0;
-    this.wins = 0;
-    this.losses = 0;
-    this.engine = null;
-    this.governor = null;
+    this.core = null;
     this.feed = null;
   }
 
@@ -415,87 +399,51 @@ export class SessionManager {
   }
 
   private onHand(event: HandEvent): void {
-    const engine = this.engine;
-    const governor = this.governor;
-    if (!this.running || !engine || !governor) return;
+    const core = this.core;
+    if (!this.running || !core) return;
     const s = this.settings;
-    if (event.newShoe) {
-      engine.newShoe();
-      governor.newShoe();
-      if (this.records.length > 0) {
-        this.shoeNo++;
-        this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
-      }
+    if (core.startsNewShoe(event)) {
+      this.shoeNo++;
+      this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
     }
 
-    const hand = governor.prepare(engine, this.paused);
-    if (hand.cutRun) engine.cutRun();
-    const res = engine.settle(event.result, this.paused || hand.watchOnly);
     const when = this.now();
-
-    // The keep-alive minimum bet rides on a hand the strategy sat out; its money is real.
-    let mode: Row['mode'] = res.plan.mode;
-    let outcome = res.outcome;
-    let pnlMicro = res.pnlMicro;
-    let stakeMicro = res.plan.mode === 'REAL' ? res.plan.stakeMicro : 0;
-    let keepAliveNote = '';
-    if (hand.keepAlive) {
-      const k = keepAliveBet(res.plan.side, event.result, this.risk);
-      mode = 'MIN';
-      outcome = k.outcome;
-      pnlMicro = k.pnlMicro;
-      stakeMicro = k.stakeMicro;
-      keepAliveNote = 'keep-alive minimum bet';
-    }
-
-    this.pnlMicro += pnlMicro;
-    this.peakMicro = Math.max(this.peakMicro, this.pnlMicro);
-    this.maxDrawdownMicro = Math.max(this.maxDrawdownMicro, this.peakMicro - this.pnlMicro);
-    const dayMicro = this.addToDay(pnlMicro, when);
-
-    if (mode === 'VIRTUAL') this.virtualHands++;
-    else if (mode === 'REAL') {
-      this.maxStakeUnits = Math.max(this.maxStakeUnits, round2(res.plan.units));
-      if (outcome === 'WIN') this.wins++;
-      else if (outcome === 'LOSS') this.losses++;
-    }
+    const played = core.play(event, this.paused, this.dayTotal(when));
+    const { res, hand } = played;
+    const dayMicro = this.addToDay(played.pnlMicro, when);
 
     const row: Row = {
       n: this.records.length + 1,
       time: localTime(when),
       pick: res.plan.side,
-      mode,
-      stake: fmt2(stakeMicro),
+      mode: played.mode,
+      stake: fmt2(played.stakeMicro),
       result: event.result,
-      outcome,
+      outcome: played.outcome,
       pattern: res.pattern,
-      note: [res.note, hand.reason, keepAliveNote].filter(Boolean).join(' · '),
+      note: [res.note, hand.reason, played.keepAliveNote].filter(Boolean).join(' · '),
       single_wins: res.singleWins,
       run_net_units: round2(res.runNetMicro / toMicro(s.unit_value)),
-      session_pnl: fmt2(this.pnlMicro),
+      session_pnl: fmt2(core.pnlMicro),
       cards: event.cards,
       session: this.sessionNo,
     };
     const record: HandRecord = {
       row,
       strategy: s.strategy,
-      pnlMicro,
-      balanceMicro: toMicro(s.start_balance) + this.pnlMicro,
+      pnlMicro: played.pnlMicro,
+      balanceMicro: toMicro(s.start_balance) + core.pnlMicro,
     };
     this.records.push(record);
     this.writeHistory(record);
 
-    const verdict = governor.settled({
-      res, hand, manualPause: this.paused, keepAlive: hand.keepAlive,
-      sessionPnlMicro: this.pnlMicro, dayPnlMicro: dayMicro,
-    });
-    if (verdict.resetEngine) engine.reset();
-    if (verdict.stop) {
-      this.finish(verdict.stop.status);
-      if (verdict.stop.alert) {
+    const stop = played.verdict.stop;
+    if (stop) {
+      this.finish(stop.status);
+      if (stop.alert) {
         this.notifier.notify(
-          verdict.stop.alert,
-          `TRADE247: ${verdict.stop.message}. The day is locked: no new session until the limit is raised or tomorrow. ${this.summary()}, today ${signed(dayMicro)}.`,
+          stop.alert,
+          `TRADE247: ${stop.message}. The day is locked: no new session until the limit is raised or tomorrow. ${this.summary()}, today ${signed(dayMicro)}.`,
         );
       }
     }

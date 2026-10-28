@@ -73,6 +73,28 @@ export function bankerDraws(bankerTotal: number, playerThird: number | null): bo
   }
 }
 
+/**
+ * Only the result of the next hand, without building card arrays. It draws cards in exactly the same
+ * order as dealHand, so both give the same hands from the same shoe (the backtest relies on the speed).
+ */
+export function dealResult(shoe: Shoe): Result {
+  const p1 = shoe.draw();
+  const b1 = shoe.draw();
+  const p2 = shoe.draw();
+  const b2 = shoe.draw();
+  let pt = (p1 + p2) % 10;
+  let bt = (b1 + b2) % 10;
+  if (pt < 8 && bt < 8) {
+    let third: number | null = null;
+    if (pt <= 5) {
+      third = shoe.draw();
+      pt = (pt + third) % 10;
+    }
+    if (bankerDraws(bt, third)) bt = (bt + shoe.draw()) % 10;
+  }
+  return pt === bt ? 'T' : pt > bt ? 'P' : 'B';
+}
+
 export function dealHand(shoe: Shoe): { result: Result; cards: Cards } {
   const player = [shoe.draw()];
   const banker = [shoe.draw()];

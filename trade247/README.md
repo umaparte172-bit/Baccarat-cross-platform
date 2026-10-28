@@ -5,13 +5,14 @@ Plan and milestones: [`../docs/trade247-v1-plan.md`](../docs/trade247-v1-plan.md
 
 ## Status
 
-M0 to M4 are done: the page runs against the local server with the Simulator, Manual and Replay feeds, the
+M0 to M5 are done: the page runs against the local server with the Simulator, Manual and Replay feeds, the
 **IHG engine** is verified against the client's IHG document, the **risk layer** (limits, pauses, keep-alive,
-end of shoe) is in place, and **reports and Telegram alerts** work. See the sections below.
+end of shoe) is in place, **reports and Telegram alerts** work, and the **Backtest** window runs. See the
+sections below.
 
-Not built yet, and each says so in the UI: AME-AI, JJ, Manual Sequence Input, the Virtual Bet entry filter,
-Backtest and the live table. **Start refuses** the first four rather than ignoring them, so a setting can never
-be silently dropped.
+Not built yet, and each says so in the UI: AME-AI, JJ, Manual Sequence Input, the Virtual Bet entry filter and
+the live table. **Start refuses** the first four rather than ignoring them, so a setting can never be silently
+dropped.
 
 ## IHG engine
 
@@ -70,6 +71,30 @@ WAIT PATTERN is a full reset including pattern history.
 **Open question for the client**: the *Virtual Bet - start after N losses* filter is still refused at Start. Does
 it apply once at the start of a session, or before every run (wait for a cold streak, bet one run, wait again)?
 The two readings behave very differently, so it is not guessed.
+
+## Backtest
+
+The **BACKTEST** button runs the strategy and every setting on the screen over thousands of simulated sessions
+and shows the spread of results (all in units, with a dollar figure beside the average).
+
+- **A session** is a run of N simulated 8-deck shoes (a shoe ends at the cut card, about 70 hands; Banker pays
+  95%). Take profit, stop loss, the daily limits (a session counts as one day), pauses, wait-for-pattern, shoe
+  policy, hard cap and run-end stake all apply. **Keep-alive is ignored**, as the window says.
+- **Bankroll**: with a bankroll set, a session that loses that many units is "wiped out" and stops there; `0` is
+  an unlimited bankroll.
+- **Source**: simulated shoes, or pasted results (`P`/`B`/`T`, `|` between shoes) as one session.
+- **One engine**: the live session and the backtest share one `PlayCore` (strategy engine, risk layer, money). The
+  tests replay the same hands through the live Replay path and the backtest for ten different risk setups and
+  require identical profit/loss, drawdown, largest stake, money staked, virtual hands and stop reason.
+- **Reproducible**: the same seed gives the same result, whatever the number of CPU threads. Seed `0` picks a
+  random seed and the result reports it.
+- **Speed**: about 1.8 million hands per second per core. The default 100 sessions x 500 shoes takes about 2 s;
+  the page's maximum (2,000 x 5,000) runs on worker threads, shows progress and can be cancelled. Worker threads
+  keep a live session's event loop free while a backtest runs.
+- A backtest never changes the running session or the saved settings, and the Telegram token is not handed to the
+  workers.
+- Results are simulation output, not a forecast. No betting system changes the house edge, and the figures
+  (especially the "bad day" and "worst drawdown" ones) are the point of running it before real money.
 
 ## Reports and alerts
 
@@ -133,7 +158,8 @@ headers must match the local address, which blocks other web pages and DNS rebin
 
 ```
 ui/index.html     the client's page (only change: English number format)
-src/engine/       pure logic: settings, money, dealer, strategy interface, IHG engine, factory + safety gate
+src/engine/       pure logic: settings, money, dealer, strategy interface, IHG engine, risk layer, PlayCore
+src/backtest/     trial runner, statistics, job manager, worker thread
 src/feeds/        simulator, manual, replay
 src/session.ts    session state the page polls
 src/server/       HTTP routes (the /api contract the page calls)

@@ -375,11 +375,3 @@ describe('settings the bot cannot honour yet', () => {
     expect((await start(h, MANUAL)).json.status).toMatch(/AME-AI is not available yet/);
   });
 });
-
-describe('placeholder endpoints', () => {
-  it('answers Backtest honestly until it is built', async () => {
-    const h = harness();
-    expect((await h.post('/api/backtest/start', {})).json.ok).toBe(false);
-    expect((await h.get('/api/backtest/status?id=1')).json.finished).toBe(true);
-  });
-});

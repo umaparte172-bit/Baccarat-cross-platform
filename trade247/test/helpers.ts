@@ -2,9 +2,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import { BacktestManager, inlineExecutor } from '../src/backtest/jobs.js';
 import { buildApp, type AppOptions } from '../src/server/app.js';
 import { SessionManager } from '../src/session.js';
 import { SettingsStore } from '../src/store/files.js';
+
+/** A backtest manager that plays on the calling thread, so tests never start worker threads by accident. */
+export const inlineBacktest = (): BacktestManager => new BacktestManager(inlineExecutor());
 
 export const PORT = 8247;
 export const HOST = `127.0.0.1:${PORT}`;
@@ -24,6 +28,8 @@ export interface HarnessOptions {
   dir?: string;
   /** Extra app options (openFile, telegram hooks). */
   app?: Partial<Pick<AppOptions, 'openFile' | 'telegram'>>;
+  /** Defaults to an in-process backtest manager. */
+  backtest?: BacktestManager;
 }
 
 export function harness(dirOrOptions?: string | HarnessOptions): Harness {
@@ -32,7 +38,7 @@ export function harness(dirOrOptions?: string | HarnessOptions): Harness {
   // Telegram hooks that make alerts fast and deterministic unless a test says otherwise.
   const telegram = { minGapMs: 0, ...options.app?.telegram };
   const manager = new SessionManager(new SettingsStore(dir), { telegram });
-  const app = buildApp({ dataDir: dir, port: PORT, manager, openFile: options.app?.openFile });
+  const app = buildApp({ dataDir: dir, port: PORT, manager, openFile: options.app?.openFile, backtest: options.backtest ?? inlineBacktest() });
   const headers = { host: HOST, 'x-t247': '1', 'content-type': 'application/json' };
   const parse = (text: string): any => {
     try {

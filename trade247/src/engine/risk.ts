@@ -73,6 +73,8 @@ export interface Stop {
   status: string;
   message: string;
   locked: boolean;
+  /** Why the session stopped, as a stable code (the backtest counts these). */
+  code: 'take_profit' | 'stop_loss' | 'daily_take_profit' | 'daily_stop_loss' | 'consecutive_losses';
   /** The Telegram alert this stop triggers, if any. */
   alert?: 'daily_stop_loss' | 'daily_take_profit';
 }
@@ -184,6 +186,7 @@ export class RiskGovernor {
             status: `STOPPED (${c.stopAfterLosses} consecutive losses)`,
             message: `${c.stopAfterLosses} real bets lost in a row`,
             locked: false,
+            code: 'consecutive_losses',
           };
         } else {
           this.waiting = true;
@@ -202,16 +205,16 @@ export class RiskGovernor {
   private limitStop(i: SettledInfo): Stop | null {
     const c = this.cfg;
     if (c.dailyStopLossMicro > 0 && i.dayPnlMicro <= -c.dailyStopLossMicro) {
-      return { status: 'LOCKED (daily stop loss)', message: `Daily stop loss reached (${money(i.dayPnlMicro)})`, locked: true, alert: 'daily_stop_loss' };
+      return { status: 'LOCKED (daily stop loss)', message: `Daily stop loss reached (${money(i.dayPnlMicro)})`, locked: true, code: 'daily_stop_loss', alert: 'daily_stop_loss' };
     }
     if (c.dailyTakeProfitMicro > 0 && i.dayPnlMicro >= c.dailyTakeProfitMicro) {
-      return { status: 'LOCKED (daily take profit)', message: `Daily take profit reached (+${money(i.dayPnlMicro)})`, locked: true, alert: 'daily_take_profit' };
+      return { status: 'LOCKED (daily take profit)', message: `Daily take profit reached (+${money(i.dayPnlMicro)})`, locked: true, code: 'daily_take_profit', alert: 'daily_take_profit' };
     }
     if (c.stopLossMicro > 0 && i.sessionPnlMicro <= -c.stopLossMicro) {
-      return { status: 'STOPPED (stop loss)', message: `Stop loss reached (${money(i.sessionPnlMicro)})`, locked: false };
+      return { status: 'STOPPED (stop loss)', message: `Stop loss reached (${money(i.sessionPnlMicro)})`, locked: false, code: 'stop_loss' };
     }
     if (c.takeProfitMicro > 0 && i.sessionPnlMicro >= c.takeProfitMicro) {
-      return { status: 'STOPPED (take profit)', message: `Take profit reached (+${money(i.sessionPnlMicro)})`, locked: false };
+      return { status: 'STOPPED (take profit)', message: `Take profit reached (+${money(i.sessionPnlMicro)})`, locked: false, code: 'take_profit' };
     }
     return null;
   }

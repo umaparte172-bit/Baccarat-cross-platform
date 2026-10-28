@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { BacktestManager } from '../backtest/jobs.js';
 import { writeSnapshot } from '../report/export.js';
 import { XLSX_MIME } from '../report/xlsx.js';
 import { SessionManager, type SessionOptions } from '../session.js';
@@ -17,6 +18,8 @@ export interface AppOptions {
   openFile?: (path: string) => void;
   /** Test hooks for the Telegram client. */
   telegram?: SessionOptions['telegram'];
+  /** Runs backtests; tests pass one that plays on the calling thread. */
+  backtest?: BacktestManager;
 }
 
 const CSP = [
@@ -37,6 +40,7 @@ const body = (req: FastifyRequest): Record<string, unknown> =>
   req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
 
 export function buildApp(options: AppOptions): FastifyInstance {
+  const backtest = options.backtest ?? new BacktestManager();
   const manager = options.manager ?? new SessionManager(new SettingsStore(options.dataDir), { telegram: options.telegram });
   const uiPath = options.uiPath ?? fileURLToPath(new URL('../../ui/index.html', import.meta.url));
   const page = readFileSync(uiPath, 'utf8');
@@ -143,11 +147,18 @@ export function buildApp(options: AppOptions): FastifyInstance {
 
   app.post('/api/telegram_test', async () => manager.telegramTest());
 
-  app.post('/api/backtest/start', async () => ({ ok: false, error: 'Backtest is not available yet' }));
-  app.get('/api/backtest/status', async () => ({ ok: false, finished: true, done: 0, total: 1, seconds: 0, error: 'Backtest is not available yet' }));
-  app.post('/api/backtest/cancel', async () => ({ ok: true }));
+  app.post('/api/backtest/start', async (req) => {
+    const { settings, params } = body(req);
+    return backtest.start(manager.currentSettings(), settings, params);
+  });
+  app.get('/api/backtest/status', async (req) => {
+    const status = backtest.status((req.query as { id?: string }).id);
+    return status ?? { ok: false, finished: true, done: 0, total: 1, seconds: 0, error: 'Unknown backtest' };
+  });
+  app.post('/api/backtest/cancel', async (req) => ({ ok: backtest.cancel(body(req).id) }));
 
   app.addHook('onClose', async () => {
+    backtest.dispose();
     manager.stop();
     await manager.flushAlerts();
   });

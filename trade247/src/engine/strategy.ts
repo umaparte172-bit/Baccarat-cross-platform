@@ -57,6 +57,8 @@ export interface StrategyEngine {
   /** Start again from scratch: no pattern history, no run, no counters. */
   reset(): void;
   status(): EngineStatus;
+  /** How runs have ended so far: in profit, or given up. Used by the backtest. */
+  counters(): { runsClosed: number; runsCut: number };
   snapshot(): unknown;
   restore(snapshot: unknown): void;
 }

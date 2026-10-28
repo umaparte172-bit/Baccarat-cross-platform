@@ -10,6 +10,9 @@ export interface HandEvent {
 
 export type HandHandler = (event: HandEvent) => void;
 
+/** Hands handled in one go before the feed yields to the rest of the program. */
+const SLICE_MS = 8;
+
 export interface Feed {
   start(): void;
   stop(): void;
@@ -66,7 +69,17 @@ export class SimulatorFeed implements Feed {
   }
 
   private tick(): void {
-    if (!this.active) return;
+    // With no pause between hands, deal in short slices: a timer per hand would cap the speed at the
+    // operating system's timer resolution (about 15 ms on Windows).
+    const deadline = performance.now() + SLICE_MS;
+    do {
+      if (!this.active) return;
+      this.deal();
+    } while (this.active && this.intervalSeconds() <= 0 && performance.now() < deadline);
+    if (this.active) this.schedule();
+  }
+
+  private deal(): void {
     const { result, cards } = dealHand(this.shoe);
     const newShoe = this.freshShoe;
     this.freshShoe = false;
@@ -75,7 +88,6 @@ export class SimulatorFeed implements Feed {
       this.freshShoe = true;
     }
     this.handler({ result, cards, newShoe });
-    if (this.active) this.schedule();
   }
 }
 
@@ -138,14 +150,17 @@ export class ReplayFeed implements Feed {
   }
 
   private tick(): void {
-    if (!this.active) return;
-    const event = this.events[this.index++];
-    if (!event) {
-      this.active = false;
-      this.onFinished?.();
-      return;
+    const deadline = performance.now() + SLICE_MS;
+    while (this.active) {
+      const event = this.events[this.index++];
+      if (!event) {
+        this.active = false;
+        this.onFinished?.();
+        return;
+      }
+      this.handler(event);
+      if (performance.now() >= deadline) break;
     }
-    this.handler(event);
     if (this.active) this.schedule();
   }
 }
