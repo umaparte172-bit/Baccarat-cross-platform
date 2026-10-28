@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../Baccarat.Core/Baccarat.Core.csproj" />
-  </ItemGroup>
-</Project>

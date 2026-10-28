@@ -36,8 +36,8 @@ and share everything else with IHG: the risk layer, keep-alive, reports, the Bac
 | ODD is God | the winner of the latest odd-numbered result | stake list |
 
 A stake list is the page's **Manual Sequence Input**. Hands with no pick are shown as **NO BET**. Checked by
-`test/classic.reference.test.ts` (the 19 client cases, and 35,000 hands played through the C# reference engine in
-`tools/classic-reference`; how to regenerate them is at the top of `build-fixture.mjs`).
+`test/classic.reference.test.ts` (the 19 client cases, and 35,000 hands played through the original C# reference engine;
+where those traces came from is in `test/fixtures/README.md`).
 
 ## IHG engine
 

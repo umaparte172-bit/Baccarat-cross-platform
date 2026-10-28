@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup>
-    <None Update="fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
-    <ProjectReference Include="../../src/Baccarat.Desktop/Baccarat.Desktop.csproj" />
-    <PackageReference Include="Avalonia.Headless" />
-  </ItemGroup>
-</Project>

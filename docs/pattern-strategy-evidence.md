@@ -32,7 +32,7 @@ the original automatic PATTERN algorithm.
 
 The no-login V1 workflow checks now cover this manual fallback end to end,
 including approval only after both side and stake are resolved. See the
-[workflow acceptance record](v1-workflow-acceptance.md). Passing these checks is
+workflow acceptance record (kept in git tag `legacy-csharp`). Passing these checks is
 not evidence of automatic PATTERN parity or its original tie handling.
 
 ## Exact evidence needed

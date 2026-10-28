@@ -7,7 +7,7 @@ import type { Result } from '../src/engine/types.js';
 /**
  * The seven classic strategies against two independent sources: the client's own written cases (the 19 vectors
  * below, with the picks, stakes and balance he gave), and 35,000 hands played through the C# reference engine
- * (test/fixtures/classic-reference.json, produced by tools/classic-reference).
+ * (test/fixtures/classic-reference.json; see test/fixtures/README.md for where it came from).
  */
 
 const NAME: Record<string, string> = {
