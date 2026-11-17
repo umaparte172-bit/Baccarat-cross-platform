@@ -24,7 +24,10 @@ const dataDir = defaultDataDir();
 mkdirSync(dataDir, { recursive: true });
 // Chromium's own files (cache, cookies) stay out of the folder that holds the user's settings, logs and reports.
 app.setName('TRADE247');
-app.setPath('userData', join(dataDir, 'electron'));
+// WebDriver owns a temporary Chromium profile and uses it to complete its startup handshake.
+// Only the explicit desktop test may override our usual per-user profile directory.
+const testProfile = process.env.T247_SELENIUM_TEST === '1' ? app.commandLine.getSwitchValue('user-data-dir') : '';
+app.setPath('userData', testProfile || join(dataDir, 'electron'));
 
 if (!SMOKE && !app.requestSingleInstanceLock()) {
   app.quit();
@@ -218,4 +221,3 @@ app.on('second-instance', () => {
     win.focus();
   }
 });
-

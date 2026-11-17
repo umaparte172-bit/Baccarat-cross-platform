@@ -106,8 +106,12 @@ jobs:
         shell: pwsh
         run: |
           $env:T247_DATA_DIR = Join-Path $env:RUNNER_TEMP 't247-smoke'
-          & 'release/desktop/win-unpacked/TRADE247.exe' --smoke
-          if ($LASTEXITCODE -ne 0) { throw "smoke test failed ($LASTEXITCODE)" }
+          $smoke = Start-Process -FilePath 'release/desktop/win-unpacked/TRADE247.exe' -ArgumentList '--smoke' -WindowStyle Hidden -Wait -PassThru
+          if ($smoke.ExitCode -ne 0) { throw "smoke test failed ($($smoke.ExitCode))" }
+
+      - name: Selenium desktop controls (Windows)
+        if: runner.os == 'Windows'
+        run: node tools/selenium-desktop.mjs --app release/desktop/win-unpacked/TRADE247.exe
 
       - name: Smoke test and verify the signature (macOS)
         if: runner.os == 'macOS'
@@ -117,6 +121,10 @@ jobs:
           # The ad-hoc signature must verify, or Apple Silicon will not run the app.
           codesign --verify --deep --strict --verbose=2 "$app"
           "$app/Contents/MacOS/TRADE247" --smoke
+
+      - name: Selenium desktop controls (macOS)
+        if: runner.os == 'macOS'
+        run: node tools/selenium-desktop.mjs --app release/desktop/mac-arm64/TRADE247.app/Contents/MacOS/TRADE247
 
       - uses: actions/upload-artifact@v4
         with:

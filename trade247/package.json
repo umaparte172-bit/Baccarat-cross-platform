@@ -5,7 +5,7 @@
   "description": "TRADE247-V1: local baccarat strategy bot (paper trading first)",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
@@ -19,6 +19,7 @@
     "electron:build": "node tools/build-electron.mjs",
     "electron:start": "node tools/build-electron.mjs && electron build/electron/main.cjs",
     "electron:smoke": "node tools/build-electron.mjs && electron build/electron/main.cjs --smoke",
+    "electron:selenium": "node tools/build-electron.mjs && node tools/selenium-desktop.mjs",
     "electron:dist": "node tools/build-electron.mjs --dist"
   },
   "dependencies": {
@@ -26,11 +27,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "electron": "^45.1.0",
+    "electron": "45.1.0",
     "electron-builder": "^26.18.0",
+    "electron-chromedriver": "45.1.0",
     "esbuild": "^0.28.2",
     "exceljs": "^4.4.0",
     "postject": "^1.0.0-alpha.6",
+    "selenium-webdriver": "4.52.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
