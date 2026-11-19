@@ -1,4 +1,4 @@
-# Local completion and verification — 2026-11-19
+# Completion and verification — 2026-11-20
 
 ## Implemented in the current working tree
 
@@ -20,7 +20,10 @@ No strategy formulas were changed in this pass. The new tests exercise reporting
 - `npm run electron:build`: passed; generated files are under `build/electron`.
 - Full local test suite: 446 checks across 27 files, including all local Chrome mock-table suites.
 - Updated source Electron Selenium checks: 13/13 passed.
+- Rebuilt Windows installer and portable executable; packaged smoke checks and 13/13 packaged Selenium checks passed.
+- Windows and Apple Silicon desktop CI jobs passed at `ab6e016`, including macOS packaging, signature verification, smoke checks and Selenium.
 - The Windows mock-session suite was rerun after replacing click-arrival waits with application-confirmation waits: 12/12 passed.
+- Direct browser fixture and session suites rerun after synchronizing mock click updates: 29/29 passed. No production adapter changes were needed.
 - Includes reference strategy traces, exact-money exports, backtest worker consistency, API validation, chart interaction model,
   comparison logic, sleep-blocker lifecycle, and the supported runner assertion.
 
@@ -31,18 +34,24 @@ npm test
 No suites were excluded in this run. Browser tests use local mock tables, not casino services.
 The UI logic tests use test doubles; the Selenium tests additionally verify native-window controls.
 
-## Delivery still pending for these changes
+## Delivery
 
-1. Finish rebuilding and testing the updated packaged executable (source Electron tests now pass).
-2. Commit/push the current changes and check all jobs on the resulting GitHub Actions run.
-3. Build/download the updated Apple Silicon artifact and confirm first launch on the client's Mac.
+The application changes and original CI assertion fix were pushed in `ab6e016`.
+Both desktop packages were produced and tested in [run 44542811417](https://github.com/umaparte172-bit/Baccarat-cross-platform/actions/runs/44542811417).
+That run exposed additional timing races in the local mock fixture used by the full test jobs; the fixture now serializes
+click processing, renders the result before returning, and ignores stale poll responses. This changes tests only.
+Test-browser startup now waits for a responding endpoint for up to 20 seconds and includes process errors/stderr
+in failures, instead of reporting only a generic ten-second timeout. A regression test covers a missing executable.
+The follow-up commit must pass all five jobs; consult [the workflow](https://github.com/umaparte172-bit/Baccarat-cross-platform/actions/workflows/trade247.yml)
+for the latest status rather than treating successful desktop jobs as a successful overall workflow.
 
 GitHub access and approval review are now available. The old run's macOS failure was an obsolete assertion requiring
 `macos-14` after the workflow moved to `macos-15`; the fix is included here. Windows mock tests had a race between
 the test's table click and the application's acknowledgement; only the test synchronization was changed.
 
-The files currently in `release/desktop` predate this working-tree update. They must **not** be described as containing these fixes.
-The latest rebuilt Electron bundle is not an installer or a signed/notarized release.
+The local `release/desktop` Windows installer and portable executable now contain the application updates.
+Mac packages are built on the Apple Silicon CI runner, not on this Windows workstation. Client-machine first launch
+still needs confirmation; CI verification is not a substitute for testing the client's exact macOS environment.
 
 ## Previously verified delivery
 

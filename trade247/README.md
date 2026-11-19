@@ -13,8 +13,9 @@ chaos-filter and bounded dynamic-stake formulas; **JJ** implements all five supp
 (Martingale, Grinding, Sequence, Odd Even, ODD Diff, ODD Looser, ODD is God) are verified against the client's written
 cases and the C# reference engine; the **risk layer** (limits, pauses, keep-alive, end of shoe) is in place; **reports and
 Telegram alerts** work; the **Backtest** window runs; and the program ships as a **desktop app** (Electron) and as a
-single-file program for Windows and Apple-silicon macOS. The preceding revision passed the macOS Electron packaging,
-signature and Selenium job; the latest local changes still require a new packaged-app test and CI run. See the sections below.
+single-file program for Windows and Apple-silicon macOS. Commit `ab6e016` passed Electron packaging, smoke tests and
+Selenium on both platforms, including macOS ad-hoc signature verification. Follow-up fixes address mock-table timing
+races and test-browser startup diagnostics. See [the handoff](docs/current-handoff.md) for verification details.
 
 The supplied client build and user guide define the finished product as an offline paper-trading simulator. The older
 experimental Live-table/CDP modules remain isolated behind explicit settings, but they are not part of the completed,

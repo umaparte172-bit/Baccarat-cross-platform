@@ -78,21 +78,36 @@ export async function startMockBetting(): Promise<MockBetting> {
     <div id="bankerbox" style="position:relative"><div id="banker" class="spot" data-role="banker">BANKER</div><div id="cover" style="display:none"></div></div>
     <div id="total" data-role="total">0</div><div id="balance" data-role="balance">0</div>
   </div><script>
-    const log = (target, value, e) => fetch('/click', {method:'POST', body: JSON.stringify({target, value, trusted: e.isTrusted, x: e.clientX, y: e.clientY})});
+    let generation = 0;
+    function render(s) {
+      document.getElementById('status').textContent = s.status;
+      document.getElementById('total').textContent = s.total ? '$' + s.total : '0';
+      document.getElementById('balance').textContent = '$' + s.balance;
+      document.getElementById('cover').style.display = s.coverBanker ? 'block' : 'none';
+      document.getElementById('cover2').style.display = s.coverPlayer ? 'block' : 'none';
+    }
+    // This loopback-only test fixture models a UI that commits each click immediately.
+    // Serial synchronous requests prevent chip selection and placement being reordered,
+    // and make overlays visible before the next test click. This is not production code.
+    const log = (target, value, e) => {
+      generation++;
+      const request = new XMLHttpRequest();
+      request.open('POST', '/click', false);
+      request.send(JSON.stringify({target, value, trusted: e.isTrusted, x: e.clientX, y: e.clientY}));
+      render(JSON.parse(request.responseText));
+    };
     document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', e => log('chip', c.dataset.value, e)));
     document.getElementById('player').addEventListener('click', e => log('player', undefined, e));
     document.getElementById('banker').addEventListener('click', e => log('banker', undefined, e));
     async function tick() {
+      const before = generation;
       try {
         const s = await (await fetch('/state')).json();
-        document.getElementById('status').textContent = s.status;
-        document.getElementById('total').textContent = s.total ? '$' + s.total : '0';
-        document.getElementById('balance').textContent = '$' + s.balance;
-        document.getElementById('cover').style.display = s.coverBanker ? 'block' : 'none';
-        document.getElementById('cover2').style.display = s.coverPlayer ? 'block' : 'none';
+        if (before === generation) render(s);
       } catch (e) {}
+      setTimeout(tick, 40);
     }
-    setInterval(tick, 40); tick();
+    tick();
   </script></body>`;
 
   const game = `<!doctype html><meta charset="utf-8"><body style="margin:0">
@@ -122,7 +137,8 @@ export async function startMockBetting(): Promise<MockBetting> {
           state.status = 'BETS CLOSED';
         }
       }
-      res.end('ok');
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(state));
     } else if (url === '/ui') {
       res.setHeader('content-type', 'text/html');
       res.end(ui);

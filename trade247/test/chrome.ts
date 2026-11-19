@@ -39,34 +39,53 @@ export async function startChrome(executable: string): Promise<TestChrome> {
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
       'about:blank',
     ],
-    { stdio: 'ignore', windowsHide: true },
+    { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true },
   );
+  let launchError: Error | undefined;
+  let diagnostics = '';
+  child.on('error', (error) => { launchError = error; });
+  child.stderr?.on('data', (chunk: Buffer) => {
+    diagnostics = (diagnostics + chunk.toString()).slice(-4000);
+  });
+  const stop = async () => {
+    if (child.exitCode === null && child.signalCode === null && child.pid) {
+      child.kill();
+      const end = Date.now() + 2000;
+      while (child.exitCode === null && child.signalCode === null && Date.now() < end) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch {
+      /* Chrome may still hold a file; the temp folder is cleaned by the system */
+    }
+  };
   const portFile = join(profile, 'DevToolsActivePort');
   let port = 0;
-  for (let i = 0; i < 100 && !port; i++) {
+  // A cold CI browser can take longer than ten seconds. Require a responding
+  // endpoint, not merely a port file, within the suite's 30-second setup budget.
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline && !port) {
+    if (launchError || child.exitCode !== null || child.signalCode !== null) break;
     await new Promise((r) => setTimeout(r, 100));
     try {
-      port = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
+      const candidate = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
+      if (Number.isInteger(candidate) && candidate > 0 && candidate <= 65535) {
+        const response = await fetch(`http://127.0.0.1:${candidate}/json/version`, { signal: AbortSignal.timeout(500) });
+        if (response.ok) port = candidate;
+      }
     } catch {
-      /* not written yet */
+      /* port file or browser endpoint is not ready yet */
     }
   }
   if (!port) {
-    child.kill();
-    throw new Error('Chrome did not start');
+    const reason = launchError?.message ?? (child.exitCode !== null || child.signalCode !== null
+      ? `exited (code ${child.exitCode}, signal ${child.signalCode})` : 'not ready within 20 seconds');
+    await stop();
+    throw new Error(`Chrome did not start: ${reason}. Executable: ${executable}\n${diagnostics}`);
   }
-  return {
-    port,
-    stop: async () => {
-      child.kill();
-      await new Promise((r) => setTimeout(r, 300));
-      try {
-        rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-      } catch {
-        /* Chrome may still hold a file; the temp folder is cleaned by the system */
-      }
-    },
-  };
+  return { port, stop };
 }
 
 export interface MockTable {
