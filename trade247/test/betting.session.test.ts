@@ -51,7 +51,7 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     browser = await startChrome(chrome!);
     table = await startMockBetting();
     await openTab(browser.port, table.pageUrl);
-    await sleep(600);
+    await table.waitForUi();
   }, 30_000);
 
   afterAll(async () => {
@@ -77,19 +77,29 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
   const state = (h: Harness) => h.manager.getState(0);
   // A mock click updates the table before the app has read its confirmation. Do not deal
   // the next hand (or pause) until the app has acknowledged the cumulative stake too.
-  const placed = (h: Harness, total: number, cumulative: number) =>
-    until(() => table.state.total === total && state(h).bet.staked === cumulative, 15_000);
+  const placed = async (h: Harness, total: number, cumulative: number) => {
+    try {
+      await until(() => table.state.total === total && state(h).bet.staked === cumulative, 15_000);
+    } catch {
+      const current = state(h);
+      throw new Error(`Mock placement timed out: ${JSON.stringify({ expected: { total, cumulative }, total: table.state.total,
+        clicks: table.state.clicks, status: current.status, error: current.error, hands: current.hands, bet: current.bet })}`);
+    }
+  };
   /** The table plays a round: bets close, the result goes on the road, the next window opens. */
-  const deal = async (result: 'P' | 'B' | 'T') => {
+  const deal = async (h: Harness, result: 'P' | 'B' | 'T') => {
     const s = table.state;
+    const expectedHands = state(h).hands + 1;
     s.open = false;
     s.status = 'BETS CLOSED';
-    await sleep(250);
+    await table.waitForUi();
     s.cells.push(result);
     s.total = 0;
-    await sleep(350);
+    await table.waitForUi();
+    await until(() => state(h).hands === expectedHands, 15_000);
     s.open = true;
     s.status = 'PLACE YOUR BETS';
+    await table.waitForUi();
   };
 
   it('places each bet the strategy wants, with real clicks, and books the results against what was placed', async () => {
@@ -99,11 +109,11 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     expect(table.state.placedOn).toEqual(['player']);
     expect(state(h).bet.on_table).toBe(true);
 
-    await deal('B'); // the Player bet loses
+    await deal(h, 'B'); // the Player bet loses
     await placed(h, 1, 2); // next bet: one round -> the same as the last result, Banker, one unit
     expect(table.state.placedOn).toEqual(['player', 'banker']);
 
-    await deal('B'); // Banker wins 0.95; run net -0.05 -> next stake ceil(0.05)+1 = 2, made of two 1-chips
+    await deal(h, 'B'); // Banker wins 0.95; run net -0.05 -> next stake ceil(0.05)+1 = 2, made of two 1-chips
     await placed(h, 2, 4);
     expect(table.state.placedOn).toEqual(['player', 'banker', 'banker', 'banker']);
 
@@ -128,7 +138,7 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
 
     expect((await h.post('/api/bet/skip', {})).json.ok).toBe(true);
     expect(state(h).bet.pending).toBeNull();
-    await deal('P');
+    await deal(h, 'P');
     await until(() => state(h).hands === 1, 15_000);
     const row = state(h).rows[0]!;
     expect([row.mode, row.stake]).toEqual(['VIRTUAL', '0.00']);
@@ -167,9 +177,9 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     const h = session();
     await h.post('/api/start', { settings: settings({ bet_max_stake: 1 }) });
     await placed(h, 1, 1);
-    await deal('B');
+    await deal(h, 'B');
     await placed(h, 1, 2); // 1 on Banker
-    await deal('B'); // the win makes the next stake 2, above the limit of 1
+    await deal(h, 'B'); // the win makes the next stake 2, above the limit of 1
     await until(() => !state(h).running, 20_000);
     expect(state(h).status).toContain('safety limit');
     expect(table.state.placedOn).toEqual(['player', 'banker']); // the 2-unit bet was never placed
@@ -179,9 +189,9 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     const h = session();
     await h.post('/api/start', { settings: settings({ bet_max_stake: 2, bet_max_session: 2 }) });
     await placed(h, 1, 1);
-    await deal('B');
+    await deal(h, 'B');
     await placed(h, 1, 2);
-    await deal('B'); // next stake 2 would take the session to 4
+    await deal(h, 'B'); // next stake 2 would take the session to 4
     await until(() => !state(h).running, 20_000);
     expect(state(h).status).toContain('staking limit');
     expect(table.state.placedOn).toHaveLength(2);
@@ -191,13 +201,16 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     const h = session();
     await h.post('/api/start', { settings: settings({ shoe_change_policy: 'reset_all' }) });
     await placed(h, 1, 1);
-    await deal('B');
+    await deal(h, 'B');
     await placed(h, 1, 2);
-    await deal('B'); // 2 units next
+    await deal(h, 'B'); // 2 units next
     await placed(h, 2, 4);
     // A new shoe starts while that bet is on the table: the strategy resets to one unit, the table still holds two.
     table.state.cells = [];
-    await sleep(500);
+    await table.waitForUi();
+    // The live feed polls independently of the mock page. Keep the empty road
+    // visible until the application observes the reset, even on a slow runner.
+    await until(() => state(h).next?.stake === 1, 15_000);
     table.state.cells = ['P'];
     await until(() => !state(h).running, 20_000);
     expect(state(h).status).toContain('differs from the strategy');
@@ -211,7 +224,7 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     await h.post('/api/pause', {});
     expect(state(h).status).toContain('PAUSING');
     expect(state(h).paused).toBe(false);
-    await deal('P');
+    await deal(h, 'P');
     await until(() => state(h).paused, 15_000);
     expect(state(h).hands).toBe(1);
     expect(state(h).rows[0]).toMatchObject({ mode: 'REAL', outcome: 'WIN' });
@@ -228,7 +241,7 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     await h.post('/api/start', { settings: settings() });
     await sleep(1500);
     expect(table.state.clicks).toHaveLength(0); // nothing is clicked while bets are closed
-    await deal('P'); // the result arrives without a bet: the strategy wanted one, none was placed
+    await deal(h, 'P'); // the result arrives without a bet: the strategy wanted one, none was placed
     await until(() => state(h).hands === 1, 15_000);
     expect(state(h).rows[0]).toMatchObject({ mode: 'VIRTUAL', stake: '0.00' });
     expect(state(h).pnl).toBe(0);

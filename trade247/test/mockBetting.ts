@@ -45,7 +45,7 @@ export interface MockBetting {
     placedOn: string[];
   };
   pageUrl: string;
-  /** Wait until the browser has rendered the current status, total and overlays. */
+  /** Wait until both frames have rendered the current controls and result history. */
   waitForUi: () => Promise<void>;
   stop: () => Promise<void>;
 }
@@ -63,6 +63,7 @@ export async function startMockBetting(): Promise<MockBetting> {
   };
   const uiState = (s: typeof state) => JSON.stringify([s.status, s.total, s.balance, s.coverBanker, s.coverPlayer]);
   let renderedState = '';
+  let renderedCells = '';
 
   const readBody = (req: IncomingMessage): Promise<string> =>
     new Promise((resolve) => {
@@ -120,8 +121,10 @@ export async function startMockBetting(): Promise<MockBetting> {
     <iframe src="/ui" style="margin:20px 0 0 30px;border:3px solid blue;padding:9px;width:420px;height:560px"></iframe>
     <script>
       async function tick(){try{const s=await(await fetch('/state')).json();
-        document.getElementById('road').innerHTML=s.cells.map(c=>'<div data-role="roadItem">'+c+'</div>').join('');}catch(e){}}
-      setInterval(tick,40);tick();
+        document.getElementById('road').innerHTML=s.cells.map(c=>'<div data-role="roadItem">'+c+'</div>').join('');
+        await fetch('/road-rendered', {method:'POST', body:JSON.stringify(s.cells)});
+      }catch(e){} setTimeout(tick,40);}
+      tick();
     </script></body>`;
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -131,6 +134,9 @@ export async function startMockBetting(): Promise<MockBetting> {
       res.end(JSON.stringify({ status: state.status, total: state.total, balance: state.balance, cells: state.cells, coverBanker: state.coverBanker, coverPlayer: state.coverPlayer }));
     } else if (url === '/rendered' && req.method === 'POST') {
       renderedState = await readBody(req);
+      res.end('ok');
+    } else if (url === '/road-rendered' && req.method === 'POST') {
+      renderedCells = await readBody(req);
       res.end('ok');
     } else if (url === '/click' && req.method === 'POST') {
       const c = JSON.parse(await readBody(req)) as Click;
@@ -170,8 +176,8 @@ export async function startMockBetting(): Promise<MockBetting> {
     pageUrl: `http://127.0.0.1:${outerPort}/`,
     waitForUi: async () => {
       const deadline = Date.now() + 5000;
-      while (renderedState !== uiState(state)) {
-        if (Date.now() > deadline) throw new Error(`Mock UI did not render ${uiState(state)}; last rendered ${renderedState}`);
+      while (renderedState !== uiState(state) || renderedCells !== JSON.stringify(state.cells)) {
+        if (Date.now() > deadline) throw new Error(`Mock UI did not render ${uiState(state)}, road ${JSON.stringify(state.cells)}; last rendered ${renderedState}, road ${renderedCells}`);
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
     },
