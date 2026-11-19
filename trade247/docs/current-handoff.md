@@ -18,12 +18,12 @@ No strategy formulas were changed in this pass. The new tests exercise reporting
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 - `npm run electron:build`: passed; generated files are under `build/electron`.
-- Full local test suite: 446 checks across 27 files, including all local Chrome mock-table suites.
+- Full local test suite after the CI fixture fixes: 447 checks across 28 files, including all local Chrome mock-table suites.
 - Updated source Electron Selenium checks: 13/13 passed.
 - Rebuilt Windows installer and portable executable; packaged smoke checks and 13/13 packaged Selenium checks passed.
 - Windows and Apple Silicon desktop CI jobs passed at `ab6e016`, including macOS packaging, signature verification, smoke checks and Selenium.
 - The Windows mock-session suite was rerun after replacing click-arrival waits with application-confirmation waits: 12/12 passed.
-- Direct browser fixture and session suites rerun after synchronizing mock click updates: 29/29 passed. No production adapter changes were needed.
+- All four affected browser/startup suites rerun after the fixes: 51/51 passed. No production adapter changes were needed.
 - Includes reference strategy traces, exact-money exports, backtest worker consistency, API validation, chart interaction model,
   comparison logic, sleep-blocker lifecycle, and the supported runner assertion.
 
@@ -45,7 +45,12 @@ in failures, instead of reporting only a generic ten-second timeout. A regressio
 The follow-up commit must pass all five jobs; consult [the workflow](https://github.com/umaparte172-bit/Baccarat-cross-platform/actions/workflows/trade247.yml)
 for the latest status rather than treating successful desktop jobs as a successful overall workflow.
 
-GitHub access and approval review are now available. The old run's macOS failure was an obsolete assertion requiring
+The follow-up fixes are saved in local commit `b08d68b`, but its push was rejected: the active GitHub account
+`newsfriend` lacks write access to this repository. The user is restoring access. No new CI run has verified that
+commit yet. Downloading the earlier macOS artifact also failed (network timeout, then authentication failure);
+no new local Mac installer is claimed delivered.
+
+The old run's macOS failure was an obsolete assertion requiring
 `macos-14` after the workflow moved to `macos-15`; the fix is included here. Windows mock tests had a race between
 the test's table click and the application's acknowledgement; only the test synchronization was changed.
 
