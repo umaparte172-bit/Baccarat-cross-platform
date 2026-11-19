@@ -36,6 +36,12 @@ export interface Settings {
 
   single_wins_mode: 'off' | 'doc' | 'custom';
   single_wins_limit: number;
+  /** At the single-wins limit, keep the run debt while probing or accept the loss and restart. */
+  single_wins_action: 'pause' | 'cut';
+  /** Raise Banker recovery stakes just enough for the 0.95 payout to close the run. */
+  banker_cover: boolean;
+  /** Number of single-win patterns to observe virtually at the beginning of every run. */
+  single_wins_virtual: number;
   keepalive_idle: number;
   round_step: number;
 
@@ -87,11 +93,10 @@ export interface Settings {
   telegram_chat_id: string;
 }
 
-// ame_* recovery/max-step and the JJ ramp are placeholders until the client supplies the formulas.
 export const DEFAULT_SETTINGS: Settings = {
   strategy: 'IHG',
   progression: 'recovery',
-  unit_value: 0.1,
+  unit_value: 0.2,
   chain: [],
   keepalive_enabled: false,
   keepalive_amount: 0.1,
@@ -103,17 +108,20 @@ export const DEFAULT_SETTINGS: Settings = {
   stop_loss: 0,
 
   min_chip: 0.1,
-  start_balance: 1000,
-  max_bet_mode: 'doc',
+  start_balance: 100,
+  max_bet_mode: 'off',
   max_bet_units: 45,
   hard_cap_mode: 'off',
-  hard_cap_units: 200,
+  hard_cap_units: 88,
   daily_stop_loss: 0,
   daily_take_profit: 0,
 
-  single_wins_mode: 'doc',
+  single_wins_mode: 'off',
   single_wins_limit: 7,
-  keepalive_idle: 10,
+  single_wins_action: 'pause',
+  banker_cover: false,
+  single_wins_virtual: 0,
+  keepalive_idle: 8,
   round_step: 1,
 
   cycle_preset: 'JJ20',
@@ -128,8 +136,8 @@ export const DEFAULT_SETTINGS: Settings = {
   ame_min_confidence: 70,
   ame_freeze_hands: 4,
   ame_stable_units: 1,
-  ame_recovery_rate: 0.5,
-  ame_max_step: 3,
+  ame_recovery_rate: 0.35,
+  ame_max_step: 1,
   ame_chaos_entropy: 0.92,
   ame_chaos_fit: 0.7,
 
@@ -137,7 +145,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stop_consec_loss_action: 'STOP BET',
   pause_consec_loss_count: 0,
   pause_bet_count: 0,
-  shoe_change_policy: 'reset_all',
+  shoe_change_policy: 'continue',
   end_shoe_policy: 'off',
   end_shoe_hand: 60,
 
@@ -241,6 +249,9 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
 
     single_wins_mode: pick(g('single_wins_mode'), ['off', 'doc', 'custom'], p.single_wins_mode),
     single_wins_limit: int(g('single_wins_limit'), p.single_wins_limit, 1, 10_000),
+    single_wins_action: pick(g('single_wins_action'), ['pause', 'cut'], p.single_wins_action),
+    banker_cover: flag(g('banker_cover'), p.banker_cover),
+    single_wins_virtual: int(g('single_wins_virtual'), p.single_wins_virtual, 0, 10_000),
     keepalive_idle: int(g('keepalive_idle'), p.keepalive_idle, 1, 10_000),
     round_step: num(g('round_step'), p.round_step, 0, 1000),
 

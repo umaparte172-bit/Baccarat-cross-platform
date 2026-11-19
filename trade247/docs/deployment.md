@@ -329,7 +329,6 @@ run on a real casino table, which needs your account.
 
 ## 11. What is not included yet
 
-* AME-AI and JJ (waiting for the formulas), and the *Virtual Bet - start after N losses* filter (waiting for one answer).
 * Fingerprint spoofing and bot-detection evasion (not built; see the client questions document).
 * Reconciling the table's balance with the bot's books (the profile may name a balance element, but it is not compared yet).
 * Automatic resume of a session after a restart (see section 5).

@@ -6,19 +6,20 @@ Plan and milestones: [`../docs/trade247-v1-plan.md`](../docs/trade247-v1-plan.md
 
 ## Status
 
-Done: the page runs against the local server with the Simulator, Manual, Replay and **Live table** feeds; the **IHG
-engine** is verified against the client's IHG document; the **seven classic strategies** of the Windows application
+Done: the Electron page runs against its private local server with Simulator, Manual and Replay feeds; the **IHG
+engine** is verified against the client's document and includes the supplied project's entry filter, virtual single-wins,
+Banker cover, cut/pause and list-progression controls; **AME-AI** implements the supplied momentum/confidence,
+chaos-filter and bounded dynamic-stake formulas; **JJ** implements all five supplied cycle presets; the **seven classic strategies**
 (Martingale, Grinding, Sequence, Odd Even, ODD Diff, ODD Looser, ODD is God) are verified against the client's written
 cases and the C# reference engine; the **risk layer** (limits, pauses, keep-alive, end of shoe) is in place; **reports and
-Telegram alerts** work; the **Backtest** window runs; **real betting on a live table** exists behind an explicit switch
-(default Paper) and is tested on a mock table in a real Chrome; and the program ships as a **desktop app** (Electron) and as a
+Telegram alerts** work; the **Backtest** window runs; and the program ships as a **desktop app** (Electron) and as a
 single-file program for Windows and Apple-silicon macOS (the Windows builds are tested here; the Mac builds are made by CI
 and have not been run on a Mac yet). See the sections below.
 
-Not built yet, and each says so in the UI: AME-AI, JJ (waiting for the client's formulas) and the Virtual Bet entry filter
-(waiting for one answer). **Start refuses** them rather than ignoring them, so a setting can never be silently dropped.
-Not checked against a real casino table: the table profile and the betting clicks (they need the client's capture and account).
-Fingerprint spoofing and bot-detection evasion are not part of this program.
+The supplied client build and user guide define the finished product as an offline paper-trading simulator. The older
+experimental Live-table/CDP modules remain isolated behind explicit settings, but they are not part of the completed,
+verified scope and have not been checked against a casino. Fingerprint spoofing and bot-detection evasion are not part
+of this program.
 
 ## Classic strategies
 
@@ -60,7 +61,7 @@ Decisions made where the document is silent (all easy to change, none confirmed 
 
 | Situation | What the engine does |
 |---|---|
-| New shoe | Default `reset_all` (PRD: cut the losing sequence). The "IHG document settings" button selects `continue`. |
+| New shoe | Default `continue`, matching the supplied reference application. The user can explicitly select `reset_pattern` or `reset_all`. |
 | Single-win counter after a run-end stake that loses | Reset to 0 for the next run; the closing row still shows the count it reached (as the document does). |
 | Shoe change while virtual | Virtual mode is kept (it is a table safety valve, not a deficit). |
 | PAUSE | Watch only: the pattern keeps following the table; money, run, counters and virtual wins do not move. |
@@ -94,9 +95,8 @@ Decisions where the spec is silent (none confirmed by the client yet): keep-aliv
 keep-alive amounts round up to the minimum chip and are excluded from the win rate; "from scratch" after
 WAIT PATTERN is a full reset including pattern history.
 
-**Open question for the client**: the *Virtual Bet - start after N losses* filter is still refused at Start. Does
-it apply once at the start of a session, or before every run (wait for a cold streak, bet one run, wait again)?
-The two readings behave very differently, so it is not guessed.
+The *Virtual Bet - start after N losses* filter follows the supplied reference implementation: IHG rearms it after
+every closed/cut run; the other strategies are gated by the shared risk layer and rearm after a closed run.
 
 ## Backtest
 
@@ -114,6 +114,8 @@ and shows the spread of results (all in units, with a dollar figure beside the a
   require identical profit/loss, drawdown, largest stake, money staked, virtual hands and stop reason.
 - **Reproducible**: the same seed gives the same result, whatever the number of CPU threads. Seed `0` picks a
   random seed and the result reports it.
+- **Compare Settings**: comma-separated parameter lists generate up to 60 combinations, all run with one shared
+  seed and ranked by ruin rate, P10 and mean. Oversized sweeps are refused before work starts and can be cancelled.
 - **Speed**: about 1.8 million hands per second per core. The default 100 sessions x 500 shoes takes about 2 s;
   the page's maximum (2,000 x 5,000) runs on worker threads, shows progress and can be cancelled. Worker threads
   keep a live session's event loop free while a backtest runs.

@@ -343,35 +343,34 @@ describe('IHG through the API', () => {
   });
 });
 
-describe('settings the bot cannot honour yet', () => {
-  const refused: Array<[string, Record<string, unknown>, RegExp]> = [
-    ['AME-AI', { strategy: 'AME' }, /AME-AI is not available yet/],
-    ['JJ', { strategy: 'JJ' }, /JJ is not available yet/],
-    ['manual sequence', { progression: 'list', chain: [1, 2, 3] }, /Manual Sequence Input is not available for IHG/],
-    ['virtual entry filter', { entry_loss_filter: 3 }, /Virtual Bet entry filter is not available yet/],
+describe('client-reference strategy settings', () => {
+  const supported: Array<[string, Record<string, unknown>]> = [
+    ['AME-AI', { strategy: 'AME' }],
+    ['JJ', { strategy: 'JJ' }],
+    ['IHG manual sequence', { progression: 'list', chain: [1, 2, 3] }],
+    ['IHG virtual entry filter', { entry_loss_filter: 3 }],
   ];
 
-  it.each(refused)('refuses to start with %s instead of silently ignoring it', async (_name, extra, message) => {
+  it.each(supported)('starts with %s', async (_name, extra) => {
     const h = harness();
     const reply = (await start(h, { ...MANUAL, ...extra })).json;
-    expect(reply.ok).toBe(false);
-    expect(reply.status).toMatch(message);
-    expect((await h.get('/api/state')).json).toMatchObject({ running: false, hands: 0 });
+    expect(reply).toMatchObject({ ok: true, status: 'RUNNING' });
+    expect((await h.get('/api/state')).json).toMatchObject({ running: true, hands: 0 });
   });
 
-  it('refuses a live change to an unsupported setting and leaves the session untouched', async () => {
+  it('applies the IHG entry filter to a running session', async () => {
     const h = harness();
     await start(h);
-    expect((await h.post('/api/apply', { entry_loss_filter: 3 })).json).toEqual({ ok: false, live: false });
+    expect((await h.post('/api/apply', { entry_loss_filter: 3 })).json).toEqual({ ok: true, live: true });
     const state = (await h.get('/api/state')).json;
-    expect(state.error).toMatch(/Virtual Bet entry filter is not available yet/);
-    expect(state.settings.entry_loss_filter).toBe(0);
+    expect(state.error).toBe('');
+    expect(state.settings.entry_loss_filter).toBe(3);
     expect(state.running).toBe(true);
   });
 
-  it('lets the user pick an unsupported strategy while idle but explains it at Start', async () => {
+  it('can select and start AME while idle', async () => {
     const h = harness();
     expect((await h.post('/api/apply', { strategy: 'AME' })).json).toEqual({ ok: true, live: false });
-    expect((await start(h, MANUAL)).json.status).toMatch(/AME-AI is not available yet/);
+    expect((await start(h, MANUAL)).json.status).toBe('RUNNING');
   });
 });

@@ -10,6 +10,7 @@ const U = 1_000_000;
 const CONFIG: IhgConfig = {
   unitMicro: U, chipMicro: 0, stepUnitsMicro: U,
   runEndUnits: 45, hardCapUnits: null, singlesLimit: 7, shoePolicy: 'continue',
+  entryLossFilter: 0, singleWinsVirtual: 0, singleWinsAction: 'pause', bankerCover: false,
 };
 const FRESH = { history: '', twoRemaining: 0, pattern: 'First bet', side: 'P', runMicro: 0, stakeUnits: U, previousWin: false, singles: 0, virtual: false, virtualWins: 0 };
 
@@ -224,6 +225,53 @@ describe('single wins and virtual mode', () => {
     const e = make({ singlesLimit: null }, { runMicro: toMicro(-1), previousWin: true, singles: 50, side: 'P' });
     play(e, 'B');
     expect(e.plan(false).mode).toBe('REAL');
+  });
+});
+
+describe('client-reference IHG extensions', () => {
+  it('waits for the configured virtual entry losses before placing real stakes', () => {
+    const e = new IhgEngine({ ...CONFIG, entryLossFilter: 2 });
+    expect(e.plan(false)).toMatchObject({ mode: 'VIRTUAL' });
+    loseNow(e);
+    expect(e.plan(false)).toMatchObject({ mode: 'VIRTUAL' });
+    const met = loseNow(e);
+    expect(met.note).toMatch(/entry filter met/);
+    expect(e.plan(false)).toMatchObject({ mode: 'REAL', units: 1 });
+  });
+
+  it('observes virtual single wins before starting every real run', () => {
+    const e = new IhgEngine({ ...CONFIG, singleWinsVirtual: 1 });
+    loseNow(e);
+    winNow(e);
+    const met = loseNow(e);
+    expect(met.note).toMatch(/1 virtual single wins/);
+    expect(e.plan(false)).toMatchObject({ mode: 'REAL', units: 1 });
+  });
+
+  it('can cut at the single-wins boundary instead of keeping the deficit', () => {
+    const e = new IhgEngine({ ...CONFIG, runEndUnits: null, singlesLimit: 1, singleWinsAction: 'cut' });
+    loseNow(e);
+    winNow(e);
+    const cut = loseNow(e);
+    expect(cut).toMatchObject({ runClosed: true });
+    expect(cut.note).toMatch(/run dropped, loss accepted/);
+    expect(e.status()).toMatchObject({ run_net_units: 0, virtual_mode: false });
+    expect(e.plan(false)).toMatchObject({ mode: 'REAL', units: 1 });
+  });
+
+  it('raises a Banker recovery stake only when its 0.95 payout otherwise cannot close the run', () => {
+    const e = make({ bankerCover: true, runEndUnits: null }, { runMicro: toMicro(-19), previousWin: true, side: 'B' });
+    expect(e.plan(false).units).toBe(21);
+    const player = make({ bankerCover: true, runEndUnits: null }, { runMicro: toMicro(-19), previousWin: true, side: 'P' });
+    expect(player.plan(false).units).toBe(20);
+  });
+
+  it('supports the client-reference list progression', () => {
+    const e = new IhgEngine({ ...CONFIG, progression: 'list', chain: [1, 2, 4], runEndUnits: null });
+    loseNow(e);
+    expect(e.plan(false).units).toBe(2);
+    loseNow(e);
+    expect(e.plan(false).units).toBe(4);
   });
 });
 

@@ -21,6 +21,7 @@ export interface RiskConfig {
   pauseHands: number;
   endShoePolicy: 'no_new_runs' | 'cut_run' | 'off';
   endShoeHand: number;
+  entryLossFilter: number;
 }
 
 export function riskConfig(s: Settings): RiskConfig {
@@ -39,6 +40,7 @@ export function riskConfig(s: Settings): RiskConfig {
     pauseHands: s.pause_bet_count,
     endShoePolicy: s.end_shoe_policy,
     endShoeHand: s.end_shoe_hand,
+    entryLossFilter: s.strategy === 'IHG' ? 0 : s.entry_loss_filter,
   };
 }
 
@@ -111,10 +113,18 @@ export class RiskGovernor {
   private waitWins = 0;
   private idle = 0;
   private shoeHands = 0;
+  private gateArmed: boolean;
+  private gateLosses = 0;
 
-  constructor(private cfg: RiskConfig) {}
+  constructor(private cfg: RiskConfig) {
+    this.gateArmed = cfg.entryLossFilter > 0;
+  }
 
   configure(cfg: RiskConfig): void {
+    if (cfg.entryLossFilter <= 0) {
+      this.gateArmed = false;
+      this.gateLosses = 0;
+    } else if (this.cfg.entryLossFilter <= 0) this.gateArmed = true;
     this.cfg = cfg;
   }
 
@@ -130,7 +140,10 @@ export class RiskGovernor {
     let cutRun = false;
     const handNo = this.shoeHands + 1;
 
-    if (this.pauseLeft > 0) {
+    if (engine.name !== 'IHG' && this.gateArmed && c.entryLossFilter > 0) {
+      watchOnly = true;
+      reason = `Waiting for ${c.entryLossFilter} virtual losses (${this.gateLosses}/${c.entryLossFilter})`;
+    } else if (this.pauseLeft > 0) {
       watchOnly = true;
       const losses = `${c.pauseAfterLosses} loss${c.pauseAfterLosses === 1 ? '' : 'es'}`;
       reason = `Paused after ${losses} - ${this.pauseLeft} hand(s) left`;
@@ -174,6 +187,15 @@ export class RiskGovernor {
           resetEngine = true;
         }
       }
+
+      if (this.gateArmed && i.hand.watchOnly && res.result !== 'T' && res.plan.mode === 'VIRTUAL') {
+        if (res.plan.side === res.result) this.gateLosses = 0;
+        else this.gateLosses++;
+        if (this.gateLosses >= c.entryLossFilter) {
+          this.gateArmed = false;
+          this.gateLosses = 0;
+        }
+      }
     }
 
     if (realBet) {
@@ -199,6 +221,11 @@ export class RiskGovernor {
       }
     }
 
+    if (res.runClosed && c.entryLossFilter > 0 && res.plan.mode === 'REAL') {
+      this.gateArmed = true;
+      this.gateLosses = 0;
+    }
+
     return { stop: this.limitStop(i) ?? lossStop, resetEngine };
   }
 
@@ -219,11 +246,13 @@ export class RiskGovernor {
     return null;
   }
 
-  status(): { consecutive_losses: number; pause_left: number; waiting: boolean; shoe_hand: number; idle_hands: number } {
+  status(): { consecutive_losses: number; pause_left: number; waiting: boolean; entry_waiting: boolean; entry_losses: number; shoe_hand: number; idle_hands: number } {
     return {
       consecutive_losses: this.consecutiveLosses,
       pause_left: this.pauseLeft,
       waiting: this.waiting,
+      entry_waiting: this.gateArmed,
+      entry_losses: this.gateLosses,
       shoe_hand: this.shoeHands,
       idle_hands: this.idle,
     };

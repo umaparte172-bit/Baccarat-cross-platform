@@ -86,6 +86,23 @@ describe('governor decisions (pure)', () => {
   });
 });
 
+describe('client-reference virtual entry gate', () => {
+  it('holds JJ in virtual mode until the requested number of virtual losses', async () => {
+    const h = harness();
+    await h.post('/api/start', { settings: { ...BASE, strategy: 'JJ', feed: 'manual', entry_loss_filter: 2 } });
+    for (let i = 0; i < 2; i++) {
+      const before = (await h.get('/api/state')).json;
+      expect(before.next.mode).toBe('VIRTUAL');
+      const loss = before.next.pick === 'PLAYER' ? 'B' : 'P';
+      await h.post('/api/manual', { result: loss });
+    }
+    const ready = (await h.get('/api/state?since=0')).json;
+    expect(ready.rows.map((r: { mode: string }) => r.mode)).toEqual(['VIRTUAL', 'VIRTUAL']);
+    expect(ready.next.mode).toBe('REAL');
+    expect(ready.strategy_state).toMatchObject({ entry_waiting: false, entry_losses: 0 });
+  });
+});
+
 describe('settings validation for the risk layer', () => {
   it('needs a pause length when a pause trigger is set, and a positive keep-alive amount', () => {
     expect(normalizeSettings({ pause_consec_loss_count: 3, pause_bet_count: 0 }).errors[0]).toMatch(/how many hands to pause/);

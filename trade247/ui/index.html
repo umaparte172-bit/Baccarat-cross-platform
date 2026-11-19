@@ -296,6 +296,12 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
             <select data-key="single_wins_mode"><option value="off">No limit</option><option value="doc">IHG document (7)</option><option value="custom">Custom</option></select>
             <input type="number" data-key="single_wins_limit" min="1" placeholder="number">
           </div>
+          <div class="row2">
+            <div><label>At the limit</label><select data-key="single_wins_action"><option value="pause">Pause and keep run debt</option><option value="cut">Cut run and accept loss</option></select></div>
+            <div><label>Virtual single wins before each run (0 = off)</label><input type="number" data-key="single_wins_virtual" min="0"></div>
+          </div>
+          <label>Banker recovery cover</label>
+          <select data-key="banker_cover"><option value="false">Off (IHG document)</option><option value="true">On (cover 5% commission)</option></select>
           <label>Rounding step (units; recovery stake rounds UP to a multiple, 1 = IHG doc, 0.5, 0.1, 0 = exact)</label>
           <input type="number" data-key="round_step" step="0.1" min="0">
           <button id="ihgDoc" type="button" class="btn-reset-input" title="Set every IHG parameter exactly as in the IHG document, then press APPLY">IHG document settings</button>
@@ -407,6 +413,19 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
     <textarea id="bt_text" class="hide" placeholder="Paste P / B / T results; use | to mark a new shoe. Example: PBBPT|PPBP..."></textarea>
   </div>
   <div class="bt-btns"><button id="btRun" style="background:#2b9348">RUN BACKTEST</button><button id="btCancel" style="background:#d90429" disabled>CANCEL</button></div>
+  <details id="sweepBox" style="margin-top:8px">
+    <summary><b>COMPARE SETTINGS</b> <span class="foot">Run a fair, same-seed parameter sweep (maximum 60 combinations)</span></summary>
+    <div class="bt-form" style="margin-top:8px">
+      <div><label>Base unit $</label><input id="sw_unit" placeholder="0.1, 0.2"></div>
+      <div><label>Virtual losses</label><input id="sw_vb" placeholder="0, 2, 3"></div>
+      <div><label>Virtual single wins</label><input id="sw_swv" placeholder="0, 2"></div>
+      <div><label>Banker cover (0/1)</label><input id="sw_bc" placeholder="0, 1"></div>
+      <div><label>Hard cap units (0 = off)</label><input id="sw_hc" placeholder="0, 88"></div>
+      <div><label>Stop loss $ (0 = off)</label><input id="sw_sl" placeholder="0, 20"></div>
+      <div><label>Take profit $ (0 = off)</label><input id="sw_tp" placeholder="0, 10"></div>
+    </div>
+    <button id="btCompare" style="background:#4361ee">COMPARE SETTINGS</button>
+  </details>
   <div class="bt-bar"><i id="btProg"></i></div>
   <div class="foot" id="btMsg"></div>
   <div id="btOut"></div>
@@ -419,7 +438,7 @@ const api = (path, body) => fetch(path, {method: body === undefined ? 'GET' : 'P
   headers: {'X-T247': '1', 'Content-Type': 'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)}).then(r => r.json());
 const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); };
 const NAME = {P: 'PLAYER', B: 'BANKER', T: 'TIE', '': 'NO BET'};
-const DEFAULTS = {base_bet: '0.1', keep_alive: '0.1', tp: '', sl: '', sequence: '0.1, 0.2, 0.4, 0.8, 2.0, 5.0'};
+const DEFAULTS = {base_bet: '0.2', keep_alive: '0.1', tp: '', sl: '', sequence: '0.2, 0.4, 0.8, 1.6, 3.2'};
 const cls = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
 const fm = (v, d = 2) => { const x = Number(v); if (isNaN(x)) return ''; const s = Math.abs(x).toFixed(d).split('.'); s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (x < 0 && Number(Math.abs(x).toFixed(d)) !== 0 ? '-' : '') + s.join('.'); };   // 1,234.56 (English format)
 const money = (v) => (v > 0 ? '+' : '') + fm(v);
@@ -478,6 +497,7 @@ function syncModes() {
 $('#ihgDoc').onclick = () => {
   const set = (k, v) => { document.querySelector('[data-key=' + k + ']').value = v; };
   set('max_bet_mode', 'doc'); set('hard_cap_mode', 'off'); set('single_wins_mode', 'doc');
+  set('single_wins_action', 'pause'); set('single_wins_virtual', 0); set('banker_cover', 'false');
   set('shoe_change_policy', 'continue'); set('end_shoe_policy', 'off'); set('round_step', 1);
   $('#vb_on').checked = false;
   syncModes();
@@ -495,7 +515,7 @@ document.querySelector('[data-key=bet_mode]').onchange = applyVisibility;
 document.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { $('#' + b.dataset.reset).value = b.dataset.val; });
 
 // ---------------------------------------------------------------- backtest
-let btJob = null, btTimer = null;
+let btJob = null, btTimer = null, sweepRunning = false, sweepCancel = false;
 const unitsFmt = (v, d = 0) => fm(v, d);
 function btShow(open) { $('#bt').classList.toggle('hide', !open); }
 $('#btBtn').onclick = () => btShow(true);
@@ -506,18 +526,19 @@ $('#bt_src').onchange = () => {
   $('#bt_text').classList.toggle('hide', !paste);
   $('#bt_trials').disabled = paste; $('#bt_shoes').disabled = paste;
 };
+const btParams = () => ({source: $('#bt_src').value, text: $('#bt_text').value, shoes: num($('#bt_shoes').value, 500),
+  trials: num($('#bt_trials').value, 100), bankroll_units: num($('#bt_bank').value, 0), seed: num($('#bt_seed').value, 0)});
 $('#btRun').onclick = async () => {
   let d;
   try { d = collect(); } catch (e) { $('#btMsg').textContent = e.message; return; }
-  const params = {source: $('#bt_src').value, text: $('#bt_text').value, shoes: num($('#bt_shoes').value, 500),
-    trials: num($('#bt_trials').value, 100), bankroll_units: num($('#bt_bank').value, 0), seed: num($('#bt_seed').value, 0)};
+  const params = btParams();
   const r = await api('/api/backtest/start', {settings: d, params});
   if (!r.ok) { $('#btMsg').textContent = r.error || 'Could not start'; return; }
   btJob = r.id; $('#btOut').innerHTML = ''; $('#btRun').disabled = true; $('#btCancel').disabled = false;
   $('#btMsg').textContent = 'Running...'; $('#btProg').style.width = '0%';
   clearInterval(btTimer); btTimer = setInterval(btPoll, 700);
 };
-$('#btCancel').onclick = () => { if (btJob) api('/api/backtest/cancel', {id: btJob}); };
+$('#btCancel').onclick = () => { sweepCancel = true; if (btJob) api('/api/backtest/cancel', {id: btJob}); };
 async function btPoll() {
   if (!btJob) return;
   const s = await api('/api/backtest/status?id=' + btJob);
@@ -571,6 +592,61 @@ function btRender(s) {
   h += '<div class="bt-note' + (warn ? ' warn' : '') + '">' + note + '</div>';
   $('#btOut').innerHTML = h;
 }
+
+const sweepValues = (id, fallback) => {
+  const values = $(id).value.trim().split(/[,;\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);
+  return values.length ? [...new Set(values)] : [fallback];
+};
+const product = (sets) => sets.reduce((rows, values) => rows.flatMap(row => values.map(value => row.concat(value))), [[]]);
+const waitBacktest = async (id, position, total) => {
+  while (true) {
+    if (sweepCancel) throw new Error('Cancelled');
+    const status = await api('/api/backtest/status?id=' + id);
+    const within = status.done / Math.max(1, status.total);
+    $('#btProg').style.width = (100 * (position + within) / total) + '%';
+    $('#btMsg').textContent = 'Comparing setting ' + (position + 1) + ' / ' + total + ' · ' + status.done + ' / ' + status.total + ' sessions';
+    if (status.finished) {
+      if (status.error) throw new Error(status.error);
+      return status.result;
+    }
+    await new Promise(resolve => setTimeout(resolve, 350));
+  }
+};
+$('#btCompare').onclick = async () => {
+  if (sweepRunning) return;
+  let base;
+  try { base = collect(); } catch (e) { $('#btMsg').textContent = e.message; return; }
+  const sets = [
+    sweepValues('#sw_unit', +base.unit_value), sweepValues('#sw_vb', +base.entry_loss_filter || 0),
+    sweepValues('#sw_swv', +base.single_wins_virtual || 0), sweepValues('#sw_bc', base.banker_cover === true || base.banker_cover === 'true' ? 1 : 0),
+    sweepValues('#sw_hc', base.hard_cap_mode === 'custom' ? +base.hard_cap_units : 0), sweepValues('#sw_sl', +base.stop_loss || 0), sweepValues('#sw_tp', +base.take_profit || 0),
+  ];
+  const combos = product(sets);
+  const params = btParams();
+  if (params.source !== 'sim') { $('#btMsg').textContent = 'Compare Settings uses simulated shoes'; return; }
+  if (combos.length > 60) { $('#btMsg').textContent = 'Too many combinations (' + combos.length + '); reduce the lists to 60 or fewer'; return; }
+  if (combos.length * params.trials * params.shoes > 600000) { $('#btMsg').textContent = 'Sweep is too large; combinations × sessions × shoes must be 600,000 or less'; return; }
+  if (!(params.seed > 0)) { params.seed = Math.floor(Math.random() * 2147483646) + 1; $('#bt_seed').value = params.seed; }
+  sweepRunning = true; sweepCancel = false; $('#btCompare').disabled = true; $('#btRun').disabled = true; $('#btCancel').disabled = false; $('#btOut').innerHTML = '';
+  const rows = [];
+  try {
+    for (let i = 0; i < combos.length; i++) {
+      const [unit, vb, swv, bc, hc, sl, tp] = combos[i];
+      const settings = {...base, unit_value: unit, entry_loss_filter: Math.max(0, Math.round(vb)), single_wins_virtual: Math.max(0, Math.round(swv)), banker_cover: bc > 0,
+        hard_cap_mode: hc > 0 ? 'custom' : 'off', hard_cap_units: hc > 0 ? hc : base.hard_cap_units, stop_loss: Math.max(0, sl), take_profit: Math.max(0, tp)};
+      const started = await api('/api/backtest/start', {settings, params});
+      if (!started.ok) throw new Error(started.error || 'Could not start comparison');
+      btJob = started.id;
+      rows.push({unit, vb, swv, bc, hc, sl, tp, result: await waitBacktest(btJob, i, combos.length)});
+    }
+    rows.sort((a, b) => a.result.ruin_pct - b.result.ruin_pct || b.result.p10 - a.result.p10 || b.result.mean - a.result.mean);
+    let html = '<div class="table-container" style="max-height:360px"><table><thead><tr><th>#</th><th>Unit</th><th>VB</th><th>VSW</th><th>Cover</th><th>Cap</th><th>SL</th><th>TP</th><th>Ruin %</th><th>P10</th><th>Mean</th><th>Worst DD</th><th>Max stake</th></tr></thead><tbody>';
+    rows.forEach((x, i) => { const r=x.result; html += '<tr><td>'+(i+1)+'</td><td>'+fm(x.unit)+'</td><td>'+x.vb+'</td><td>'+x.swv+'</td><td>'+(x.bc?'on':'off')+'</td><td>'+(x.hc||'off')+'</td><td>'+x.sl+'</td><td>'+x.tp+'</td><td>'+fm(r.ruin_pct,1)+'</td><td>'+fm(r.p10,1)+'</td><td>'+fm(r.mean,1)+'</td><td>'+fm(r.mdd_worst,1)+'</td><td>'+fm(r.max_stake_worst,1)+'</td></tr>'; });
+    $('#btOut').innerHTML = html + '</tbody></table></div><div class="bt-note">Ranked by lowest ruin rate, then highest P10, then highest mean. Every row used seed '+params.seed+'.</div>';
+    $('#btMsg').textContent = 'Finished · ' + rows.length + ' combinations'; $('#btProg').style.width = '100%';
+  } catch (e) { $('#btMsg').textContent = 'Error: ' + e.message; }
+  finally { btJob = null; sweepRunning = false; $('#btCompare').disabled = false; $('#btRun').disabled = false; $('#btCancel').disabled = true; }
+};
 
 const num = (v, d) => { const x = parseFloat(v); return isNaN(x) ? d : x; };
 

@@ -34,13 +34,22 @@ try {
   const el = (selector) => driver.findElement(By.css(selector));
   const click = async (selector) => (await el(selector)).click();
   const text = async (selector) => (await el(selector)).getText();
-  const wait = (condition, message) => driver.wait(condition, 15_000, message, 150);
+  const wait = (condition, message, timeout = 15_000) => driver.wait(condition, timeout, message, 150);
   const fill = async (selector, value) => {
     const input = await el(selector);
     await input.clear();
     await input.sendKeys(value);
   };
-  const select = async (selector, value) => click(`${selector} option[value="${value}"]`);
+  const select = async (selector, value) => {
+    const changed = await driver.executeScript(`
+      const el = document.querySelector(arguments[0]);
+      if (!el) return false;
+      el.value = arguments[1];
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return el.value === arguments[1];
+    `, selector, value);
+    assert.equal(changed, true, `Could not select ${value} in ${selector}`);
+  };
 
   await driver.wait(until.elementLocated(By.id('start')), 30_000);
   await wait(async () => (await text('#miniStats')).includes('Hands 0'), 'Initial settings did not load');
@@ -80,9 +89,54 @@ try {
   pass('Replay entered through the UI finishes and replaces session history');
   await click('#btBtn');
   await wait(async () => (await el('#bt')).isDisplayed(), 'Backtest panel did not open');
+  await driver.executeScript(`
+    document.querySelector('input[name="progMode"][value="auto"]').checked = true;
+    const base = document.querySelector('#base_bet');
+    base.value = '1';
+    base.dispatchEvent(new Event('input', { bubbles: true }));
+  `);
+  assert.equal(await el('#base_bet').then(x => x.getAttribute('value')), '1');
+  await fill('#bt_shoes', '2');
+  await fill('#bt_trials', '2');
+  await click('#sweepBox summary');
+  await click('#btCompare');
+  await wait(async () => {
+    const message = await text('#btMsg');
+    if (message.startsWith('Error:')) throw new Error(message);
+    return message.startsWith('Finished');
+  }, 'Compare Settings did not finish', 60_000);
+  assert.equal((await driver.findElements(By.css('#btOut tbody tr'))).length, 1);
+  pass('Compare Settings completes a same-seed parameter sweep');
   await click('#btClose');
   await wait(async () => !(await (await el('#bt')).isDisplayed()), 'Backtest panel did not close');
   pass('Backtest panel opens and closes');
+
+  await select('#strategy', 'AME');
+  await select('#feed', 'manual');
+  await click('#start');
+  await wait(async () => (await text('#nextSub')).toLowerCase().includes('warming up'), 'AME did not enter its documented warm-up');
+  for (const result of ['B', 'B', 'B', 'B', 'B', 'B']) await click(`#manual button[data-r="${result}"]`);
+  await wait(async () => (await text('#miniStats')).includes('Hands 6 ·'), 'AME did not process six manual hands');
+  await click('#stop');
+  await wait(async () => await (await el('#start')).isEnabled(), 'AME session did not finish stopping');
+  pass('AME-AI starts, warms up and processes table results');
+
+  await select('#strategy', 'JJ');
+  await click('#start');
+  await wait(async () => !(await (await el('#start')).isEnabled()), 'JJ session did not start');
+  await wait(async () => (await text('#miniStats')).includes('JJ: cycle'), 'JJ cycle state was not shown');
+  await click('#manual button[data-r="P"]');
+  await wait(async () => (await text('#miniStats')).includes('Hands 1 ·'), 'JJ did not process a manual hand');
+  await click('#stop');
+  await wait(async () => await (await el('#start')).isEnabled(), 'JJ session did not finish stopping');
+  pass('JJ cycle strategy starts and exposes its cycle state');
+
+  await select('#strategy', 'IHG');
+  await driver.executeScript("document.querySelector('#adv').open = true");
+  assert.equal(await el('[data-key="single_wins_action"]').then((x) => x.isDisplayed()), true);
+  assert.equal(await el('[data-key="single_wins_virtual"]').then((x) => x.isDisplayed()), true);
+  assert.equal(await el('[data-key="banker_cover"]').then((x) => x.isDisplayed()), true);
+  pass('IHG advanced controls are visible in the Electron UI');
   console.log(`${passed}/${passed} Selenium desktop checks passed`);
 } catch (error) {
   console.error('FAIL', error instanceof Error ? error.stack : error);

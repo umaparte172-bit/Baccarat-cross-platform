@@ -163,8 +163,8 @@ describe('one simulated session', () => {
     expect(r.maxDrawdownUnits).toBeCloseTo(2.05, 9);
   });
 
-  it('refuses a strategy the bot cannot run yet', () => {
-    expect(() => runTrial(spec({ strategy: 'AME' }))).toThrow(/AME-AI is not available yet/);
+  it('refuses a progression the selected strategy cannot use', () => {
+    expect(() => runTrial(spec({ strategy: 'MARTINGALE', progression: 'list', chain: [1, 2] }))).toThrow(/Martingale uses one Base Unit/);
   });
 });
 

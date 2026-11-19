@@ -83,8 +83,8 @@ describe('the Backtest endpoints, driven like the page drives them', () => {
     const h = harness();
     expect((await h.post('/api/backtest/start', { settings: pageSettings(), params: pageParams({ shoes: 0 }) })).json)
       .toEqual({ ok: false, error: 'Shoes per session must be between 1 and 5000' });
-    expect((await h.post('/api/backtest/start', { settings: pageSettings({ strategy: 'JJ' }), params: pageParams() })).json)
-      .toEqual({ ok: false, error: 'JJ is not available yet - choose IHG or one of the classic strategies' });
+    expect((await h.post('/api/backtest/start', { settings: pageSettings({ strategy: 'MARTINGALE', progression: 'list', chain: [1, 2] }), params: pageParams() })).json)
+      .toEqual({ ok: false, error: 'Martingale uses one Base Unit - choose Auto Progression (Manual Sequence Input is for Sequence and the ODD strategies)' });
     expect((await h.post('/api/backtest/start', { settings: pageSettings(), params: pageParams({ source: 'paste', text: '' }) })).json.ok).toBe(false);
     expect((await h.post('/api/backtest/start', {})).json.ok).toBe(true); // empty request: defaults (500 shoes x 100 sessions)
   });

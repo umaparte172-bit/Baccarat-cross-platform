@@ -1,6 +1,6 @@
 # Electron and Selenium desktop verification
 
-The desktop application uses Electron. Selenium WebDriver now tests the actual desktop window through its visible controls. The test starts a fresh local practice session, records P/B/T results, checks history, pauses/resumes, stops, runs a replay, and opens/closes the backtest panel. It also checks that the renderer cannot access Node.js.
+The desktop application uses Electron. Selenium WebDriver tests the actual desktop window through its visible controls. The test starts a fresh local practice session, records P/B/T results, checks history, pauses/resumes, stops, runs a replay, completes a same-seed Compare Settings sweep, exercises AME-AI and JJ, verifies the advanced IHG controls, and opens/closes the backtest panel. It also checks that the renderer cannot access Node.js.
 
 This is desktop UI testing, not a migration of the existing live-table adapter. `src/live/` still contains the legacy direct DevTools connection. This change does not implement Selenium casino wagering or anti-detection features.
 

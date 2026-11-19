@@ -194,7 +194,7 @@ describe('settings the classic strategies accept and refuse', () => {
   it('refuses what it cannot honour instead of ignoring it', () => {
     expect(unsupportedReason(cfg({ strategy: 'MARTINGALE', progression: 'list', chain: [1, 2] }))).toMatch(/one Base Unit/);
     expect(unsupportedReason(cfg({ strategy: 'GRINDING', stop_consec_loss_count: 3, stop_consec_loss_action: 'WAIT FOR PATTERN' }))).toMatch(/IHG feature/);
-    expect(unsupportedReason(cfg({ strategy: 'ODD_EVEN', entry_loss_filter: 3 }))).toMatch(/Virtual Bet entry filter/);
+    expect(unsupportedReason(cfg({ strategy: 'ODD_EVEN', entry_loss_filter: 3 }))).toBeNull();
     expect(unsupportedReason(cfg({ strategy: 'SEQUENCE', progression: 'list', chain: [1, 2] }))).toBeNull();
     expect(unsupportedReason(cfg({ strategy: 'ODD_DIFF' }))).toBeNull();
     expect(normalizeSettings({ strategy: 'NOPE' }).settings.strategy).toBe('IHG');

@@ -220,9 +220,7 @@ describe('what is refused before anything runs', () => {
     ['too many sessions', { trials: LIMITS.maxTrials + 1 }, undefined, /Sessions must be between 1 and 2000/],
     ['empty paste', { source: 'paste', text: 'xyz 123 -- !' }, undefined, /Paste P \/ B \/ T results to test/],
     ['a base unit of zero', {}, { unit_value: '0' }, /Base Unit must be above 0/],
-    ['a strategy that is not built', {}, { strategy: 'AME' }, /AME-AI is not available yet/],
-    ['manual sequence', {}, { progression: 'list', chain: [1, 2] }, /Manual Sequence Input is not available for IHG/],
-    ['the entry filter', {}, { entry_loss_filter: 3 }, /Virtual Bet entry filter is not available yet/],
+    ['a progression that the selected strategy cannot use', {}, { strategy: 'MARTINGALE', progression: 'list', chain: [1, 2] }, /Martingale uses one Base Unit/],
   ];
 
   it.each(table)('refuses %s', (_name, p, s, message) => {
@@ -300,8 +298,8 @@ describe('on real worker threads', () => {
 
   it('reports a failure inside a worker instead of hanging', async () => {
     const spec: RunSpec = {
-      settings: { ...base, strategy: 'AME' }, seed: 1, trials: 2, shoes: { kind: 'sim', count: 1 }, bankrollUnits: 0,
+      settings: { ...base, strategy: 'MARTINGALE', progression: 'list', chain: [1, 2] }, seed: 1, trials: 2, shoes: { kind: 'sim', count: 1 }, bankrollUnits: 0,
     };
-    await expect(workerExecutor(2)(spec, () => {}).done).rejects.toThrow(/AME-AI is not available yet/);
+    await expect(workerExecutor(2)(spec, () => {}).done).rejects.toThrow(/Martingale uses one Base Unit/);
   }, 60_000);
 });
