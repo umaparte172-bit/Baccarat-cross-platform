@@ -41,7 +41,7 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
     browser = await startChrome(chrome!);
     table = await startMockBetting();
     await openTab(browser.port, table.pageUrl);
-    await new Promise((r) => setTimeout(r, 600));
+    await table.waitForUi();
     const target = (await listPages(browser.port)).find((p) => p.url.startsWith(table.pageUrl));
     if (!target) throw new Error('the mock table did not open');
     page = await PageSession.attach(target, 800);
@@ -135,7 +135,7 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
     table.state.mode = 'noconfirm';
     const r = await bettor().place('P', 5);
     expect(r).toMatchObject({ kind: 'unconfirmed', reason: expect.stringContaining('did not show the bet') });
-    expect(table.state.placedOn).toEqual(['player']); // exactly one attempt
+    expect(table.state.placedOn, JSON.stringify({ result: r, clicks: table.state.clicks, selected: table.state.selected })).toEqual(['player']); // exactly one attempt
   });
 
   it('says "unconfirmed" when the table shows more than was asked', async () => {

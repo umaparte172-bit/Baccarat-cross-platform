@@ -84,12 +84,15 @@ export async function startMockBetting(): Promise<MockBetting> {
     <div id="total" data-role="total">0</div><div id="balance" data-role="balance">0</div>
   </div><script>
     let generation = 0;
-    function render(s) {
+    async function render(s) {
       document.getElementById('status').textContent = s.status;
       document.getElementById('total').textContent = s.total ? '$' + s.total : '0';
       document.getElementById('balance').textContent = '$' + s.balance;
       document.getElementById('cover').style.display = s.coverBanker ? 'block' : 'none';
       document.getElementById('cover2').style.display = s.coverPlayer ? 'block' : 'none';
+      // DOM mutation alone does not mean the compositor has updated iframe hit
+      // testing. Acknowledge only after a paint, before the next test sends input.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       return fetch('/rendered', {method: 'POST', body: JSON.stringify([s.status, s.total, s.balance, s.coverBanker, s.coverPlayer])});
     }
     // This loopback-only test fixture models a UI that commits each click immediately.
