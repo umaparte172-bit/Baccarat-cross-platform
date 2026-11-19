@@ -113,9 +113,21 @@ describe('one simulated session', () => {
     expect(r.realBets).toBe(2);
   });
 
-  it('treats the session as the day for the daily limits', () => {
-    expect(runTrial(spec({ daily_take_profit: 2 }, paste(Array<Result>(30).fill('P')))).stop).toBe('daily_take_profit');
-    expect(runTrial(spec({ daily_stop_loss: 2 }, paste(losingShoe(30)))).stop).toBe('daily_stop_loss');
+  it('ignores calendar-day limits in independent backtest trials', () => {
+    expect(runTrial(spec({ daily_take_profit: 2 }, paste(Array<Result>(30).fill('P')))).stop).toBe('completed');
+    expect(runTrial(spec({ daily_stop_loss: 2 }, paste(losingShoe(30)))).stop).toBe('completed');
+  });
+
+  it('does not place an unaffordable stake or allow a negative simulated balance', () => {
+    const r = runTrial(spec({ strategy: 'MARTINGALE' }, paste(['B', 'P', 'B']), 2));
+    expect(r).toMatchObject({ stop: 'short_of_stake', pnlUnits: -1, realBets: 1, turnoverUnits: 1 });
+    const report = aggregate([r], { unitValue: 1, bankrollUnits: 2, seed: 1, shoes: 1 });
+    expect(report.ruin_pct).toBe(100);
+  });
+
+  it('applies the new-shoe reset before checking whether the next stake is affordable', () => {
+    const r = runTrial(spec({ strategy: 'MARTINGALE', shoe_change_policy: 'reset_all' }, paste(['B'], ['P']), 2));
+    expect(r).toMatchObject({ stop: 'completed', pnlUnits: 0, realBets: 2 });
   });
 
   it('reports the consecutive-loss stop with its own code', () => {
@@ -180,7 +192,6 @@ describe('a backtest session equals a live session', () => {
     ['no new runs + hard cap + low run-end', { end_shoe_policy: 'no_new_runs', end_shoe_hand: 30, hard_cap_mode: 'custom', hard_cap_units: 20, max_bet_mode: 'custom', max_bet_units: 15 }],
     ['take profit and stop loss', { take_profit: 5, stop_loss: 30 }],
     ['continue across shoes, 3 single wins', { shoe_change_policy: 'continue', single_wins_mode: 'custom', single_wins_limit: 3 }],
-    ['daily stop loss', { daily_stop_loss: 25 }],
     ['half-unit rounding', { round_step: 0.5, min_chip: 0 }],
   ];
 

@@ -14,6 +14,12 @@ export function fmt2(micro: number): string {
   return micro < 0 && cents !== 0 ? `-${text}` : text;
 }
 
+/** At least two decimals, retaining fractional cents rather than rounding away settled money. */
+export function fmtExact(micro: number): string {
+  const [whole, fraction] = (micro / MICRO).toFixed(6).split('.');
+  return whole + '.' + fraction!.replace(/0+$/, '').padEnd(2, '0');
+}
+
 /** Round a stake up to a multiple of the minimum chip (0 = no rounding). */
 export function roundUpToChip(micro: number, chipMicro: number): number {
   if (chipMicro <= 0) return micro;

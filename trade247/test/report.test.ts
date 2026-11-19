@@ -3,11 +3,29 @@ import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CSV_HEADER } from '../src/report/csv.js';
-import { latestSessionFromHistory, parseCsv } from '../src/report/table.js';
+import { latestSessionFromHistory, parseCsv, tableCsv } from '../src/report/table.js';
 import { XLSX_MIME } from '../src/report/xlsx.js';
 import { MANUAL, cleanup, harness, type Harness } from './helpers.js';
 
 afterEach(cleanup);
+
+describe('CSV locale export', () => {
+  it('preserves fractional cents and protects spreadsheet text values', () => {
+    const csv = tableCsv({ columns: [{ title: 'Balance', kind: 'money', width: 12 }, { title: 'Rule', kind: 'text', width: 20 }], rows: [[1234.095, '=1+1'], [-0.095, '2-2']] }, 'vn');
+    expect(csv).toContain("1.234,095;'=1+1");
+    expect(csv).toContain('-0,095;2-2 cycle');
+  });
+  it('serves the selected locale through the report endpoint', async () => {
+    const h = harness();
+    await h.post('/api/start', { settings: { ...MANUAL, csv_style: 'vn' } });
+    await h.post('/api/manual', { result: 'P' });
+    const csv = await h.get('/api/report?fmt=csv');
+    expect(csv.text).toContain('Time;Session;Hand');
+    expect(csv.text).toContain('1.001,00');
+    await h.post('/api/apply', { csv_style: 'plain' });
+    expect((await h.get('/api/report?fmt=csv')).text).toContain(CSV_HEADER);
+  });
+});
 
 const BASE = { unit_value: 1, min_chip: 0, start_balance: 1000 };
 const BOM = String.fromCodePoint(0xfeff);
@@ -29,6 +47,22 @@ const manualSession = async (h: Harness, letters = 'PPB') => {
 };
 
 describe('downloading the report', () => {
+  it('retains fractional-cent Banker payouts in state, both CSV styles, and Excel', async () => {
+    const h = harness();
+    await h.post('/api/start', { settings: { ...MANUAL, strategy: 'MARTINGALE', unit_value: 0.1, first_side: 'B', min_chip: 0 } });
+    await h.post('/api/manual', { result: 'B' });
+    const state = (await h.get('/api/state')).json;
+    expect(state.rows[0].session_pnl).toBe('0.095');
+    const csv = parseCsv((await h.get('/api/report?fmt=csv')).text.replace(BOM, ''));
+    expect(csv[1]![10]).toBe('0.095');
+    expect(csv[1]![12]).toBe('1000.095');
+    const ws = await sheetOf((await h.get('/api/report?fmt=xlsx')).raw);
+    expect(ws.getRow(2).getCell(11).value).toBe(0.095);
+    expect(ws.getRow(2).getCell(13).value).toBe(1000.095);
+    await h.post('/api/apply', { csv_style: 'vn' });
+    expect((await h.get('/api/report?fmt=csv')).text).toContain('1.000,095');
+  });
+
   it('serves a real .xlsx whose cells match the CSV', async () => {
     const h = harness();
     await manualSession(h);

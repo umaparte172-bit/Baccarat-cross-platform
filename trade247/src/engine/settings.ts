@@ -27,6 +27,9 @@ export interface Settings {
 
   min_chip: number;
   start_balance: number;
+  /** Optional capital limit for local practice sessions only. */
+  paper_bankroll_guard: boolean;
+  csv_style: 'plain' | 'vn';
   max_bet_mode: 'off' | 'doc' | 'custom';
   max_bet_units: number;
   hard_cap_mode: 'off' | 'custom';
@@ -109,6 +112,8 @@ export const DEFAULT_SETTINGS: Settings = {
 
   min_chip: 0.1,
   start_balance: 100,
+  paper_bankroll_guard: false,
+  csv_style: 'plain',
   max_bet_mode: 'off',
   max_bet_units: 45,
   hard_cap_mode: 'off',
@@ -240,6 +245,8 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
 
     min_chip: num(g('min_chip'), p.min_chip, 0, 1_000_000),
     start_balance: num(g('start_balance'), p.start_balance, 0, 1e9),
+    paper_bankroll_guard: flag(g('paper_bankroll_guard'), p.paper_bankroll_guard),
+    csv_style: pick(g('csv_style'), ['plain', 'vn'], p.csv_style),
     max_bet_mode: pick(g('max_bet_mode'), ['off', 'doc', 'custom'], p.max_bet_mode),
     max_bet_units: num(g('max_bet_units'), p.max_bet_units, 1, 1e6),
     hard_cap_mode: pick(g('hard_cap_mode'), ['off', 'custom'], p.hard_cap_mode),

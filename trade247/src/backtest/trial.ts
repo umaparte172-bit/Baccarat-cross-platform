@@ -13,6 +13,7 @@ export const STOP_LABELS: Record<string, string> = {
   daily_stop_loss: 'daily stop loss',
   consecutive_losses: 'consecutive losses',
   wiped_out: 'wiped out',
+  short_of_stake: 'short of stake',
 };
 
 /** What one simulated session (one "trial") produced. All money is in base units. */
@@ -37,7 +38,7 @@ export type Shoes =
 export interface TrialSpec {
   settings: Settings;
   shoes: Shoes;
-  /** The session counts as wiped out when it loses this many units (0 = unlimited bankroll). */
+  /** Available capital in units; stop before an unaffordable stake (0 = unlimited). */
   bankrollUnits: number;
   /** Number of points on the capital curve (at most). */
   curvePoints: number;
@@ -60,10 +61,11 @@ export function curveSteps(totalShoes: number, points: number): { every: number;
 
 /**
  * Play one session through the same PlayCore a live session uses. Every setting on the page applies
- * (limits, pauses, shoe policy) except keep-alive. The session is treated as one day for the daily limits.
+ * (session limits, pauses, shoe policy) except keep-alive and calendar-day limits.
  */
 export function runTrial(spec: TrialSpec): TrialResult {
-  const made = PlayCore.create(spec.settings, { keepAlive: false });
+  // Backtests have their own capital; calendar-day limits belong to interactive sessions.
+  const made = PlayCore.create({ ...spec.settings, daily_stop_loss: 0, daily_take_profit: 0 }, { keepAlive: false });
   if ('error' in made) throw new Error(made.error);
   const core = made.core;
   const unitMicro = toMicro(spec.settings.unit_value);
@@ -77,7 +79,15 @@ export function runTrial(spec: TrialSpec): TrialResult {
   let stop: keyof typeof STOP_LABELS = 'completed';
 
   const play = (result: Result, first: boolean): boolean => {
-    const played = core.play({ result, newShoe: first }, false, core.pnlMicro);
+    if (first) core.shoeChange();
+    if (bankrollMicro > 0) {
+      const intended = core.intendedBet(false);
+      if (intended && intended.stakeMicro > bankrollMicro + core.pnlMicro) {
+        stop = 'short_of_stake';
+        return false;
+      }
+    }
+    const played = core.play({ result }, false, core.pnlMicro);
     if (bankrollMicro > 0 && core.pnlMicro <= -bankrollMicro) {
       stop = 'wiped_out';
       return false;

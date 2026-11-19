@@ -99,7 +99,7 @@ describe('what ships with the program', () => {
   it('the macOS launcher starts with a shebang and the CI workflow runs the checks the guide promises', () => {
     expect(read('packaging/macos/Start-Trade247.command').startsWith('#!/bin/bash\n')).toBe(true);
     const workflow = readFileSync(new URL('../.github/workflows/trade247.yml', root), 'utf8');
-    for (const step of ['npm run typecheck', 'npm test', 'npm run package', 'npm run smoke', 'assemble-release', 'windows-latest', 'macos-14', 'codesign --verify']) {
+    for (const step of ['npm run typecheck', 'npm test', 'npm run package', 'npm run smoke', 'assemble-release', 'windows-latest', 'macos-15', 'codesign --verify']) {
       expect(workflow, step).toContain(step);
     }
   });

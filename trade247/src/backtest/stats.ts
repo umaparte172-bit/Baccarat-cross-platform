@@ -130,7 +130,7 @@ export function aggregate(input: readonly TrialResult[], info: AggregateInfo): B
     curve.p90[k] = percentile(column, 0.9);
   }
 
-  const ruined = trials.filter((t) => t.stop === 'wiped_out').length;
+  const ruined = trials.filter((t) => t.stop === 'wiped_out' || t.stop === 'short_of_stake').length;
   return {
     unit_value: info.unitValue,
     trials: n,

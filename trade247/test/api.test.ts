@@ -1,9 +1,21 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PORT, HOST, MANUAL, cleanup, harness } from './helpers.js';
 
 afterEach(cleanup);
+
+describe('practice capital', () => {
+  it('stops before an unaffordable practice stake and retains the last settled balance', async () => {
+    const h = harness();
+    await h.post('/api/start', { settings: { ...MANUAL, strategy: 'MARTINGALE', unit_value: 1, start_balance: 2, paper_bankroll_guard: true } });
+    await h.post('/api/manual', { result: 'B' });
+    await h.post('/api/manual', { result: 'P' });
+    const state = (await h.get('/api/state')).json;
+    expect(state).toMatchObject({ running: false, hands: 1, balance: 1, status: 'STOPPED (SHORT OF STAKE)' });
+  });
+});
 
 const start = (h: ReturnType<typeof harness>, settings: Record<string, unknown> = MANUAL) =>
   h.post('/api/start', { settings });
@@ -70,8 +82,10 @@ describe('page contract', () => {
 
   it('uses English number formatting', () => {
     const page = readFileSync(new URL('../ui/index.html', import.meta.url), 'utf8');
-    expect(page).toContain('1,234.56 (English format)');
-    expect(page).not.toContain('Vietnam format');
+    const formatter = page.match(/^const fm = .+$/m)![0];
+    expect(runInNewContext(formatter + ';fm(1234.56)')).toBe('1,234.56');
+    expect(runInNewContext(formatter + ';fm(1000.095)')).toBe('1,000.095');
+    expect(runInNewContext(formatter + ';fm(-0.095)')).toBe('-0.095');
   });
 });
 

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BetCoordinator, type BetHost } from './betting.js';
 import { unsupportedReason } from './engine/factory.js';
-import { fmt2, toMicro } from './engine/money.js';
+import { fmt2, fmtExact, fromMicro, toMicro } from './engine/money.js';
 import { PlayCore } from './engine/play.js';
 import { dailyLockReason, keepAliveBet, riskConfig } from './engine/risk.js';
 import { normalizeSettings, publicSettings, type Settings } from './engine/settings.js';
@@ -13,7 +13,7 @@ import { LiveFeed } from './feeds/live.js';
 import { loadProfiles, type LiveProfile } from './live/profile.js';
 import { TelegramNotifier, configProblem, type Notifier, type SendResult, type TelegramOptions } from './notify/telegram.js';
 import { LOG_FILE_NAME, appendHistory, buildCsv, type HandRecord } from './report/csv.js';
-import { latestSessionFromHistory, tableFromRecords, type Table } from './report/table.js';
+import { latestSessionFromHistory, tableFromRecords, tableCsv, type Table } from './report/table.js';
 import { buildXlsx } from './report/xlsx.js';
 import { localDay, type DayTotal, type SettingsStore } from './store/files.js';
 
@@ -23,7 +23,7 @@ export function localTime(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-const dollars = (micro: number): number => Math.round(micro / 10_000) / 100;
+const dollars = fromMicro;
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 /** The day total is written at most this often while hands stream in, and always when a session ends. */
 const DAY_WRITE_INTERVAL_MS = 1000;
@@ -39,7 +39,7 @@ export interface SessionOptions {
   telegram?: Pick<TelegramOptions, 'baseUrl' | 'timeoutMs' | 'minGapMs' | 'fetch'>;
 }
 
-const signed = (micro: number): string => `${micro > 0 ? '+' : ''}${fmt2(micro)}`;
+const signed = (micro: number): string => `${micro > 0 ? '+' : ''}${fmtExact(micro)}`;
 
 function toNextBet(plan: BetPlan, reason?: string): NextBet {
   return {
@@ -105,6 +105,8 @@ export class SessionManager {
   }
 
   // ---------------------------------------------------------------- state for the page
+
+  isRunning(): boolean { return this.running; }
 
   getState(sinceRaw: number) {
     const since = Number.isInteger(sinceRaw) && sinceRaw > 0 && sinceRaw <= this.records.length ? sinceRaw : 0;
@@ -312,6 +314,10 @@ export class SessionManager {
   }
 
   reportCsv(): string | null {
+    if (this.settings.csv_style === 'vn') {
+      const table = this.reportTable();
+      return table ? tableCsv(table, 'vn') : null;
+    }
     return this.records.length > 0 ? buildCsv(this.records) : (this.historyReport()?.csv ?? null);
   }
 
@@ -476,6 +482,18 @@ export class SessionManager {
     const core = this.core;
     if (!this.running || !core) return;
     const s = this.settings;
+    // Capital guarding is an opt-in practice feature; it never controls the external table adapter.
+    if (s.feed !== 'live' && s.paper_bankroll_guard) {
+      if (event.newShoe) {
+        this.onShoeChange();
+        event = { ...event, newShoe: false };
+      }
+      const intended = core.intendedBet(this.paused);
+      if (intended && intended.stakeMicro > toMicro(s.start_balance) + core.pnlMicro) {
+        this.finish('STOPPED (SHORT OF STAKE)');
+        return;
+      }
+    }
     if (core.startsNewShoe(event)) {
       this.shoeNo++;
       this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
@@ -495,14 +513,14 @@ export class SessionManager {
       time: localTime(when),
       pick: played.pick,
       mode: played.mode,
-      stake: fmt2(played.stakeMicro),
+      stake: fmtExact(played.stakeMicro),
       result: event.result,
       outcome: played.outcome,
       pattern: res.pattern,
       note: [res.note, hand.reason, played.keepAliveNote, decision.note].filter(Boolean).join(' · '),
       single_wins: res.singleWins,
       run_net_units: round2(res.runNetMicro / toMicro(s.unit_value)),
-      session_pnl: fmt2(core.pnlMicro),
+      session_pnl: fmtExact(core.pnlMicro),
       cards: event.cards,
       session: this.sessionNo,
     };

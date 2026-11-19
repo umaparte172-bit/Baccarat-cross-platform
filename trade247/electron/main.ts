@@ -1,7 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, Menu, safeStorage, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, Menu, powerSaveBlocker, safeStorage, shell, type MenuItemConstructorOptions } from 'electron';
+import { SessionAwake } from './awake.js';
 import { VERSION } from '../src/runtime.js';
 import { buildApp } from '../src/server/app.js';
 import { SessionManager } from '../src/session.js';
@@ -93,6 +94,9 @@ async function start(): Promise<void> {
     openFile: process.env.T247_OPEN_REPORTS === '0' ? undefined : (path) => void shell.openPath(path),
   });
   await server.listen({ host: HOST, port });
+  const awake = new SessionAwake(powerSaveBlocker);
+  const awakeTimer = setInterval(() => awake.update(manager.isRunning()), 1000);
+  awakeTimer.unref();
 
   buildMenu();
   const win = new BrowserWindow({
@@ -143,6 +147,8 @@ async function start(): Promise<void> {
   });
 
   const shutdown = async (): Promise<void> => {
+    clearInterval(awakeTimer);
+    awake.update(false);
     manager.stop();
     await manager.flushAlerts().catch(() => {});
     await server.close();

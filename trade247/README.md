@@ -13,13 +13,33 @@ chaos-filter and bounded dynamic-stake formulas; **JJ** implements all five supp
 (Martingale, Grinding, Sequence, Odd Even, ODD Diff, ODD Looser, ODD is God) are verified against the client's written
 cases and the C# reference engine; the **risk layer** (limits, pauses, keep-alive, end of shoe) is in place; **reports and
 Telegram alerts** work; the **Backtest** window runs; and the program ships as a **desktop app** (Electron) and as a
-single-file program for Windows and Apple-silicon macOS (the Windows builds are tested here; the Mac builds are made by CI
-and have not been run on a Mac yet). See the sections below.
+single-file program for Windows and Apple-silicon macOS. The preceding revision passed the macOS Electron packaging,
+signature and Selenium job; the latest local changes still require a new packaged-app test and CI run. See the sections below.
 
 The supplied client build and user guide define the finished product as an offline paper-trading simulator. The older
 experimental Live-table/CDP modules remain isolated behind explicit settings, but they are not part of the completed,
 verified scope and have not been checked against a casino. Fingerprint spoofing and bot-detection evasion are not part
 of this program.
+
+## Guide-aligned desktop additions
+
+- **P&L Chart:** hover to preview, click to pin, Escape to close. Includes cumulative profit/loss, highest/lowest points,
+  drawdown, per-hand details, range presets, zoom, drag-to-pan and an overview. Pixel buckets retain both extrema.
+- **Compare Settings:** up to 60 combinations and 500 trials per combination, limited to 600,000 combination/trial/shoe
+  iterations. Capital is entered in dollars and converted separately for each base unit. Results are in dollars and sortable;
+  **USE** copies the chosen settings to the form only. Press APPLY or START explicitly to use them.
+- **Finite backtest capital:** an unaffordable next stake ends the trial as `short of stake`; capital never becomes negative.
+  The reported capital-failure percentage includes both exhausted capital and unaffordable next stakes. Backtests ignore
+  daily limits and keep-alive; session Take Profit / Stop Loss still apply.
+- **Practice balance protection:** the optional Advanced setting stops Simulator, Manual and Replay before an unaffordable
+  stake. It defaults off for existing practice workflows and does not change the experimental live adapter.
+- **CSV format:** select English/comma or Vietnamese-style semicolon/decimal-comma exports in Advanced settings. The append-only
+  history log stays in the canonical comma format so restart recovery remains compatible. CSV, Excel and dashboard money retain
+  up to six decimal places, including fractional-cent Banker commission. Existing rounded logs cannot be reconstructed.
+- **Desktop sleep protection:** a running session prevents automatic application suspension, but not display sleep. Stopping
+  the session or closing the app releases the blocker. This cannot override a closed laptop lid or forced system sleep.
+
+Verification and delivery limitations: [current handoff](docs/current-handoff.md).
 
 ## Classic strategies
 
@@ -213,7 +233,7 @@ headers must match the local address, which blocks other web pages and DNS rebin
 ## Layout
 
 ```
-ui/index.html     the client's page (only change: English number format)
+ui/index.html     client-derived dashboard, backtest comparison and interactive P&L chart
 src/engine/       pure logic: settings, money, dealer, strategy interface, IHG engine, risk layer, PlayCore
 src/backtest/     trial runner, statistics, job manager, worker thread
 src/feeds/        simulator, manual, replay

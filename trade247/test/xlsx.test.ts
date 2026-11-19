@@ -106,7 +106,7 @@ describe('the workbook, read back by an independent library', () => {
 
     // Money is a real number with a two-decimal format, so Excel can add it up.
     expect(typeof ws.getCell('G2').value).toBe('number');
-    expect(ws.getCell('G2').numFmt).toBe('0.00');
+    expect(ws.getCell('G2').numFmt).toBe('#,##0.00####');
     expect(ws.getCell('K3').value).toBe(-2);
     expect(ws.getCell('M3').value).toBe(999);
     expect(ws.getCell('B2').numFmt).not.toBe('0.00');

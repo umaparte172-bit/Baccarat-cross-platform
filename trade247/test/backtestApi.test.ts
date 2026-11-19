@@ -61,14 +61,14 @@ describe('the Backtest endpoints, driven like the page drives them', () => {
     expect(r.mdd_worst).toBeLessThan(5);
   });
 
-  it('counts sessions wiped out when a bankroll is set', async () => {
+  it('counts capital-limited sessions without allowing negative balances', async () => {
     const h = harness();
     const id = (await h.post('/api/backtest/start', { settings: pageSettings(), params: pageParams({ trials: 30, shoes: 100, bankroll_units: 20 }) })).json.id;
     const r = (await finished(h, id)).result;
     expect(r.bankroll_units).toBe(20);
     expect(r.ruin_pct).toBeGreaterThan(0);
-    expect(r.stops['wiped out']).toBe(Math.round((r.ruin_pct / 100) * 30));
-    expect(r.worst).toBeLessThanOrEqual(-20);
+    expect((r.stops['wiped out'] ?? 0) + (r.stops['short of stake'] ?? 0)).toBe(Math.round((r.ruin_pct / 100) * 30));
+    expect(r.worst).toBeGreaterThanOrEqual(-20);
   });
 
   it('runs pasted results', async () => {

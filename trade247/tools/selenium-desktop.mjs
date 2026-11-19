@@ -87,6 +87,15 @@ try {
   await wait(async () => (await text('#status')).startsWith('STOPPED') && (await text('#miniStats')).includes('Hands 6 ·'), 'Replay did not finish all six hands');
   assert.equal((await driver.findElements(By.css('#rows tr'))).length, 6);
   pass('Replay entered through the UI finishes and replaces session history');
+  await click('#pnlChartBtn');
+  await wait(async () => (await text('#chartStats')).includes('Hands 6'), 'P&L chart did not show the replay');
+  assert.match(await text('#chartStats'), /Highest .*Lowest .*Largest fall/);
+  await click('#chartZoomIn');
+  await click('[data-chart-range="0"]');
+  assert.equal(await driver.executeScript('return document.querySelector("#chartMain").width > 0'), true);
+  await click('#chartClose');
+  assert.equal(await (await el('#pnlChart')).isDisplayed(), false);
+  pass('P&L chart shows all replay hands and supports zoom, range and close');
   await click('#btBtn');
   await wait(async () => (await el('#bt')).isDisplayed(), 'Backtest panel did not open');
   await driver.executeScript(`
@@ -99,15 +108,26 @@ try {
   await fill('#bt_shoes', '2');
   await fill('#bt_trials', '2');
   await click('#sweepBox summary');
+  await fill('#sw_unit', '1, 2');
+  await fill('#sw_capital', '1000');
   await click('#btCompare');
   await wait(async () => {
     const message = await text('#btMsg');
     if (message.startsWith('Error:')) throw new Error(message);
     return message.startsWith('Finished');
   }, 'Compare Settings did not finish', 60_000);
-  assert.equal((await driver.findElements(By.css('#btOut tbody tr'))).length, 1);
-  pass('Compare Settings completes a same-seed parameter sweep');
-  await click('#btClose');
+  assert.equal((await driver.findElements(By.css('#btOut tbody tr'))).length, 2);
+  assert.equal((await text('#btOut')).includes('NaN'), false);
+  await click('#btOut [data-sort="unit"]');
+  assert.equal(await text('#btOut tbody tr:first-child td:nth-child(2)'), '1.00');
+  await click('#btOut [data-sort="unit"]');
+  assert.equal(await text('#btOut tbody tr:first-child td:nth-child(2)'), '2.00');
+  await driver.executeScript('document.querySelector("#btOut tbody tr:first-child [data-use]").scrollIntoView({block:"center"})');
+  await click('#btOut tbody tr:first-child [data-use]');
+  assert.equal(await el('#base_bet').then(x => x.getAttribute('value')), '2');
+  assert.equal(await driver.executeScript('return cur.settings.unit_value'), 1, 'USE must not apply settings to the session');
+  await fill('#base_bet', '1');
+  pass('Compare Settings sorts USD results and USE copies without applying');
   await wait(async () => !(await (await el('#bt')).isDisplayed()), 'Backtest panel did not close');
   pass('Backtest panel opens and closes');
 
@@ -136,6 +156,8 @@ try {
   assert.equal(await el('[data-key="single_wins_action"]').then((x) => x.isDisplayed()), true);
   assert.equal(await el('[data-key="single_wins_virtual"]').then((x) => x.isDisplayed()), true);
   assert.equal(await el('[data-key="banker_cover"]').then((x) => x.isDisplayed()), true);
+  assert.equal(await el('[data-key="csv_style"]').then((x) => x.isDisplayed()), true);
+  assert.equal(await el('[data-key="paper_bankroll_guard"]').then((x) => x.isDisplayed()), true);
   pass('IHG advanced controls are visible in the Electron UI');
   console.log(`${passed}/${passed} Selenium desktop checks passed`);
 } catch (error) {

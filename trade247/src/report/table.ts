@@ -1,4 +1,4 @@
-import { fmt2 } from '../engine/money.js';
+import { fromMicro } from '../engine/money.js';
 import { CSV_HEADER, betLabel, type HandRecord } from './csv.js';
 
 export type CellKind = 'text' | 'int' | 'money';
@@ -14,6 +14,26 @@ export interface Column {
 export interface Table {
   columns: Column[];
   rows: Cell[][];
+}
+
+/** Export numbers in the user's Excel locale while retaining numeric precision. */
+export function tableCsv(table: Table, style: 'plain' | 'vn'): string {
+  const separator = style === 'vn' ? ';' : ',';
+  const quote = (value: string): string => {
+    const safe = /^[=+@\-]/.test(value) ? "'" + value : value;
+    return safe.includes(separator) || /["\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
+  const format = (cell: Cell, index: number): string => {
+    if (typeof cell === 'number') {
+      const places = table.columns[index]?.kind === 'money' ? 2 : 0;
+      return style === 'vn'
+        ? cell.toLocaleString('de-DE', { minimumFractionDigits: places, maximumFractionDigits: 6 })
+        : String(cell);
+    }
+    const text = style === 'vn' ? cell.replace(/^(\d{4})-(\d{2})-(\d{2}) /, '$3/$2/$1 ') : cell;
+    return quote(text.replace(/\b2-2\b(?! cycle)/g, '2-2 cycle'));
+  };
+  return [table.columns.map(c => quote(c.title)).join(separator), ...table.rows.map(row => row.map(format).join(separator))].join('\r\n') + '\r\n';
 }
 
 /** The report's columns; the CSV header (csv.ts) must list the same titles in the same order. */
@@ -40,7 +60,7 @@ export function tableFromRecords(records: readonly HandRecord[]): Table {
     const bet = betLabel(row);
     return [
       row.time, row.session, row.n, strategy, bet, row.mode, Number(row.stake), NAMES[row.result], row.outcome,
-      [row.pattern, row.note].filter(Boolean).join(' · '), Number(fmt2(pnlMicro)), Number(row.session_pnl), Number(fmt2(balanceMicro)),
+      [row.pattern, row.note].filter(Boolean).join(' · '), fromMicro(pnlMicro), Number(row.session_pnl), fromMicro(balanceMicro),
     ];
   });
   return { columns: COLUMNS, rows };

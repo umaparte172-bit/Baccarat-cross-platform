@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { fmt2 } from '../engine/money.js';
+import { fmtExact } from '../engine/money.js';
 import type { Row } from '../engine/types.js';
 
 /** A history row plus the figures the log needs but the page does not. */
@@ -33,7 +33,7 @@ export function csvLine(r: HandRecord): string {
   const rule = [row.pattern, row.note].filter(Boolean).join(' · ');
   return [
     row.time, row.session, row.n, r.strategy, bet, row.mode, row.stake, NAMES[row.result], row.outcome,
-    rule, fmt2(r.pnlMicro), row.session_pnl, fmt2(r.balanceMicro),
+    rule, fmtExact(r.pnlMicro), row.session_pnl, fmtExact(r.balanceMicro),
   ].map(cell).join(',');
 }
 
