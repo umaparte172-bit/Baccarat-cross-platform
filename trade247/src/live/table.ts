@@ -66,8 +66,11 @@ export interface TargetCheck {
 }
 
 /** Called with the element as `this`: scrolls it into view and reports whether a click would reach it. */
-export const CHECK_TARGET = `function(){
-  this.scrollIntoView({block:'center',inline:'center'});
+export const CHECK_TARGET = `async function(){
+  this.scrollIntoView({block:'center',inline:'center',behavior:'instant'});
+  // Scrolling can move ancestor frames too. Wait for the compositor before
+  // measuring and sending input; a DOM rect can precede the hit-test update.
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   var r=this.getBoundingClientRect();
   var visible=r.width>0&&r.height>0;
   var disabled=!!(this.disabled||this.getAttribute('aria-disabled')==='true');

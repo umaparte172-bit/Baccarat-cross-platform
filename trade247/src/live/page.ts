@@ -190,7 +190,7 @@ export class PageSession {
     const objectId: string | undefined = found.result?.objectId;
     if (!objectId) throw new CdpError(`Cannot find "${selector}" on the table`);
 
-    const checked = await send<any>(frame.session, 'Runtime.callFunctionOn', { objectId, functionDeclaration: CHECK_TARGET, returnByValue: true });
+    const checked = await send<any>(frame.session, 'Runtime.callFunctionOn', { objectId, functionDeclaration: CHECK_TARGET, returnByValue: true, awaitPromise: true });
     const check = checked.result?.value as TargetCheck | undefined;
     if (!check?.visible) throw new CdpError(`"${selector}" is not visible`);
     if (check.disabled) throw new CdpError(`"${selector}" is disabled`);

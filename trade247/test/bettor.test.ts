@@ -99,6 +99,23 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
     expect(clickLog()).toEqual(['chip:0.1', 'player', 'player', 'player']);
   });
 
+  it('waits for scrolling frames before clicking even when the page enables smooth scrolling', async () => {
+    await page.evaluateEverywhere("document.documentElement.style.scrollBehavior = 'smooth'");
+    try {
+      for (const side of ['B', 'P', 'B', 'P'] as const) {
+        table.state.total = 0;
+        await table.waitForUi();
+        expect(await bettor().place(side, 7)).toMatchObject({ kind: 'accepted', total: 7 });
+      }
+      expect(table.state.placedOn).toEqual([
+        'banker', 'banker', 'banker', 'player', 'player', 'player',
+        'banker', 'banker', 'banker', 'player', 'player', 'player',
+      ]);
+    } finally {
+      await page.evaluateEverywhere("document.documentElement.style.scrollBehavior = ''");
+    }
+  });
+
   it('does not touch the table when the window is closed', async () => {
     table.state.open = false;
     table.state.status = 'BETS CLOSED';
