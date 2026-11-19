@@ -46,9 +46,12 @@ obsolete smoke assertion for a removed English-format label. The latter was repr
 the actual number formatter; the rebuilt Windows command-line package now passes all 20 smoke checks. Its mock-table
 acknowledgement race was also corrected. The macOS assertion now includes click/result diagnostics to identify its cause.
 
-Those latest two test changes and this handoff remain uncommitted: local Git repeatedly reports `unable to write new
-index file` even with approved access. No index permissions were altered. A new CI run is still required after the
-workspace permission problem is resolved; the overall release workflow is not yet green.
+The workspace permission problem subsequently cleared without changing index permissions; those fixes were pushed
+in `bd5ed79`. In run 44576516790 the Windows command-line package passed all checks. Additional diagnostics exposed
+a missed chip-selection event in the fast (5–15 ms gap) mock test and a test starting before the browser rendered its
+closed status. The test fixture now acknowledges rendered state explicitly, and the direct-click suite uses a fixed
+60 ms gap (the production minimum) instead of sub-frame input timings. Production adapters and strategy rules are
+unchanged. A new full CI run must verify these follow-up changes before the overall release can be called green.
 
 ### Earlier investigation
 

@@ -45,6 +45,8 @@ export interface MockBetting {
     placedOn: string[];
   };
   pageUrl: string;
+  /** Wait until the browser has rendered the current status, total and overlays. */
+  waitForUi: () => Promise<void>;
   stop: () => Promise<void>;
 }
 
@@ -59,6 +61,8 @@ export async function startMockBetting(): Promise<MockBetting> {
     open: true, status: 'PLACE YOUR BETS', total: 0, balance: 1000, mode: 'normal', cells: [], selected: null,
     clicks: [], coverBanker: false, coverPlayer: false, placedOn: [],
   };
+  const uiState = (s: typeof state) => JSON.stringify([s.status, s.total, s.balance, s.coverBanker, s.coverPlayer]);
+  let renderedState = '';
 
   const readBody = (req: IncomingMessage): Promise<string> =>
     new Promise((resolve) => {
@@ -85,6 +89,7 @@ export async function startMockBetting(): Promise<MockBetting> {
       document.getElementById('balance').textContent = '$' + s.balance;
       document.getElementById('cover').style.display = s.coverBanker ? 'block' : 'none';
       document.getElementById('cover2').style.display = s.coverPlayer ? 'block' : 'none';
+      return fetch('/rendered', {method: 'POST', body: JSON.stringify([s.status, s.total, s.balance, s.coverBanker, s.coverPlayer])});
     }
     // This loopback-only test fixture models a UI that commits each click immediately.
     // Serial synchronous requests prevent chip selection and placement being reordered,
@@ -103,7 +108,7 @@ export async function startMockBetting(): Promise<MockBetting> {
       const before = generation;
       try {
         const s = await (await fetch('/state')).json();
-        if (before === generation) render(s);
+        if (before === generation) await render(s);
       } catch (e) {}
       setTimeout(tick, 40);
     }
@@ -124,6 +129,9 @@ export async function startMockBetting(): Promise<MockBetting> {
     if (url === '/state') {
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ status: state.status, total: state.total, balance: state.balance, cells: state.cells, coverBanker: state.coverBanker, coverPlayer: state.coverPlayer }));
+    } else if (url === '/rendered' && req.method === 'POST') {
+      renderedState = await readBody(req);
+      res.end('ok');
     } else if (url === '/click' && req.method === 'POST') {
       const c = JSON.parse(await readBody(req)) as Click;
       state.clicks.push(c);
@@ -160,6 +168,13 @@ export async function startMockBetting(): Promise<MockBetting> {
   return {
     state,
     pageUrl: `http://127.0.0.1:${outerPort}/`,
+    waitForUi: async () => {
+      const deadline = Date.now() + 5000;
+      while (renderedState !== uiState(state)) {
+        if (Date.now() > deadline) throw new Error(`Mock UI did not render ${uiState(state)}; last rendered ${renderedState}`);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    },
     stop: async () => {
       inner.closeAllConnections();
       outer.closeAllConnections();

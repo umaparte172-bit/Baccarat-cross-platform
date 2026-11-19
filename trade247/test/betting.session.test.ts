@@ -61,8 +61,8 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
 
   beforeEach(async () => {
     const s = table.state;
-    Object.assign(s, { open: true, status: 'PLACE YOUR BETS', total: 0, selected: null, clicks: [], placedOn: [], mode: 'normal', coverBanker: false, cells: [] });
-    await sleep(250);
+    Object.assign(s, { open: true, status: 'PLACE YOUR BETS', total: 0, selected: null, clicks: [], placedOn: [], mode: 'normal', coverBanker: false, coverPlayer: false, cells: [] });
+    await table.waitForUi();
   });
 
   const session = () => {
@@ -224,7 +224,7 @@ describe.skipIf(!chrome)('betting through the program, on a mock table in a real
     const h = session();
     table.state.open = false;
     table.state.status = 'BETS CLOSED';
-    await sleep(300);
+    await table.waitForUi();
     await h.post('/api/start', { settings: settings() });
     await sleep(1500);
     expect(table.state.clicks).toHaveLength(0); // nothing is clicked while bets are closed

@@ -64,19 +64,13 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
     s.mode = 'normal';
     s.coverBanker = false;
     s.coverPlayer = false;
-    // The page follows the table's state a few times a second: wait until it shows the reset state.
-    const end = Date.now() + 5000;
-    for (;;) {
-      const snap = await page.readWindow(betting).catch(() => null);
-      if (snap && snap.reading.open && snap.reading.total === 0 && !table.state.coverBanker && !table.state.coverPlayer) break;
-      if (Date.now() > end) break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    await new Promise((r) => setTimeout(r, 60));
+    await table.waitForUi();
   });
 
   const bettor = (extra: ConstructorParameters<typeof TableBettor>[2] = {}) =>
-    new TableBettor(page, betting, { clickGapMs: [5, 15], confirmMs: 2500, ...extra });
+    // Exercise correctness, not sub-frame input throughput. Use the production
+    // minimum gap deterministically so hosted browser compositors can process input.
+    new TableBettor(page, betting, { clickGapMs: [60, 60], confirmMs: 2500, ...extra });
   const clickLog = () => table.state.clicks.map((c) => (c.value ? `${c.target}:${c.value}` : c.target));
 
   it('reads the window in a frame inside a frame from another site', async () => {
@@ -108,7 +102,7 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
   it('does not touch the table when the window is closed', async () => {
     table.state.open = false;
     table.state.status = 'BETS CLOSED';
-    await new Promise((r) => setTimeout(r, 200));
+    await table.waitForUi();
     const r = await bettor().place('P', 5);
     expect(r).toMatchObject({ kind: 'rejected', reason: expect.stringContaining('not open') });
     expect(table.state.clicks).toHaveLength(0);
@@ -116,7 +110,7 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
 
   it('does not place a second bet on top of one already on the table', async () => {
     table.state.total = 5;
-    await new Promise((r) => setTimeout(r, 200));
+    await table.waitForUi();
     const r = await bettor().place('P', 5);
     expect(r).toEqual({ kind: 'rejected', reason: 'A bet is already on the table' });
     expect(table.state.clicks).toHaveLength(0);
@@ -131,7 +125,7 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
 
   it('reports nothing placed when a spot cannot be clicked (covered by something else)', async () => {
     table.state.coverBanker = true;
-    await new Promise((r) => setTimeout(r, 200));
+    await table.waitForUi();
     const r = await bettor().place('B', 5);
     expect(r).toMatchObject({ kind: 'rejected', reason: expect.stringContaining('covered') });
     expect(table.state.placedOn).toEqual([]);
