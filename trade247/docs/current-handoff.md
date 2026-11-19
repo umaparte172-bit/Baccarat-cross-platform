@@ -36,6 +36,22 @@ The UI logic tests use test doubles; the Selenium tests additionally verify nati
 
 ## Delivery
 
+### Latest follow-up
+
+GitHub access was restored and commits through `f8bf9a3` were pushed. In
+[run 44560401434](https://github.com/umaparte172-bit/Baccarat-cross-platform/actions/runs/44560401434),
+Linux verification and both Electron desktop jobs passed, including macOS signing verification, smoke and Selenium.
+The separate command-line package jobs still failed: macOS at the mock Banker-click assertion, and Windows at an
+obsolete smoke assertion for a removed English-format label. The latter was reproduced locally and fixed to execute
+the actual number formatter; the rebuilt Windows command-line package now passes all 20 smoke checks. Its mock-table
+acknowledgement race was also corrected. The macOS assertion now includes click/result diagnostics to identify its cause.
+
+Those latest two test changes and this handoff remain uncommitted: local Git repeatedly reports `unable to write new
+index file` even with approved access. No index permissions were altered. A new CI run is still required after the
+workspace permission problem is resolved; the overall release workflow is not yet green.
+
+### Earlier investigation
+
 The application changes and original CI assertion fix were pushed in `ab6e016`.
 Both desktop packages were produced and tested in [run 44542811417](https://github.com/umaparte172-bit/Baccarat-cross-platform/actions/runs/44542811417).
 That run exposed additional timing races in the local mock fixture used by the full test jobs; the fixture now serializes

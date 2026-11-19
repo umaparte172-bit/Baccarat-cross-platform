@@ -95,7 +95,7 @@ describe.skipIf(!chrome)('placing bets in a real Chrome', () => {
 
   it('puts a Banker bet on the Banker spot (the click lands where the element is, through two frames)', async () => {
     const result = await bettor().place('B', 125);
-    expect(result).toMatchObject({ kind: 'accepted', total: 125 });
+    expect(result, JSON.stringify({ result, clicks: table.state.clicks, total: table.state.total })).toMatchObject({ kind: 'accepted', total: 125 });
     expect(clickLog()).toEqual(['chip:100', 'banker', 'chip:25', 'banker']);
     expect(table.state.placedOn).toEqual(['banker', 'banker']);
   });

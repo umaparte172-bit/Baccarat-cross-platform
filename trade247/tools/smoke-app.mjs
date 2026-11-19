@@ -12,6 +12,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const os = { win32: 'win', darwin: 'macos', linux: 'linux' }[process.platform] ?? process.platform;
@@ -212,8 +213,12 @@ async function bettingWithChrome(chromePath, json, waitFor, dataFolder) {
     await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(`http://127.0.0.1:${outer.address().port}/`)}`, { method: 'PUT' });
     const started = await json('/api/start', { settings: { feed: 'live', live_port: port, bet_mode: 'auto', bet_max_stake: 10, bet_max_session: 50, bet_delay_min: 0, bet_delay_max: 0, unit_value: 1, min_chip: 1, start_balance: 1000 } });
     if (!started.ok) return { ok: false, detail: JSON.stringify(started) };
-    await waitFor(async () => (state.total === 1 ? true : null), 20_000, 'the bet to appear on the table');
-    const bet = await json('/api/state?since=0');
+    // The mock server sees the click before the packaged app reads its confirmation.
+    // Wait for both sides of that handshake rather than sampling app state too early.
+    const bet = await waitFor(async () => {
+      const snapshot = await json('/api/state?since=0');
+      return state.total === 1 && snapshot.bet?.on_table === true ? snapshot : null;
+    }, 20_000, 'the mock bet and application acknowledgement');
     await json('/api/stop', {});
     const trusted = state.clicks.length >= 2 && state.clicks.every((c) => c.trusted);
     return { ok: trusted && bet.bet?.on_table === true, detail: `clicks ${JSON.stringify(state.clicks)}, on_table ${bet.bet?.on_table}` };
@@ -238,7 +243,10 @@ try {
   const page = await fetch(base + '/');
   const html = await page.text();
   check('serves the embedded page', page.status === 200 && html.includes('TRADE247-V1') && html.includes('BACKTEST'));
-  check('the page has the English number format', html.includes('1,234.56 (English format)'));
+  const formatter = html.match(/^const fm = .+$/m)?.[0];
+  check('the page formats English numbers without losing fractional cents', !!formatter &&
+    runInNewContext(`${formatter};fm(1234.56)`) === '1,234.56' &&
+    runInNewContext(`${formatter};fm(1000.095)`) === '1,000.095');
   check('hardens the page (CSP, no framing)', (page.headers.get('content-security-policy') ?? '').includes("frame-ancestors 'none'") && page.headers.get('x-frame-options') === 'DENY');
   check('refuses API calls without the header', (await fetch(base + '/api/state')).status === 403);
   check('refuses an unexpected Host', (await statusWithHost(port, 'evil.example')) === 403);
