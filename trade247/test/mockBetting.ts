@@ -64,6 +64,9 @@ export async function startMockBetting(): Promise<MockBetting> {
   const uiState = (s: typeof state) => JSON.stringify([s.status, s.total, s.balance, s.coverBanker, s.coverPlayer]);
   let renderedState = '';
   let renderedCells = '';
+  let revision = 0;
+  let renderedRevision = -1;
+  let roadRevision = -1;
 
   const readBody = (req: IncomingMessage): Promise<string> =>
     new Promise((resolve) => {
@@ -93,7 +96,7 @@ export async function startMockBetting(): Promise<MockBetting> {
       // DOM mutation alone does not mean the compositor has updated iframe hit
       // testing. Acknowledge only after a paint, before the next test sends input.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      return fetch('/rendered', {method: 'POST', body: JSON.stringify([s.status, s.total, s.balance, s.coverBanker, s.coverPlayer])});
+      return fetch('/rendered', {method: 'POST', body: JSON.stringify({revision:s.revision, state:[s.status, s.total, s.balance, s.coverBanker, s.coverPlayer]})});
     }
     // This loopback-only test fixture models a UI that commits each click immediately.
     // Serial synchronous requests prevent chip selection and placement being reordered,
@@ -125,7 +128,7 @@ export async function startMockBetting(): Promise<MockBetting> {
     <script>
       async function tick(){try{const s=await(await fetch('/state')).json();
         document.getElementById('road').innerHTML=s.cells.map(c=>'<div data-role="roadItem">'+c+'</div>').join('');
-        await fetch('/road-rendered', {method:'POST', body:JSON.stringify(s.cells)});
+        await fetch('/road-rendered', {method:'POST', body:JSON.stringify({revision:s.revision, cells:s.cells})});
       }catch(e){} setTimeout(tick,40);}
       tick();
     </script></body>`;
@@ -134,12 +137,20 @@ export async function startMockBetting(): Promise<MockBetting> {
     const url = req.url ?? '/';
     if (url === '/state') {
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ status: state.status, total: state.total, balance: state.balance, cells: state.cells, coverBanker: state.coverBanker, coverPlayer: state.coverPlayer }));
+      res.end(JSON.stringify({ revision, status: state.status, total: state.total, balance: state.balance, cells: state.cells, coverBanker: state.coverBanker, coverPlayer: state.coverPlayer }));
     } else if (url === '/rendered' && req.method === 'POST') {
-      renderedState = await readBody(req);
+      const ack = JSON.parse(await readBody(req));
+      if (ack.revision >= renderedRevision) {
+        renderedRevision = ack.revision;
+        renderedState = JSON.stringify(ack.state);
+      }
       res.end('ok');
     } else if (url === '/road-rendered' && req.method === 'POST') {
-      renderedCells = await readBody(req);
+      const ack = JSON.parse(await readBody(req));
+      if (ack.revision >= roadRevision) {
+        roadRevision = ack.revision;
+        renderedCells = JSON.stringify(ack.cells);
+      }
       res.end('ok');
     } else if (url === '/click' && req.method === 'POST') {
       const c = JSON.parse(await readBody(req)) as Click;
@@ -155,7 +166,7 @@ export async function startMockBetting(): Promise<MockBetting> {
         }
       }
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(state));
+      res.end(JSON.stringify({ ...state, revision: ++revision }));
     } else if (url === '/ui') {
       res.setHeader('content-type', 'text/html');
       res.end(ui);
@@ -178,8 +189,11 @@ export async function startMockBetting(): Promise<MockBetting> {
     state,
     pageUrl: `http://127.0.0.1:${outerPort}/`,
     waitForUi: async () => {
+      // Matching values from an earlier round are not proof that this reset was
+      // rendered. Require both frames to acknowledge a fresh server revision.
+      const expectedRevision = ++revision;
       const deadline = Date.now() + 5000;
-      while (renderedState !== uiState(state) || renderedCells !== JSON.stringify(state.cells)) {
+      while (renderedRevision < expectedRevision || roadRevision < expectedRevision || renderedState !== uiState(state) || renderedCells !== JSON.stringify(state.cells)) {
         if (Date.now() > deadline) throw new Error(`Mock UI did not render ${uiState(state)}, road ${JSON.stringify(state.cells)}; last rendered ${renderedState}, road ${renderedCells}`);
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
