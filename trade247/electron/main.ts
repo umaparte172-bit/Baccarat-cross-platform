@@ -63,7 +63,7 @@ function keychain(): SecretBox | undefined {
   };
 }
 
-function buildMenu(): void {
+function buildMenu(origin: string): void {
   const mac = process.platform === 'darwin';
   const template: MenuItemConstructorOptions[] = [
     ...(mac ? [{ role: 'appMenu' } as MenuItemConstructorOptions] : []),
@@ -71,6 +71,8 @@ function buildMenu(): void {
       label: 'File',
       submenu: [
         { label: 'Open data folder', click: () => void shell.openPath(dataDir) },
+        // The same server the window shows is reachable from any browser on this computer.
+        { label: `Open in browser (${origin})`, click: () => void shell.openExternal(`${origin}/`) },
         { type: 'separator' },
         mac ? { role: 'close' } : { role: 'quit' },
       ],
@@ -94,11 +96,14 @@ async function start(): Promise<void> {
     openFile: process.env.T247_OPEN_REPORTS === '0' ? undefined : (path) => void shell.openPath(path),
   });
   await server.listen({ host: HOST, port });
+  // Same as the command-line program: the server is running and can also be opened in a browser.
+  console.log(`TRADE247-V1 ${VERSION} is running at ${origin}/ (desktop window opening; the address also works in a browser)`);
+  console.log(`Data folder: ${dataDir}`);
   const awake = new SessionAwake(powerSaveBlocker);
   const awakeTimer = setInterval(() => awake.update(manager.isRunning()), 1000);
   awakeTimer.unref();
 
-  buildMenu();
+  buildMenu(origin);
   const win = new BrowserWindow({
     width: 1360,
     height: 860,
@@ -106,7 +111,7 @@ async function start(): Promise<void> {
     minHeight: 640,
     backgroundColor: '#0b1220',
     icon: join(__dirname, 'assets', 'icon.png'),
-    title: `TRADE247-V1 ${VERSION}`,
+    title: `TRADE247-V1 ${VERSION} - ${origin}`,
     show: !SMOKE,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, devTools: !app.isPackaged },
   });

@@ -4,6 +4,22 @@ A local baccarat strategy bot with the client's page as its interface, shipped a
 single-file program for Windows and Apple-silicon macOS. Starting the app starts its own local server and opens the
 window; the bot itself waits for START.
 
+## Run it from source with one double-click
+
+| | |
+|---|---|
+| Windows | double-click **`Start-TRADE247.bat`** |
+| macOS | double-click **`Start-TRADE247.command`** (if macOS refuses a downloaded copy: `bash Start-TRADE247.command` in Terminal) |
+
+The script finds Node.js 22+ (and offers to install it with winget or Homebrew if it is missing), downloads the
+packages with `npm ci` the first time (and again whenever `package-lock.json` changes; it retries a dropped download),
+then builds and starts the desktop app. The app runs the local server at **http://127.0.0.1:8247** and shows it in
+its window; the same address also works in a browser (**File > Open in browser**). Close the window to stop it.
+
+Options: `server` runs only the server and opens the page in your browser (the same as `npm run dev`);
+`check` installs if needed, builds, and self-tests the app without a window (CI runs this on Windows and macOS from a
+fresh checkout). The packaged app (installer, `.dmg`) behaves the same way: server and window in one program.
+
 ```
 trade247/    The product: engine, strategies, risk layer, live table, betting, reports, Telegram, backtest, packaging.
 docs/        The delivery plan, what is still needed from the client, what the original application tells us.
