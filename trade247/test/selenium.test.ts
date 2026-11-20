@@ -90,6 +90,8 @@ describe.skipIf(!chrome || !driverPath)('the Selenium driver on a table in a rea
     const tab = (await selenium.tabs()).find((t) => t.url.startsWith(table.pageUrl));
     if (!tab) throw new Error('the mock table tab was not found through Selenium');
     page = new SeleniumPage(selenium, tab.handle, tab.url);
+    // A tab in the background stops painting; the table has to be the one in front, as it is for a user.
+    await page.bringToFront();
   }, 60_000);
 
   afterAll(async () => {
@@ -106,6 +108,18 @@ describe.skipIf(!chrome || !driverPath)('the Selenium driver on a table in a rea
 
   const bettor = () => new TableBettor(page, betting, { clickGapMs: [60, 60], confirmMs: 2500 });
   const clickLog = () => table.state.clicks.map((c) => (c.value ? `${c.target}:${c.value}` : c.target));
+
+  it('lists the tabs without switching to them (a switch would bring a tab to the front)', async () => {
+    await openTab(browser.port, 'about:blank');
+    const front = async () => (await listPages(browser.port))[0]!.id;
+    const before = await front();
+    const tabs = await selenium.tabs();
+    expect(tabs.map((t) => t.handle)).toContain(page.handle);
+    expect(tabs.find((t) => t.handle === page.handle)!.url).toBe(page.url);
+    expect(await front()).toBe(before);
+    await page.bringToFront();
+    expect(await front()).toBe(page.handle);
+  });
 
   it('reads the road and the betting window in a frame inside a frame from another site', async () => {
     const road = await page.readRoad(profile);

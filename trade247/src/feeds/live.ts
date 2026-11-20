@@ -282,8 +282,12 @@ export class LiveFeed implements Feed {
     const candidates = this.options.profiles ?? [this.options.profile];
     const checked: string[] = [];
     const providers = new Set<string>();
+    // Reading a tab through WebDriver brings it to the front: skip empty tabs, and put the user's tab back afterwards.
+    let switched = false;
     for (const tab of tabs) {
+      if (/^(about:|chrome:\/\/|edge:\/\/)/i.test(tab.url)) continue;
       if (!candidates.some((p) => !p.hostContains || tab.url.toLowerCase().includes(p.hostContains.toLowerCase()))) continue;
+      switched = true;
       const page = new SeleniumPage(browser, tab.handle, tab.url);
       try {
         for (const profile of candidates) {
@@ -299,6 +303,7 @@ export class LiveFeed implements Feed {
       for (const p of page.providers()) providers.add(p);
       page.close();
     }
+    if (switched && tabs[0]) await browser.restore(tabs[0].handle);
     this.noTable(noTableReason(this.options.port, checked, [...providers]));
     return null;
   }

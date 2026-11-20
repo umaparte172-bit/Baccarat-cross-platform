@@ -78,28 +78,44 @@ export class SeleniumBrowser {
   readonly lock = new Lock();
   closed = false;
 
-  constructor(readonly driver: WebDriver) {}
+  constructor(
+    readonly driver: WebDriver,
+    /** Chrome's debugging port: lists tabs without switching to them. */
+    readonly port = 0,
+  ) {}
 
   static async connect(port: number, chromedriverPath: string, connect: SeleniumConnect = connectSelenium): Promise<SeleniumBrowser> {
     await loadSelenium();
-    return new SeleniumBrowser(await connect(port, chromedriverPath));
+    return new SeleniumBrowser(await connect(port, chromedriverPath), port);
   }
 
-  /** The open tabs and their addresses. */
+  /**
+   * The open tabs and their addresses, most recently used first. Switching to a tab in WebDriver brings it to the
+   * front, so the addresses come from Chrome's tab list (ChromeDriver's window handles are those tabs' ids) and no
+   * tab is switched to just to be listed.
+   */
   tabs(): Promise<Array<{ handle: string; url: string }>> {
     return this.lock.run(async () => {
+      let handles: string[];
       try {
-        const out: Array<{ handle: string; url: string }> = [];
-        for (const handle of await this.driver.getAllWindowHandles()) {
-          await this.driver.switchTo().window(handle);
-          const url = await this.driver.getCurrentUrl();
-          if (!url.startsWith('devtools://') && !url.startsWith('chrome-extension://')) out.push({ handle, url });
-        }
-        return out;
+        handles = await this.driver.getAllWindowHandles();
       } catch (e) {
         this.closed = true;
         throw new Error(`Selenium lost the browser: ${String((e as Error).message).split('\n')[0]}`);
       }
+      const listed = this.port ? await listPages(this.port).catch(() => []) : [];
+      const known = new Set(handles);
+      const out = listed.filter((t) => known.has(t.id)).map((t) => ({ handle: t.id, url: t.url }));
+      // A handle Chrome's list does not show (should not happen) is still offered, last, with its address unknown.
+      for (const handle of handles) if (!out.some((t) => t.handle === handle)) out.push({ handle, url: '' });
+      return out.filter((t) => !t.url.startsWith('devtools://') && !t.url.startsWith('chrome-extension://'));
+    });
+  }
+
+  /** Brings a tab back to the front (after a search that switched through tabs and found nothing). */
+  restore(handle: string): Promise<void> {
+    return this.lock.run(async () => {
+      await this.driver.switchTo().window(handle).catch(() => {});
     });
   }
 
