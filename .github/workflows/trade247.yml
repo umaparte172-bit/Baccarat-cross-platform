@@ -198,3 +198,71 @@ jobs:
           echo "$out"
           echo "$out" | grep -q "Packages are up to date."
           echo "$out" | grep -q "Check passed."
+
+  # The app on a Mac the way a client gets it: the DMG from the desktop job, marked as downloaded from the internet,
+  # installed with Install-TRADE247.command (no Apple ID), opened normally, then used end to end through its server:
+  # a replay, the reports, "Open Chrome for the table", and a live (mock) table read through Selenium WebDriver.
+  mac-app-check:
+    name: macOS app check (Apple silicon)
+    needs: desktop
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trade247/package-lock.json
+      - run: npm ci
+      - name: Real-browser tests on macOS (must not be skipped)
+        env:
+          T247_REQUIRE_BROWSER_TESTS: '1'
+        run: npx vitest run test/selenium.test.ts test/live.test.ts test/bettor.test.ts
+      - uses: actions/download-artifact@v4
+        with:
+          name: trade247-desktop-macos-arm64
+          path: ${{ runner.temp }}/dl
+      - name: Install from the downloaded DMG (no Apple ID)
+        run: |
+          dmg=$(ls "$RUNNER_TEMP"/dl/*.dmg | head -n 1)
+          xattr -w com.apple.quarantine "0083;$(printf %x $(date +%s));Safari;" "$dmg"
+          mnt=$(hdiutil attach -nobrowse -readonly "$dmg" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -n 1)
+          echo "mounted at $mnt"; ls -la "$mnt"
+          echo "quarantine on the copy in the DMG: $(xattr -p com.apple.quarantine "$mnt/TRADE247.app" 2>/dev/null || echo none)"
+          TRADE247_NO_OPEN=1 bash "$mnt/Install-TRADE247.command"
+          hdiutil detach "$mnt"
+          app=/Applications/TRADE247.app
+          [ -d "$app" ] || app="$HOME/Applications/TRADE247.app"
+          echo "APP=$app" >> "$GITHUB_ENV"
+          if xattr -p com.apple.quarantine "$app" 2>/dev/null; then echo "::error::quarantine flag still set"; exit 1; fi
+          codesign --verify --deep --strict --verbose=2 "$app"
+          echo "::notice title=macOS install::Installed $app from the quarantined DMG; signature verifies, quarantine cleared"
+      - name: Open the app normally and wait for its server
+        run: |
+          open "$APP"
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8247/; then break; fi
+            sleep 1
+          done
+          pgrep -x TRADE247 > /dev/null || { echo "::error::TRADE247 is not running"; exit 1; }
+          curl -fsS http://127.0.0.1:8247/ | grep -q TRADE247
+          echo "::notice title=macOS launch::TRADE247 opened with open(1); window and server at http://127.0.0.1:8247 are up"
+      - name: Use the app end to end (replay, reports, Chrome, live table via Selenium)
+        run: npx tsx tools/app-check.ts --driver selenium
+      - name: Screenshot
+        if: always()
+        run: screencapture -x "$RUNNER_TEMP/trade247-macos.png" || true
+      - name: Quit the app cleanly
+        if: always()
+        run: |
+          osascript -e 'quit app "TRADE247"' || true
+          for i in $(seq 1 30); do pgrep -x TRADE247 > /dev/null || break; sleep 1; done
+          if pgrep -x TRADE247 > /dev/null; then echo "::error::TRADE247 did not quit"; exit 1; fi
+          if curl -fsS -o /dev/null http://127.0.0.1:8247/ 2>/dev/null; then echo "::error::server still answering after quit"; exit 1; fi
+          echo "::notice title=macOS quit::TRADE247 quit and its server stopped"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trade247-macos-screenshot
+          path: ${{ runner.temp }}/trade247-macos.png
+          if-no-files-found: warn

@@ -13,5 +13,5 @@
     "types": ["node"],
     "outDir": "dist"
   },
-  "include": ["src", "test", "electron"]
+  "include": ["src", "test", "electron", "tools/**/*.ts"]
 }

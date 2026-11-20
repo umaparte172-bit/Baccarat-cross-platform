@@ -43,6 +43,14 @@ const connect: SeleniumConnect = async (port) => {
     .build();
 };
 
+describe('the test machine', () => {
+  // CI sets this where Chrome and ChromeDriver are installed, so the real-browser tests below can never be skipped there.
+  it.runIf(process.env.T247_REQUIRE_BROWSER_TESTS === '1')('has Chrome and a ChromeDriver, so the real-browser tests run', () => {
+    expect(chrome, 'Chrome was not found').toBeTruthy();
+    expect(driverPath, 'ChromeDriver was not found').toBeTruthy();
+  });
+});
+
 describe('the Selenium driver without a browser', () => {
   it('reports a missing Chrome with the same advice as the DevTools driver, and a ChromeDriver problem with what to do', async () => {
     const log: string[] = [];

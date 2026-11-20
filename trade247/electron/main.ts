@@ -49,8 +49,8 @@ function pickPort(): Promise<number> {
 }
 
 /** The system keychain (Keychain on macOS, DPAPI on Windows) seals the Telegram token on disk. */
-function keychain(): SecretBox | undefined {
-  if (!safeStorage.isEncryptionAvailable()) return undefined;
+async function keychain(): Promise<SecretBox | undefined> {
+  if (!(await safeStorage.isAsyncEncryptionAvailable())) return undefined;
   return {
     encrypt: (plain) => safeStorage.encryptString(plain).toString('base64'),
     decrypt: (sealed) => {
@@ -87,7 +87,7 @@ function buildMenu(origin: string): void {
 async function start(): Promise<void> {
   const port = await pickPort();
   const origin = `http://${HOST}:${port}`;
-  const manager = new SessionManager(new SettingsStore(dataDir, keychain()));
+  const manager = new SessionManager(new SettingsStore(dataDir, await keychain()));
   const server = buildApp({
     dataDir,
     port,
@@ -205,7 +205,7 @@ async function smoke(win: BrowserWindow, origin: string): Promise<void> {
       bt = await api(`/api/backtest/status?id=${job.id}`);
     }
     check('runs a backtest on worker threads', bt.ok === true && bt.done === 4, JSON.stringify(bt).slice(0, 200));
-    check('knows whether the keychain is available', typeof safeStorage.isEncryptionAvailable() === 'boolean');
+    check('knows whether the keychain is available', typeof (await safeStorage.isAsyncEncryptionAvailable()) === 'boolean');
   } catch (e) {
     check('smoke test completed without an error', false, (e as Error).stack ?? String(e));
   }
