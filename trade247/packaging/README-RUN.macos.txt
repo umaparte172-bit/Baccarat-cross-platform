@@ -11,8 +11,8 @@ START
   Nothing is installed: delete the folder to remove it.
 
 IF macOS SAYS THE PROGRAM "CANNOT BE OPENED" OR "COULD NOT VERIFY"
-  The program is signed ad hoc, not by a registered Apple developer (no $99 account or notarization is
-  needed for a program you run yourself). If step 1 above was skipped, macOS asks once instead:
+  The program is signed ad hoc, not by a registered Apple developer: no Apple ID, $99 account or notarization
+  is used or needed for a program you run yourself. Step 1 (xattr) is the whole fix. If step 1 above was skipped, macOS asks once instead:
     - macOS 14 or older: right-click the file, choose Open, then Open.
     - macOS 15 and newer: try to open it once, then System Settings > Privacy & Security >
       scroll down > "Open Anyway" next to the program's name, and confirm.

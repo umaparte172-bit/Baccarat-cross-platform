@@ -126,6 +126,30 @@ jobs:
         if: runner.os == 'macOS'
         run: node tools/selenium-desktop.mjs --app release/desktop/mac-arm64/TRADE247.app/Contents/MacOS/TRADE247
 
+      # A downloaded copy carries the quarantine flag. Install it the way a client would, without any Apple ID or
+      # notarization, and check that the installed copy is clean, signed, and runs (including Selenium's driver finder).
+      - name: Install without an Apple ID (simulated download, macOS)
+        if: runner.os == 'macOS'
+        run: |
+          export T247_DATA_DIR="$RUNNER_TEMP/t247-install-smoke"
+          dl="$RUNNER_TEMP/download"
+          rm -rf "$dl" && mkdir -p "$dl"
+          ditto release/desktop/mac-arm64/TRADE247.app "$dl/TRADE247.app"
+          cp packaging/macos/Install-TRADE247.command "$dl/"
+          xattr -w com.apple.quarantine "0083;$(printf %x $(date +%s));Safari;" "$dl/TRADE247.app"
+          xattr -p com.apple.quarantine "$dl/TRADE247.app"
+          TRADE247_INSTALL_DIR="$RUNNER_TEMP/Applications" TRADE247_NO_OPEN=1 bash "$dl/Install-TRADE247.command"
+          app="$RUNNER_TEMP/Applications/TRADE247.app"
+          if xattr -p com.apple.quarantine "$app" 2>/dev/null; then echo "quarantine flag still set"; exit 1; fi
+          codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/Resources/app.asar.unpacked/assets/selenium-manager/selenium-manager" --help > /dev/null
+          "$app/Contents/MacOS/TRADE247" --smoke
+          dmg=$(ls release/desktop/*.dmg | head -n 1)
+          mnt=$(hdiutil attach -nobrowse -readonly "$dmg" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -n 1)
+          echo "mounted at $mnt"; ls -la "$mnt"
+          test -f "$mnt/Install-TRADE247.command"
+          hdiutil detach "$mnt"
+
       - uses: actions/upload-artifact@v4
         with:
           name: trade247-desktop-${{ matrix.name }}
@@ -133,4 +157,5 @@ jobs:
             trade247/release/desktop/*.exe
             trade247/release/desktop/*.dmg
             trade247/release/desktop/*.zip
+            trade247/packaging/macos/Install-TRADE247.command
           if-no-files-found: error

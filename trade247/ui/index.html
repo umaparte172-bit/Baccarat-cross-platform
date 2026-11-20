@@ -202,6 +202,12 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
     </div>
     <div id="liveBox" class="hide">
       <label>Chrome debugging port</label><input type="number" data-key="live_port" min="1" max="65535">
+      <label title="How the program talks to the Chrome window you opened. Both use the same window, profile and sign-in.">Browser driver</label>
+      <select data-key="live_driver" id="liveDriver">
+        <option value="cdp">DevTools (built in, nothing to install)</option>
+        <option value="selenium">Selenium WebDriver (ChromeDriver)</option>
+      </select>
+      <div id="driverBox" class="hide"><label>ChromeDriver path (empty = automatic)</label><input type="text" data-key="chromedriver_path" autocomplete="off" placeholder="found automatically"></div>
       <div style="display:flex;gap:6px;align-items:center;margin-top:4px"><button class="btn-reset-input" id="openChrome" type="button" title="Opens Chrome with a debugging port and a profile of its own, so the bot can read your table">Open Chrome for the table</button><span id="chromeMsg" class="foot"></span></div>
       <div class="foot">Press "Open Chrome for the table", sign in and open a baccarat table in that window. Results are read from the page. The road already on screen when you press Start is history and is not played.</div>
       <div class="foot"><b>Betting on this table</b></div>
@@ -380,6 +386,12 @@ th.dragover{outline:2px dashed #4ea8de;outline-offset:-2px}
         <div class="foot"><b>Telegram alerts</b></div>
         <label>Bot token</label><input type="password" data-key="telegram_token" autocomplete="off">
         <label>Chat ID</label><input type="text" data-key="telegram_chat_id" autocomplete="off">
+        <label title="Lets the alert chat control the bot: /status, /start, /stop, /pause, /resume, /approve, /skip, /retry, /history, /report. Only the chat ID above is obeyed.">Commands from Telegram</label>
+        <select data-key="telegram_control">
+          <option value="off">Off - alerts only</option>
+          <option value="on">On - this chat can control the bot (/help)</option>
+        </select>
+        <div class="foot" id="tgctl"></div>
         <div style="display:flex;gap:6px;align-items:center"><button class="btn-reset-input" id="tgtest">Send test</button><span id="tgmsg" class="foot"></span></div>
       </div>
     </details>
@@ -498,6 +510,7 @@ function applyVisibility() {
   $('#simBox').classList.toggle('hide', f !== 'simulator');
   $('#csvBox').classList.toggle('hide', f !== 'csv');
   $('#liveBox').classList.toggle('hide', f !== 'live');
+  $('#driverBox').classList.toggle('hide', $('#liveDriver').value !== 'selenium');
   const bm = document.querySelector('[data-key=bet_mode]').value;
   $('#betLimits').classList.toggle('hide', bm === 'paper');
   $('#betConfirmRow').classList.toggle('hide', bm !== 'confirm');
@@ -528,6 +541,7 @@ $('#jjPreset').onchange = () => {
 $('#strategy').onchange = applyVisibility;
 $('#feed').onchange = applyVisibility;
 document.querySelector('[data-key=bet_mode]').onchange = applyVisibility;
+$('#liveDriver').addEventListener('change', applyVisibility);
 document.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { $('#' + b.dataset.reset).value = b.dataset.val; });
 
 // ---------------------------------------------------------------- backtest
@@ -960,6 +974,7 @@ function render(st) {
   $('#pause').disabled = !run; $('#pause').textContent = st.paused ? 'RESUME' : 'PAUSE';
   $('#resetAll').disabled = false;
   skew = (st.now_ts * 1000) - Date.now();
+  if (st.telegram) $('#tgctl').textContent = st.telegram.error ? st.telegram.error : (st.telegram.on ? 'Listening for commands. Send /help to the bot.' : '');
   if (st.error) $('#err').textContent = st.error;
 
   // next

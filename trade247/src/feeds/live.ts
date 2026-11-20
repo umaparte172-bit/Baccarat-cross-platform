@@ -1,7 +1,8 @@
 import type { Side } from '../engine/types.js';
 import { listPages } from '../live/cdp.js';
 import { TableBettor, type Placement } from '../live/bettor.js';
-import { PageSession } from '../live/page.js';
+import { PageSession, type TablePage } from '../live/page.js';
+import { SeleniumBrowser, SeleniumPage, type SeleniumConnect } from '../live/selenium.js';
 import type { LiveProfile } from '../live/profile.js';
 import { RoadTracker } from '../live/road.js';
 import type { Feed, HandHandler } from './feed.js';
@@ -27,6 +28,12 @@ export interface LiveOptions {
   clickGapMs?: [number, number];
   /** How long the table has to show a placed bet. */
   confirmMs?: number;
+  /** How the browser is driven: the built-in DevTools connection (default) or Selenium WebDriver. */
+  driver?: 'cdp' | 'selenium';
+  /** Selenium: the ChromeDriver to use ('' = found automatically). */
+  chromedriverPath?: string;
+  /** Test hook: how a Selenium session is started. */
+  seleniumConnect?: SeleniumConnect;
 }
 
 export interface LiveHooks {
@@ -50,7 +57,8 @@ export interface LiveHooks {
 export class LiveFeed implements Feed {
   private active = false;
   private timer: NodeJS.Timeout | null = null;
-  private page: PageSession | null = null;
+  private page: TablePage | null = null;
+  private selenium: SeleniumBrowser | null = null;
   private readonly road = new RoadTracker();
   private missingSince: number | null = null;
   private everConnected = false;
@@ -82,6 +90,8 @@ export class LiveFeed implements Feed {
     this.active = false;
     this.wakeUp();
     this.dropPage();
+    void this.selenium?.quit();
+    this.selenium = null;
   }
 
   /** "Retry Table": reconnect now. The road is read afresh; hands already seen are not repeated. */
@@ -196,7 +206,7 @@ export class LiveFeed implements Feed {
   }
 
   /** Tells the session when bets open for a round it has not been told about yet. */
-  private async watchWindow(page: PageSession, now: number): Promise<void> {
+  private async watchWindow(page: TablePage, now: number): Promise<void> {
     const betting = this.profile.betting;
     if (!this.options.watchWindow || !betting || !this.hooks.windowOpen || this.armedRound === this.round) return;
     if (now - this.lastChangeAt < (this.options.settleMs ?? 800)) return;
@@ -207,7 +217,8 @@ export class LiveFeed implements Feed {
   }
 
   /** Looks through the open tabs for one that has the table. */
-  private async findTable(): Promise<PageSession | null> {
+  private async findTable(): Promise<TablePage | null> {
+    if (this.options.driver === 'selenium') return this.findTableSelenium();
     let targets;
     try {
       targets = await listPages(this.options.port);
@@ -237,6 +248,56 @@ export class LiveFeed implements Feed {
         for (const p of candidate.providers()) providers.add(p);
       }
       candidate?.close();
+    }
+    this.noTable(noTableReason(this.options.port, checked, [...providers]));
+    return null;
+  }
+
+  /** The same search through a Selenium session attached to the table browser. */
+  private async findTableSelenium(): Promise<TablePage | null> {
+    if (this.selenium?.closed) this.selenium = null;
+    if (!this.selenium) {
+      try {
+        this.selenium = await SeleniumBrowser.connect(this.options.port, this.options.chromedriverPath ?? '', this.options.seleniumConnect);
+      } catch (e) {
+        this.noTable((e as Error).message);
+        return null;
+      }
+      if (!this.active) {
+        void this.selenium.quit();
+        this.selenium = null;
+        return null;
+      }
+    }
+    const browser = this.selenium;
+    let tabs;
+    try {
+      tabs = await browser.tabs();
+    } catch (e) {
+      void browser.quit();
+      this.selenium = null;
+      this.noTable((e as Error).message);
+      return null;
+    }
+    const candidates = this.options.profiles ?? [this.options.profile];
+    const checked: string[] = [];
+    const providers = new Set<string>();
+    for (const tab of tabs) {
+      if (!candidates.some((p) => !p.hostContains || tab.url.toLowerCase().includes(p.hostContains.toLowerCase()))) continue;
+      const page = new SeleniumPage(browser, tab.handle, tab.url);
+      try {
+        for (const profile of candidates) {
+          if (await page.readRoad(profile)) {
+            this.profile = profile;
+            return page;
+          }
+        }
+      } catch {
+        /* a tab that cannot be read is skipped */
+      }
+      checked.push(siteOf(tab.url));
+      for (const p of page.providers()) providers.add(p);
+      page.close();
     }
     this.noTable(noTableReason(this.options.port, checked, [...providers]));
     return null;

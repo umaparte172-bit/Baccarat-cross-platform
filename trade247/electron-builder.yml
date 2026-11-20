@@ -7,6 +7,9 @@ directories:
   buildResources: build-resources
   output: release/desktop
 asar: true
+# Selenium's driver finder is a program and must stay a real file to run.
+asarUnpack:
+  - assets/selenium-manager/**
 # The server listens on 127.0.0.1 only; nothing is installed system-wide and there is no auto-update.
 electronLanguages: [en-US]
 win:
@@ -29,10 +32,16 @@ mac:
   target:
     - { target: dmg, arch: [arm64] }
     - { target: zip, arch: [arm64] }
-  # No Apple Developer account is needed: an ad-hoc signature is enough on Apple silicon for a program you run
-  # yourself. It is not notarized, so the first start needs "Open Anyway" (see docs/deployment.md).
+  # No Apple Developer account or Apple ID is needed: an ad-hoc signature is enough on Apple silicon for a program you
+  # run yourself. It is not notarized; Install-TRADE247.command (in the DMG) clears the download flag so it opens
+  # without "Open Anyway" (see docs/deployment.md).
   identity: "-"
   hardenedRuntime: false
   gatekeeperAssess: false
 dmg:
   artifactName: TRADE247-${version}-${arch}.${ext}
+  # The app, the Applications shortcut, and the installer that clears the download flag (no Apple ID needed).
+  contents:
+    - { x: 130, y: 150 }
+    - { x: 410, y: 150, type: link, path: /Applications }
+    - { x: 270, y: 330, type: file, path: packaging/macos/Install-TRADE247.command }

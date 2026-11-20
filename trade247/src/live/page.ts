@@ -31,10 +31,61 @@ export interface RoadReading {
 const key = (session: string | undefined, id: number): string => `${session ?? ''}:${id}`;
 
 /**
+ * One browser tab with the table, however it is driven (the built-in DevTools connection, or Selenium WebDriver).
+ * The live feed and the bettor only use this.
+ */
+export interface TablePage {
+  readonly closed: boolean;
+  close(): void;
+  /** Which table providers have a frame in this tab. */
+  providers(): string[];
+  readRoad(profile: LiveProfile): Promise<RoadReading | null>;
+  readWindow(b: BettingProfile): Promise<WindowSnapshot | null>;
+  bringToFront(): Promise<void>;
+  /** A real mouse click on the element at its centre; refuses when it is hidden, disabled or covered. */
+  clickElement(frame: object, selector: string, index?: number): Promise<void>;
+}
+
+/** The road from the frames that answered the probe script, or null when none has the table. */
+export function pickRoad(found: Array<{ origin: string; value: { container: boolean; items: string[] } }>): RoadReading | null {
+  const tables = found.filter((f) => f.value.container);
+  if (tables.length === 0) return null;
+  // If more than one frame has a table (a lobby preview next to the game), the one with the longest road wins.
+  tables.sort((a, b) => b.value.items.length - a.value.items.length);
+  const best = tables[0]!;
+  const items: Result[] = [];
+  let unreadable = false;
+  for (const i of best.value.items) {
+    if (i === 'P' || i === 'B' || i === 'T') items.push(i);
+    else unreadable = true;
+  }
+  return { container: true, items, unreadable, origin: best.origin };
+}
+
+/** The frame with the betting window (the one with the most chips, if several). */
+export function pickWindow<F>(found: Array<{ frame: F; value: WindowReading }>): { frame: F; reading: WindowReading } | null {
+  const hits = found.filter((f) => f.value.found);
+  if (hits.length === 0) return null;
+  hits.sort((x, y) => y.value.chips.length - x.value.chips.length);
+  return { frame: hits[0]!.frame, reading: hits[0]!.value };
+}
+
+/** Table providers recognised by the site of a frame. */
+export function providersOf(origins: Iterable<string>): string[] {
+  const found = new Set<string>();
+  for (const origin of origins) {
+    const o = origin.toLowerCase();
+    if (o.includes('pragmaticplay')) found.add('Pragmatic Play');
+    else if (o.includes('evolution') || o.includes('evo-games') || o.includes('evolive')) found.add('Evolution');
+  }
+  return [...found];
+}
+
+/**
  * One browser tab, with every frame in it. The table is usually inside nested frames from another site, so all
  * frames are enabled for scripting and the script is run in each one.
  */
-export class PageSession {
+export class PageSession implements TablePage {
   private readonly contexts = new Map<string, FrameContext>();
   private readonly remote = new Map<string, RemoteFrame>();
 
@@ -107,13 +158,7 @@ export class PageSession {
 
   /** Which table providers have a frame in this tab (by the site of the frame). */
   providers(): string[] {
-    const found = new Set<string>();
-    for (const c of this.contexts.values()) {
-      const o = c.origin.toLowerCase();
-      if (o.includes('pragmaticplay')) found.add('Pragmatic Play');
-      else if (o.includes('evolution') || o.includes('evo-games') || o.includes('evolive')) found.add('Evolution');
-    }
-    return [...found];
+    return providersOf([...this.contexts.values()].map((c) => c.origin));
   }
 
   /** Runs a script in every frame; frames that fail (navigating, gone) are skipped. */
@@ -142,30 +187,14 @@ export class PageSession {
 
   /** The road as the best frame shows it, or null when no frame has the table. */
   async readRoad(profile: LiveProfile): Promise<RoadReading | null> {
-    const found = await this.evaluateEverywhere<{ container: boolean; items: string[] }>(probeScript(profile));
-    const tables = found.filter((f) => f.value.container);
-    if (tables.length === 0) return null;
-    // If more than one frame has a table (a lobby preview next to the game), the one with the longest road wins.
-    tables.sort((a, b) => b.value.items.length - a.value.items.length);
-    const best = tables[0]!;
-    const items: Result[] = [];
-    let unreadable = false;
-    for (const i of best.value.items) {
-      if (i === 'P' || i === 'B' || i === 'T') items.push(i);
-      else unreadable = true;
-    }
-    return { container: true, items, unreadable, origin: best.origin };
+    return pickRoad(await this.evaluateEverywhere<{ container: boolean; items: string[] }>(probeScript(profile)));
   }
 
   // ---------------------------------------------------------------- the betting window and real mouse clicks
 
   /** The frame that holds the betting window: the one with the status element (and the most chips, if several). */
   async readWindow(b: BettingProfile): Promise<WindowSnapshot | null> {
-    const found = await this.evaluateInFrames<WindowReading>(windowScript(b));
-    const hits = found.filter((f) => f.value.found);
-    if (hits.length === 0) return null;
-    hits.sort((x, y) => y.value.chips.length - x.value.chips.length);
-    return { frame: hits[0]!.frame, reading: hits[0]!.value };
+    return pickWindow(await this.evaluateInFrames<WindowReading>(windowScript(b)));
   }
 
   async bringToFront(): Promise<void> {
@@ -178,7 +207,8 @@ export class PageSession {
    * of each <iframe> that holds it is added up the chain. Refuses rather than clicks when the element is hidden,
    * disabled, or covered by something else.
    */
-  async clickElement(frame: FrameContext, selector: string, index = 0): Promise<void> {
+  async clickElement(target: object, selector: string, index = 0): Promise<void> {
+    const frame = target as FrameContext;
     // The session is always explicit: undefined means the tab itself, which is not the same as "this frame".
     const send = <T = any>(session: string | undefined, method: string, params: object = {}): Promise<T> =>
       this.conn.send<T>(method, params, session, 4000);
@@ -228,6 +258,7 @@ export class PageSession {
 }
 
 export interface WindowSnapshot {
-  frame: FrameContext;
+  /** Where the window was found; passed back to clickElement of the same page. */
+  frame: object;
   reading: WindowReading;
 }

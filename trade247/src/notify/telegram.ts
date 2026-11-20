@@ -1,4 +1,6 @@
-export type AlertKind = 'daily_stop_loss' | 'daily_take_profit' | 'disconnected' | 'shoe_change' | 'bet_problem' | 'test';
+import { formatAlert, type AlertKind } from './messages.js';
+
+export type { AlertKind } from './messages.js';
 
 export interface TelegramConfig {
   token: string;
@@ -26,7 +28,7 @@ export const CHAT_ID_PATTERN = /^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{3,31})$/;
 
 export const DEFAULT_TELEGRAM_URL = 'https://api.telegram.org';
 const MAX_TEXT = 4000;
-const MAX_RESPONSE_BYTES = 64 * 1024;
+const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_QUEUE = 30;
 
 export interface TelegramOptions {
@@ -74,7 +76,7 @@ export class TelegramNotifier implements Notifier {
   }
 
   async test(): Promise<SendResult> {
-    return this.send(this.getConfig(), 'TRADE247: test message. Alerts are working.');
+    return this.send(this.getConfig(), formatAlert('test', 'TRADE247 alerts are working.', null));
   }
 
   async idle(): Promise<void> {
@@ -96,36 +98,57 @@ export class TelegramNotifier implements Notifier {
   }
 
   private async send(config: TelegramConfig, text: string): Promise<SendResult> {
-    const problem = configProblem(config);
-    if (problem) return { ok: false, error: problem };
+    const r = await telegramCall(config, 'sendMessage', { chat_id: config.chatId, text: text.slice(0, MAX_TEXT), disable_web_page_preview: true }, this.options);
+    return r.ok ? { ok: true } : { ok: false, error: r.error };
+  }
+}
 
-    const base = (this.options.baseUrl ?? DEFAULT_TELEGRAM_URL).replace(/\/+$/, '');
-    const url = `${base}/bot${config.token}/sendMessage`;
-    const redact = (s: string): string => s.split(config.token).join('***');
-    const doFetch = this.options.fetch ?? fetch;
+export interface CallResult<T = unknown> {
+  ok: boolean;
+  result?: T;
+  error?: string;
+  /** Telegram's error code (409 = another program is reading this bot's updates). */
+  code?: number;
+}
+
+/** One Bot API call. Never throws; the token never appears in an error. */
+export async function telegramCall<T = unknown>(
+  config: TelegramConfig,
+  method: string,
+  payload: object,
+  options: Pick<TelegramOptions, 'baseUrl' | 'timeoutMs' | 'fetch'> & { signal?: AbortSignal } = {},
+): Promise<CallResult<T>> {
+  const problem = configProblem(config);
+  if (problem) return { ok: false, error: problem };
+  if (!/^[A-Za-z]{3,40}$/.test(method)) return { ok: false, error: 'Unknown Telegram method' };
+
+  const base = (options.baseUrl ?? DEFAULT_TELEGRAM_URL).replace(/\/+$/, '');
+  const url = `${base}/bot${config.token}/${method}`;
+  const redact = (s: string): string => s.split(config.token).join('***');
+  const doFetch = options.fetch ?? fetch;
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? 8000);
+  try {
+    const response = await doFetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      redirect: 'error',
+      signal: options.signal ? AbortSignal.any([timeout, options.signal]) : timeout,
+    });
+    const raw = (await response.text()).slice(0, MAX_RESPONSE_BYTES);
+    let body: { ok?: boolean; description?: string; result?: T; error_code?: number } = {};
     try {
-      const response = await doFetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: config.chatId, text: text.slice(0, MAX_TEXT), disable_web_page_preview: true }),
-        redirect: 'error',
-        signal: AbortSignal.timeout(this.options.timeoutMs ?? 8000),
-      });
-      const raw = (await response.text()).slice(0, MAX_RESPONSE_BYTES);
-      let body: { ok?: boolean; description?: string } = {};
-      try {
-        body = JSON.parse(raw) as typeof body;
-      } catch {
-        // Not JSON: fall through to the status-based message below.
-      }
-      if (response.ok && body.ok === true) return { ok: true };
-      const why = typeof body.description === 'string' && body.description ? body.description.slice(0, 200) : `HTTP ${response.status}`;
-      return { ok: false, error: redact(`Telegram refused the message: ${why}`) };
-    } catch (e) {
-      const name = (e as Error).name;
-      if (name === 'TimeoutError' || name === 'AbortError') return { ok: false, error: 'Telegram did not answer in time' };
-      return { ok: false, error: 'Telegram could not be reached (check the internet connection)' };
+      body = JSON.parse(raw) as typeof body;
+    } catch {
+      // Not JSON: fall through to the status-based message below.
     }
+    if (response.ok && body.ok === true) return { ok: true, result: body.result };
+    const why = typeof body.description === 'string' && body.description ? body.description.slice(0, 200) : `HTTP ${response.status}`;
+    return { ok: false, error: redact(`Telegram refused the message: ${why}`), code: body.error_code ?? response.status };
+  } catch (e) {
+    const name = (e as Error).name;
+    if (name === 'TimeoutError' || name === 'AbortError') return { ok: false, error: 'Telegram did not answer in time' };
+    return { ok: false, error: 'Telegram could not be reached (check the internet connection)' };
   }
 }
 

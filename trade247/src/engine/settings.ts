@@ -80,6 +80,10 @@ export interface Settings {
   csv_path: string;
   /** Live feed: the remote debugging port of the Chrome the user opened the table in. */
   live_port: number;
+  /** Live feed: how the browser is driven - the built-in DevTools connection, or Selenium WebDriver (ChromeDriver). */
+  live_driver: 'cdp' | 'selenium';
+  /** Selenium: the ChromeDriver to use; empty = found automatically (Selenium Manager, or chromedriver on the PATH). */
+  chromedriver_path: string;
 
   bet_mode: BetMode;
   /** Real betting: the largest single bet, in dollars. Betting is refused until it is set. */
@@ -94,6 +98,8 @@ export interface Settings {
 
   telegram_token: string;
   telegram_chat_id: string;
+  /** Obey commands (/status, /stop, ...) sent from the alert chat. */
+  telegram_control: 'off' | 'on';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -160,6 +166,8 @@ export const DEFAULT_SETTINGS: Settings = {
   csv_text: '',
   csv_path: '',
   live_port: 9014,
+  live_driver: 'cdp',
+  chromedriver_path: '',
 
   bet_mode: 'paper',
   bet_max_stake: 0,
@@ -170,6 +178,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
   telegram_token: '',
   telegram_chat_id: '',
+  telegram_control: 'off',
 };
 
 /** What the server shows instead of a stored Telegram token. */
@@ -293,6 +302,8 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
     csv_text: text(g('csv_text'), p.csv_text, 200_000),
     csv_path: text(g('csv_path'), p.csv_path, 1024),
     live_port: int(g('live_port'), p.live_port, 1, 65535),
+    live_driver: pick(g('live_driver'), ['cdp', 'selenium'], p.live_driver),
+    chromedriver_path: text(g('chromedriver_path'), p.chromedriver_path, 1024).trim(),
     bet_mode: pick(g('bet_mode'), ['paper', 'confirm', 'auto'], p.bet_mode),
     bet_max_stake: num(g('bet_max_stake'), p.bet_max_stake, 0, 10_000),
     bet_max_session: num(g('bet_max_session'), p.bet_max_session, 0, 1_000_000),
@@ -303,6 +314,7 @@ export function normalizeSettings(input: unknown, previous: Settings = DEFAULT_S
     // The mask means "unchanged"; the real token never round-trips through the page.
     telegram_token: text(g('telegram_token'), p.telegram_token, 256),
     telegram_chat_id: text(g('telegram_chat_id'), p.telegram_chat_id, 64).trim(),
+    telegram_control: pick(g('telegram_control'), ['off', 'on'], p.telegram_control),
   };
   if (s.telegram_token === TOKEN_MASK) s.telegram_token = p.telegram_token;
 

@@ -29,6 +29,13 @@ const put = (from, to, mode) => {
 };
 put(built, exe, 0o755);
 
+// Selenium's driver finder, used by the "Selenium WebDriver" browser driver (found next to the program).
+{
+  const dir = { win: 'windows', macos: 'macos', linux: 'linux-x86_64' }[os];
+  const file = os === 'win' ? 'selenium-manager.exe' : 'selenium-manager';
+  if (dir) put(join(root, 'node_modules/selenium-webdriver/bin', dir, file), file, 0o755);
+}
+
 if (os === 'win') {
   for (const f of ['Start-Trade247.bat', 'Start-Chrome-for-Trade247.bat', 'install-vps-task.ps1', 'uninstall-vps-task.ps1']) put(join(root, 'packaging/windows', f), f);
 } else if (os === 'macos') {

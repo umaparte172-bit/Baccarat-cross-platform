@@ -11,6 +11,9 @@ import { isResult, type NextBet, type Row } from './engine/types.js';
 import { ManualFeed, ReplayFeed, SimulatorFeed, parseReplay, type Feed, type HandEvent } from './feeds/feed.js';
 import { LiveFeed } from './feeds/live.js';
 import { loadProfiles, type LiveProfile } from './live/profile.js';
+import type { SeleniumConnect } from './live/selenium.js';
+import { TelegramControl, type ControlHost } from './notify/control.js';
+import { formatAlert, shoeAction, type AlertContext, type AlertKind } from './notify/messages.js';
 import { TelegramNotifier, configProblem, type Notifier, type SendResult, type TelegramOptions } from './notify/telegram.js';
 import { LOG_FILE_NAME, appendHistory, buildCsv, type HandRecord } from './report/csv.js';
 import { latestSessionFromHistory, tableFromRecords, tableCsv, type Table } from './report/table.js';
@@ -37,6 +40,10 @@ export interface SessionOptions {
   now?: () => Date;
   /** Test hooks for the Telegram client (a local fake server, no pauses). */
   telegram?: Pick<TelegramOptions, 'baseUrl' | 'timeoutMs' | 'minGapMs' | 'fetch'>;
+  /** Test hook: long-poll wait for Telegram commands, in seconds. */
+  telegramPollSeconds?: number;
+  /** Test hook: how the Selenium driver attaches to the browser. */
+  seleniumConnect?: SeleniumConnect;
 }
 
 const signed = (micro: number): string => `${micro > 0 ? '+' : ''}${fmtExact(micro)}`;
@@ -51,6 +58,15 @@ function toNextBet(plan: BetPlan, reason?: string): NextBet {
     pattern: plan.pattern,
     reason: reason ?? plan.reason,
   };
+}
+
+function betModeLabel(s: Settings): string {
+  return s.bet_mode === 'paper' ? 'Paper (simulated bets)' : s.bet_mode === 'confirm' ? 'REAL MONEY - Confirm each bet' : 'REAL MONEY - Automatic';
+}
+
+function feedLabel(s: Settings): string {
+  const live = `Live table (${s.live_driver === 'selenium' ? 'Selenium' : 'DevTools'})`;
+  return { simulator: 'Simulator', manual: 'Manual', csv: 'Replay', live }[s.feed];
 }
 
 export class SessionManager {
@@ -80,12 +96,15 @@ export class SessionManager {
   private liveProfile: LiveProfile | null = null;
   private liveProfiles: LiveProfile[] = [];
   private readonly bets: BetCoordinator;
+  private readonly control: TelegramControl;
+  private readonly seleniumConnect?: SeleniumConnect;
 
   constructor(
     private readonly store: SettingsStore,
     options: SessionOptions = {},
   ) {
     this.now = options.now ?? (() => new Date());
+    this.seleniumConnect = options.seleniumConnect;
     this.settings = store.load();
     this.day = store.loadDay(localDay(this.now()));
     this.bets = new BetCoordinator(this.betHost());
@@ -98,6 +117,19 @@ export class SessionManager {
         },
       },
     );
+    this.control = new TelegramControl(
+      () => ({ token: this.settings.telegram_token, chatId: this.settings.telegram_chat_id, enabled: this.settings.telegram_control === 'on' }),
+      this.controlHost(),
+      {
+        baseUrl: options.telegram?.baseUrl,
+        fetch: options.telegram?.fetch,
+        pollSeconds: options.telegramPollSeconds,
+        onError: (message) => {
+          this.error = message;
+        },
+      },
+    );
+    this.control.sync();
   }
 
   get historyPath(): string {
@@ -140,6 +172,7 @@ export class SessionManager {
       total_rows: this.records.length,
       rows: this.records.slice(since).map((r) => r.row),
       bet: this.bets.view(),
+      telegram: this.controlState(),
     };
   }
 
@@ -201,6 +234,8 @@ export class SessionManager {
     this.feed = this.createFeed();
     if (settings.feed === 'live') this.status = 'FEED WAITING - connecting to the table';
     this.feed.start();
+    this.control.sync();
+    if (this.lifecycleAlerts()) this.alert('session_started', `Feed: ${feedLabel(settings)} · Base unit ${fmt2(toMicro(settings.unit_value))}`);
     return { ok: true, status: this.status };
   }
 
@@ -221,6 +256,8 @@ export class SessionManager {
       // The feed and the money baseline cannot change under a running session.
       settings.feed = this.settings.feed;
       settings.live_port = this.settings.live_port;
+      settings.live_driver = this.settings.live_driver;
+      settings.chromedriver_path = this.settings.chromedriver_path;
       settings.bet_mode = this.settings.bet_mode;
       settings.sim_seed = this.settings.sim_seed;
       settings.start_balance = this.settings.start_balance;
@@ -234,12 +271,14 @@ export class SessionManager {
     this.settings = settings;
     this.store.save(settings);
     if (this.running) this.core?.configure(settings);
+    this.control.sync();
     return { ok: true, live: this.running };
   }
 
-  stop(): void {
+  stop(by = 'by you'): void {
     if (!this.running) return;
     this.finish('STOPPED');
+    if (this.lifecycleAlerts()) this.alert('session_stopped', `Stopped ${by}.`);
   }
 
   pause(): boolean {
@@ -336,15 +375,41 @@ export class SessionManager {
     return this.notifier.test();
   }
 
-  /** Lets queued alerts finish before the process exits. */
+  /** Lets queued alerts finish before the process exits, and stops reading Telegram commands. */
   async flushAlerts(): Promise<void> {
+    await this.control.stop();
     await this.notifier.idle();
   }
 
-  private summary(): string {
+  /** Telegram commands: running, and the last problem reading them. */
+  controlState(): { on: boolean; error: string } {
+    return { on: this.control.running, error: this.control.lastError };
+  }
+
+  /** Start/stop messages are useful when the bot is watched from a phone, and noise for a quick practice run. */
+  private lifecycleAlerts(): boolean {
+    return this.settings.feed === 'live' || this.settings.telegram_control === 'on';
+  }
+
+  private alertContext(): AlertContext {
     const pnl = this.core?.pnlMicro ?? 0;
-    const balance = toMicro(this.settings.start_balance) + pnl;
-    return `Session #${this.sessionNo} (${this.settings.strategy}), ${this.records.length} hands, session ${signed(pnl)}, balance ${fmt2(balance)}`;
+    const now = this.now();
+    return {
+      session: this.sessionNo,
+      strategy: this.settings.strategy,
+      hands: this.records.length,
+      sessionPnl: signed(pnl),
+      todayPnl: signed(this.dayTotal(now)),
+      balance: fmt2(toMicro(this.settings.start_balance) + pnl),
+      status: this.status,
+      time: localTime(now),
+      betMode: betModeLabel(this.settings),
+    };
+  }
+
+  /** Sends a categorised alert (category, action, purpose) with the session figures. */
+  private alert(kind: AlertKind, detail: string, action?: string): void {
+    this.notifier.notify(kind, formatAlert(kind, detail, this.alertContext(), action ? { action } : {}));
   }
 
   /** Called by a live table feed when the connection to the table drops. Alerts once per outage. */
@@ -353,7 +418,7 @@ export class SessionManager {
     this.status = `FEED LOST - ${reason}`.slice(0, 80);
     if (!this.feedIsLost) {
       this.feedIsLost = true;
-      this.notifier.notify('disconnected', `TRADE247: connection to the table lost (${reason}). ${this.summary()}.`);
+      this.alert('disconnected', reason);
     }
     return true;
   }
@@ -375,6 +440,7 @@ export class SessionManager {
     if (!this.running || !this.feedIsLost) return false;
     this.feedIsLost = false;
     this.status = this.paused ? 'PAUSED' : 'RUNNING';
+    this.alert('reconnected', '');
     return true;
   }
 
@@ -424,7 +490,15 @@ export class SessionManager {
       case 'live':
         return new LiveFeed(
           handler,
-          { port: this.settings.live_port, profile: this.liveProfile!, profiles: this.liveProfiles, watchWindow: this.settings.bet_mode !== 'paper' },
+          {
+            port: this.settings.live_port,
+            profile: this.liveProfile!,
+            profiles: this.liveProfiles,
+            watchWindow: this.settings.bet_mode !== 'paper',
+            driver: this.settings.live_driver,
+            chromedriverPath: this.settings.chromedriver_path,
+            seleniumConnect: this.seleniumConnect,
+          },
           {
             connected: () => this.feedConnected(),
             waiting: (reason) => this.feedWaiting(reason),
@@ -474,7 +548,7 @@ export class SessionManager {
     core.shoeChange();
     if (counted) {
       this.shoeNo++;
-      this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
+      this.alert('shoe_change', `Shoe #${this.shoeNo} starts.`, shoeAction(this.settings.shoe_change_policy));
     }
   }
 
@@ -496,7 +570,7 @@ export class SessionManager {
     }
     if (core.startsNewShoe(event)) {
       this.shoeNo++;
-      this.notifier.notify('shoe_change', `TRADE247: shoe change, shoe #${this.shoeNo} starts. ${this.summary()}.`);
+      this.alert('shoe_change', `Shoe #${this.shoeNo} starts.`, shoeAction(this.settings.shoe_change_policy));
     }
 
     // On a live table with betting on, what was placed must be what is settled (see betting.ts).
@@ -541,10 +615,9 @@ export class SessionManager {
     if (stop) {
       this.finish(stop.status);
       if (stop.alert) {
-        this.notifier.notify(
-          stop.alert,
-          `TRADE247: ${stop.message}. The day is locked: no new session until the limit is raised or tomorrow. ${this.summary()}, today ${signed(dayMicro)}.`,
-        );
+        this.alert(stop.alert, `${stop.message}. Today ${signed(dayMicro)}.`);
+      } else if (this.lifecycleAlerts()) {
+        this.alert('session_stopped', `${stop.status}: ${stop.message}`);
       }
     }
   }
@@ -574,12 +647,87 @@ export class SessionManager {
           ? this.feed.place(side, stake, shouldAbort)
           : Promise.resolve({ kind: 'rejected' as const, reason: 'The table is not connected' }),
       stopForBet: (status, message) => {
-        const summary = this.summary();
         this.finish(status);
         this.error = `Bet problem: ${message}`;
-        this.notifier.notify('bet_problem', `TRADE247: ${message}. The session was stopped; check the table. ${summary}.`);
+        this.alert('bet_problem', `${status}: ${message}`);
+      },
+      awaitingApproval: (id, side, stake, seconds) => {
+        if (this.settings.telegram_control !== 'on') return;
+        const text = formatAlert(
+          'bet_waiting',
+          `${side === 'P' ? 'PLAYER' : 'BANKER'} ${stake.toFixed(2)} - approve within ${seconds} s.`,
+          this.alertContext(),
+          { next: [] },
+        );
+        void this.control.askApproval(id, text);
       },
     };
+  }
+
+  // ---- Telegram remote control
+
+  private controlHost(): ControlHost {
+    return {
+      status: () => this.statusText(),
+      settingsText: () => this.settingsText(),
+      history: (n) => this.historyText(n),
+      running: () => this.running,
+      start: () => this.start(this.settings),
+      stop: () => this.stop('from Telegram'),
+      pause: () => this.pause(),
+      resume: () => this.resume(),
+      retry: () => this.retry(),
+      approve: (id) => this.bets.approve(id),
+      skip: () => this.bets.skip(),
+      reportCsv: () => this.reportCsv(),
+      startDescription: () => `${betModeLabel(this.settings)} · ${feedLabel(this.settings)} · ${this.settings.strategy}`,
+    };
+  }
+
+  statusText(): string {
+    const c = this.alertContext();
+    const st = this.getState(this.records.length);
+    const lines = [
+      '📊 MONITOR · Status',
+      '━━━━━━━━━━━━━━━━',
+      `📍 State: ${this.status}${this.running ? '' : ' (no session running)'}`,
+      `🎲 Strategy: ${c.strategy} · ${c.betMode} · ${feedLabel(this.settings)}`,
+      `📊 Session #${c.session} · ${c.hands} hands · win rate ${st.win_rate}%`,
+      `💵 Session P&L: ${c.sessionPnl} | Today: ${c.todayPnl}`,
+      `💰 Balance: ${c.balance} · Max drawdown ${st.max_drawdown.toFixed(2)}`,
+    ];
+    const next = st.next;
+    if (next) lines.push(next.pick ? `➡️ Next: ${next.pick} ${next.stake.toFixed(2)} (${next.mode})${next.reason ? ` - ${next.reason}` : ''}` : `➡️ Next: no bet${next.reason ? ` - ${next.reason}` : ''}`);
+    if (st.bet.pending) lines.push(`🟡 Waiting for approval: ${st.bet.pending.pick} ${st.bet.pending.stake.toFixed(2)} - /approve or /skip`);
+    if (this.error) lines.push(`⚠️ ${this.error}`);
+    lines.push(`🕒 ${c.time}`);
+    return lines.join('\n');
+  }
+
+  private settingsText(): string {
+    const s = this.settings;
+    const limit = (v: number): string => (v > 0 ? fmt2(toMicro(v)) : 'off');
+    return [
+      '⚙️ MONITOR · Settings',
+      '━━━━━━━━━━━━━━━━',
+      `Strategy: ${s.strategy} · Base unit ${fmt2(toMicro(s.unit_value))}`,
+      `Take profit (session): ${limit(s.take_profit)} · Stop loss (session): ${limit(s.stop_loss)}`,
+      `Daily take profit: ${limit(s.daily_take_profit)} · Daily stop loss: ${limit(s.daily_stop_loss)}`,
+      `Single wins limit: ${s.single_wins_mode === 'off' ? 'off' : s.single_wins_limit} · Max unit: ${s.max_bet_mode === 'off' ? 'off' : s.max_bet_units}`,
+      `Feed: ${feedLabel(s)} · Bet mode: ${betModeLabel(s)}`,
+      s.bet_mode !== 'paper' ? `Largest bet ${fmt2(toMicro(s.bet_max_stake))} · Session staking limit ${fmt2(toMicro(s.bet_max_session))}` : '',
+      'Change settings on the computer; Telegram only reads them.',
+    ].filter(Boolean).join('\n');
+  }
+
+  private historyText(n: number): string {
+    const rows = this.records.slice(-n).map((r) => r.row);
+    if (rows.length === 0) return 'ℹ️ No hands yet.';
+    const lines = [`📜 MONITOR · Last ${rows.length} hands`, '━━━━━━━━━━━━━━━━'];
+    for (const r of rows) {
+      lines.push(`#${r.n} ${r.time.slice(11)} ${r.pick || '-'} ${r.stake} (${r.mode}) → ${r.result} ${r.outcome} · P&L ${r.session_pnl}`);
+    }
+    return lines.join('\n');
   }
 
   private writeHistory(record: HandRecord): void {

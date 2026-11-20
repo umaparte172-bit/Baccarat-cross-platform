@@ -49,7 +49,8 @@ describe('sending', () => {
     expect(hit.url).toBe(`/bot${TOKEN}/sendMessage`);
     expect(hit.headers['content-type']).toBe('application/json');
     expect(hit.body).toMatchObject({ chat_id: CHAT, disable_web_page_preview: true });
-    expect(hit.body.text).toMatch(/test message/);
+    expect(hit.body.text).toMatch(/^🧪 SYSTEM · Test message\n/);
+    expect(hit.body.text).toMatch(/📂 Category: .*\n⚙️ Action: .*\n🎯 Purpose: /);
     expect(hit.body.parse_mode).toBeUndefined();
   });
 
@@ -198,8 +199,13 @@ describe('the four alert triggers', () => {
     await run(h, 'BPPPP', { daily_stop_loss: 2 });
     const texts = f.texts();
     expect(texts).toHaveLength(1);
-    expect(texts[0]).toMatch(/^TRADE247: Daily stop loss reached \(-2\.00\)\. The day is locked/);
-    expect(texts[0]).toMatch(/Session #1 \(IHG\), 2 hands, session -2\.00, balance 998\.00, today -2\.00\./);
+    expect(texts[0]).toMatch(/^🛑 RISK CONTROL · Daily stop loss hit\n/);
+    expect(texts[0]).toMatch(/📂 Category: Risk control - daily loss limit/);
+    expect(texts[0]).toMatch(/⚙️ Action: Session stopped\. The day is locked/);
+    expect(texts[0]).toMatch(/🎯 Purpose: Caps the loss for the day/);
+    expect(texts[0]).toMatch(/ℹ️ Detail: Daily stop loss reached \(-2\.00\)\. Today -2\.00\./);
+    expect(texts[0]).toMatch(/📊 Session #1 · IHG · 2 hands/);
+    expect(texts[0]).toMatch(/💵 Session P&L: -2\.00 \| Today: -2\.00\n💰 Balance: 998\.00/);
     expect(f.hits[0]!.body.chat_id).toBe(CHAT);
   });
 
@@ -209,7 +215,8 @@ describe('the four alert triggers', () => {
     await run(h, 'PPPP', { daily_take_profit: 2 });
     expect(f.texts()).toHaveLength(1);
     expect(f.texts()[0]).toMatch(/Daily take profit reached \(\+2\.00\)/);
-    expect(f.texts()[0]).toMatch(/session \+2\.00, balance 1002\.00/);
+    expect(f.texts()[0]).toMatch(/^🏁 PROFIT TARGET · Daily take profit hit/);
+    expect(f.texts()[0]).toMatch(/Session P&L: \+2\.00 .*\n💰 Balance: 1002\.00/);
   });
 
   it('shoe change: one alert per new shoe, none for the very first shoe', async () => {
@@ -218,8 +225,9 @@ describe('the four alert triggers', () => {
     await run(h, 'PP|PP|PP');
     const texts = f.texts();
     expect(texts).toHaveLength(2);
-    expect(texts[0]).toMatch(/shoe change, shoe #2 starts\. Session #1 \(IHG\), 2 hands/);
-    expect(texts[1]).toMatch(/shoe #3 starts\. Session #1 \(IHG\), 4 hands/);
+    expect(texts[0]).toMatch(/^🔄 TABLE EVENT · New shoe/);
+    expect(texts[0]).toMatch(/Detail: Shoe #2 starts\.[\s\S]*Session #1 · IHG · 2 hands/);
+    expect(texts[1]).toMatch(/Shoe #3 starts\.[\s\S]*Session #1 · IHG · 4 hands/);
   });
 
   it('disconnection: alerts once per outage, shows the feed state, and recovers', async () => {
@@ -233,14 +241,17 @@ describe('the four alert triggers', () => {
     expect(h.manager.feedLost('still down')).toBe(true); // same outage
     await h.manager.flushAlerts();
     expect(f.texts()).toHaveLength(1);
-    expect(f.texts()[0]).toMatch(/connection to the table lost \(socket closed\)\. Session #1 \(IHG\), 1 hands, session \+1\.00/);
+    expect(f.texts()[0]).toMatch(/^⚠️ CONNECTION · Table connection lost/);
+    expect(f.texts()[0]).toMatch(/Detail: socket closed[\s\S]*Session #1 · IHG · 1 hands[\s\S]*Session P&L: \+1\.00/);
 
     expect(h.manager.feedRestored()).toBe(true);
     expect((await h.get('/api/state')).json.status).toBe('RUNNING');
     expect(h.manager.feedRestored()).toBe(false);
     h.manager.feedLost('again');
     await h.manager.flushAlerts();
-    expect(f.texts()).toHaveLength(2);
+    // lost, restored, lost again
+    expect(f.texts()).toHaveLength(3);
+    expect(f.texts()[1]).toMatch(/^✅ CONNECTION · Table connection restored/);
   });
 
   it('does not alert for ordinary stops or when the session is not running', async () => {

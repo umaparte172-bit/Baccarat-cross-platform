@@ -17,12 +17,16 @@ export interface FakeTelegram {
   /** Bodies of the messages received on /bot<token>/sendMessage. */
   texts(): string[];
   setBehavior(b: Behavior): void;
+  /** Queue an update for getUpdates (update_id is assigned). */
+  pushUpdate(update: Record<string, unknown>): void;
   close(): Promise<void>;
 }
 
 export async function fakeTelegram(initial: Behavior = 'ok'): Promise<FakeTelegram> {
   let behavior = initial;
   const hits: Hit[] = [];
+  const updates: Array<Record<string, unknown> & { update_id: number }> = [];
+  let nextUpdate = 1;
   const sockets = new Set<Socket>();
 
   const server: Server = createServer((req, res) => {
@@ -40,6 +44,14 @@ export async function fakeTelegram(initial: Behavior = 'ok'): Promise<FakeTelegr
         res.writeHead(status, { 'content-type': type });
         res.end(payload);
       };
+      if (behavior === 'ok' && req.url?.endsWith('/getUpdates')) {
+        const offset = Number(body?.offset ?? 0);
+        const pending = updates.filter((u) => u.update_id >= offset);
+        // Like Telegram's long poll, but short: answer at once when there is something, otherwise after a moment.
+        const answer = (): void => send(200, 'application/json', JSON.stringify({ ok: true, result: updates.filter((u) => u.update_id >= offset) }));
+        if (pending.length) return answer();
+        return void setTimeout(answer, 30);
+      }
       switch (behavior) {
         case 'ok':
           return send(200, 'application/json', JSON.stringify({ ok: true, result: { message_id: hits.length } }));
@@ -70,6 +82,9 @@ export async function fakeTelegram(initial: Behavior = 'ok'): Promise<FakeTelegr
     texts: () => hits.filter((h) => h.url.endsWith('/sendMessage')).map((h) => String(h.body?.text ?? '')),
     setBehavior: (b) => {
       behavior = b;
+    },
+    pushUpdate: (update) => {
+      updates.push({ ...update, update_id: nextUpdate++ });
     },
     close: () =>
       new Promise<void>((resolve) => {

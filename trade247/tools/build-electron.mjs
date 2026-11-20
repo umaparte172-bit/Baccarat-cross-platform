@@ -6,7 +6,7 @@
 // node_modules at run time. A Mac app has to be built on a Mac (CI does that), a Windows app on Windows.
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -35,6 +35,16 @@ await build({ ...common, entryPoints: [join(root, 'electron/main.ts')], outfile:
 await build({ ...common, entryPoints: [join(root, 'src/backtest/worker.ts')], outfile: join(out, 'assets/worker.js') });
 copyFileSync(join(root, 'ui/index.html'), join(out, 'assets/index.html'));
 copyFileSync(join(root, 'build-resources/icon.png'), join(out, 'assets/icon.png'));
+
+// Selenium's helper that finds (and if needed downloads) a ChromeDriver matching the user's Chrome. It is a program,
+// so it cannot run from inside the bundle or the asar archive: it ships beside them (see asarUnpack).
+const managerDir = { win32: 'windows', darwin: 'macos', linux: 'linux-x86_64' }[process.platform];
+const managerFile = process.platform === 'win32' ? 'selenium-manager.exe' : 'selenium-manager';
+mkdirSync(join(out, 'assets/selenium-manager'), { recursive: true });
+copyFileSync(join(root, 'node_modules/selenium-webdriver/bin', managerDir, managerFile), join(out, 'assets/selenium-manager', managerFile));
+if (process.platform !== 'win32') chmodSync(join(out, 'assets/selenium-manager', managerFile), 0o755);
+// The installer goes into the DMG as it is in the checkout; make sure it is executable there.
+if (process.platform === 'darwin') chmodSync(join(root, 'packaging/macos/Install-TRADE247.command'), 0o755);
 
 // What the packager sees: the program only, with no dependencies of its own.
 writeFileSync(

@@ -236,6 +236,20 @@ describe('confirm mode', () => {
     expect(h.coordinator.approve().ok).toBe(false);
   });
 
+  it('asks the host for approval (Telegram buttons) and only the bet that was asked about can be approved by id', async () => {
+    const f = fake({ bet_mode: 'confirm', bet_confirm_seconds: 5 });
+    const asked: Array<{ id: string; side: Side; stake: number; seconds: number }> = [];
+    f.host.awaitingApproval = (id, side, stake, seconds) => asked.push({ id, side, stake, seconds });
+    f.coordinator.onWindowOpen();
+    expect(asked).toEqual([{ id: f.coordinator.pendingId(), side: 'P', stake: 1, seconds: 5 }]);
+    expect(f.coordinator.approve('0-B-1000000')).toEqual({ ok: false, error: 'That bet is no longer waiting; a newer one is' });
+    expect(f.calls).toHaveLength(0);
+    expect(f.coordinator.approve(asked[0]!.id)).toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(f.calls).toEqual([{ side: 'P', stake: 1 }]);
+    expect(f.coordinator.pendingId()).toBeNull();
+  });
+
   it('a keep-alive bet needs no approval: it is the anti-kick minimum bet, so it is placed by itself, while a strategy bet still waits', async () => {
     const f = fake({ bet_mode: 'confirm', strategy: 'ODD_DIFF', keepalive_enabled: true, keepalive_amount: 0.5, keepalive_idle: 1 });
     // Idle hands (the strategy has no pick yet) until the minimum bet is due.

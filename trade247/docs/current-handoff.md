@@ -1,3 +1,37 @@
+# Telegram control, Selenium live driver, Mac install without Apple ID - 2026-11-20 (later)
+
+## Implemented
+
+- **Telegram alerts** have a fixed layout: icon and CATEGORY title, then *Category*, *Action* (what the bot did),
+  *Purpose* (why), an optional *Detail*, then session figures, state, time and suggested commands
+  (`src/notify/messages.ts`). New alerts: connection restored, session started/stopped, bet waiting for approval.
+  The shoe-change *Action* states what the configured shoe-change policy actually does.
+- **Telegram remote control** (`src/notify/control.ts`, setting *Commands from Telegram*, off by default):
+  /status /history /settings /start (confirm button) /stop /pause /resume /approve /skip /retry /report /help, with
+  inline buttons. Only the configured numeric chat ID is obeyed; commands older than the program start are ignored;
+  approvals carry the bet's id so an old button cannot approve a newer bet; settings cannot be changed remotely.
+- **Selenium live-table driver** (`src/live/selenium.ts`, setting *Browser driver*): ChromeDriver attached to the
+  table Chrome via `debuggerAddress`; frames walked with WebDriver frame switching; clicks with WebDriver Actions.
+  The live feed and bettor now use a driver-neutral `TablePage` interface; DevTools remains the default.
+  `selenium-webdriver` is a runtime dependency; `selenium-manager` ships in the desktop app (asar-unpacked) and in
+  the single-file release folder.
+- **macOS without Apple ID**: `packaging/macos/Install-TRADE247.command` (inside the DMG) copies the app, clears the
+  quarantine flag, verifies or re-applies the ad-hoc signature, and opens it. A new CI step simulates a downloaded,
+  quarantined copy, installs it with the script, and runs the smoke test and selenium-manager from the installed app.
+
+## Verified locally (Windows, Node 24.21)
+
+- Typecheck passes. New tests: `test/control.test.ts` (10, fake Telegram server), approval-id test in
+  `betting.unit.test.ts`, updated alert-format tests in `telegram.test.ts`.
+- `test/selenium.test.ts`: 8/8 against the mock table in headless Chrome 157, using Electron's ChromeDriver 156 with
+  `--disable-build-check` (the matching ChromeDriver could not be downloaded here: network blocked).
+- `npm run electron:build` bundles Selenium and copies selenium-manager.
+
+## Not verified
+
+- The macOS install step and DMG contents run only on the macOS CI runner; nothing was pushed, so CI has not run them.
+- Delivery to the client's real Telegram chat; the Selenium driver on a real casino table; client Mac acceptance.
+
 # Completion and verification — 2026-11-20
 
 ## Implemented in the current working tree

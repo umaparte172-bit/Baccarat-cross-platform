@@ -1,6 +1,6 @@
 import { selectChips } from '../engine/chips.js';
 import type { Side } from '../engine/types.js';
-import type { PageSession, WindowSnapshot } from './page.js';
+import type { TablePage, WindowSnapshot } from './page.js';
 import type { BettingProfile } from './profile.js';
 
 /**
@@ -37,7 +37,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
  */
 export class TableBettor {
   constructor(
-    private readonly page: PageSession,
+    private readonly page: TablePage,
     private readonly cfg: BettingProfile,
     private readonly opts: BettorOptions = {},
   ) {}

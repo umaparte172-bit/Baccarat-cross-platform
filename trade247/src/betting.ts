@@ -37,6 +37,8 @@ export interface BetHost {
   /** End the session because of a betting problem and tell the user (the Telegram alert is sent by the host). */
   stopForBet(status: string, message: string): void;
   random(): number;
+  /** Confirm mode: a bet is waiting for approval (the host may ask for it on Telegram). */
+  awaitingApproval?(id: string, side: Side, stake: number, seconds: number): void;
 }
 
 /** What to do with the hand that has just been dealt. */
@@ -56,6 +58,8 @@ export interface BetView {
 }
 
 const MICRO = 1_000_000;
+
+const pendingId = (o: PendingBet): string => `${o.hands}-${o.side}-${o.stakeMicro}`;
 
 export class BetCoordinator {
   private pending: PendingBet | null = null;
@@ -154,6 +158,7 @@ export class BetCoordinator {
           this.note = 'bet skipped: not approved in time';
         }
       }, s.bet_confirm_seconds * 1000);
+      host.awaitingApproval?.(pendingId(order), order.side, stake, s.bet_confirm_seconds);
     } else {
       const delay = (s.bet_delay_min + host.random() * Math.max(0, s.bet_delay_max - s.bet_delay_min)) * 1000;
       this.cancelTimer();
@@ -161,10 +166,16 @@ export class BetCoordinator {
     }
   }
 
-  /** "Place bet" in confirm mode. */
-  approve(): { ok: boolean; error?: string } {
+  /** Identifies the bet waiting for approval, so an approval sent for an older bet cannot approve a newer one. */
+  pendingId(): string | null {
+    return this.pending ? pendingId(this.pending) : null;
+  }
+
+  /** "Place bet" in confirm mode. With `id`, only the bet that was asked about is approved. */
+  approve(id?: string): { ok: boolean; error?: string } {
     const order = this.pending;
     if (!order) return { ok: false, error: 'No bet is waiting for approval' };
+    if (id !== undefined && pendingId(order) !== id) return { ok: false, error: 'That bet is no longer waiting; a newer one is' };
     this.pending = null;
     this.cancelTimer();
     void this.placeNow(order);

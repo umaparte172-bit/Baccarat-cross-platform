@@ -44,6 +44,23 @@ and an Apple-silicon macOS runner, runs the tests and the smoke test on each, an
 
 ## 3. Run on a Mac (Apple Silicon)
 
+No Apple ID, Apple Developer account or notarization is used or needed. Both packages are signed **ad hoc**
+(`codesign -s -`), which is what Apple silicon requires to run a program. The only thing macOS adds to a downloaded copy
+is a "downloaded from the internet" flag (`com.apple.quarantine`); clearing it once is all that is needed.
+
+**Desktop app (`TRADE247-<version>-arm64.dmg`), recommended:**
+
+1. Open the `.dmg`.
+2. Open **Terminal**, type `bash ` (with a space), drag **Install-TRADE247.command** from the disk image into the
+   Terminal window, press Return. It copies TRADE247 to Applications, clears the flag, checks the signature and opens the app.
+   (Running it through `bash` works even where macOS refuses to double-click a downloaded script.)
+
+Without the installer (for example from the `.zip`): drag TRADE247 to Applications, then run once
+`xattr -dr com.apple.quarantine /Applications/TRADE247.app`. CI checks this exact path on every build: it marks a copy as
+downloaded, installs it with the script and starts it.
+
+**Single-file program:**
+
 1. Unpack `trade247-macos-arm64-<version>.tar.gz` (double-click it, or `tar -xzf` in Terminal).
 2. In Terminal, in the unpacked folder, remove the "downloaded from the internet" flag:
    ```bash
@@ -138,11 +155,61 @@ Copy the data folder (`%APPDATA%\Trade247`): `settings.json`, `secrets.json` (th
 latest session as .xlsx or CSV. (The scheduled task sets `T247_OPEN_REPORTS=0`, so on the VPS reports are downloaded
 by your browser instead of the program trying to launch Excel, which a server may not have.)
 
-### Watching it from your phone
+### Watching and controlling it from your phone (Telegram)
 
-Set the Telegram bot token and chat ID under **Advanced settings** and press **Send test**. You are then told
-about the daily stop loss, the daily take profit, shoe changes and lost table connections. There is no "program
-started" message yet, so after a reboot check the page (or the scheduled task's *Last Run Result*).
+Set the Telegram bot token and chat ID under **Advanced settings** and press **Send test**. Never put the token in
+the source code or a shared document; enter it on the page, where it is stored sealed (desktop app) or masked.
+
+**Alerts.** Every message has the same layout, so it can be read at a glance:
+
+```
+🛑 RISK CONTROL · Daily stop loss hit
+━━━━━━━━━━━━━━━━
+📂 Category: Risk control - daily loss limit
+⚙️ Action: Session stopped. The day is locked: no new session starts until tomorrow or until the limit is raised.
+🎯 Purpose: Caps the loss for the day so one bad run cannot drain the account.
+ℹ️ Detail: Daily stop loss reached (-50.00). Today -50.00.
+━━━━━━━━━━━━━━━━
+📊 Session #12 · IHG · 87 hands · Paper (simulated bets)
+💵 Session P&L: -50.00 | Today: -50.00
+💰 Balance: 950.00
+📍 State: LOCKED (daily stop loss)
+🕒 2026-11-20 14:03:22
+👉 /status · /report · /help
+```
+
+| Icon · Category | Alert | Action the bot takes | Purpose |
+|---|---|---|---|
+| 🛑 RISK CONTROL | Daily stop loss hit | Stops the session and locks the day | Caps the day's loss |
+| 🏁 PROFIT TARGET | Daily take profit hit | Stops the session and locks the day | Banks the day's target |
+| ⚠️ CONNECTION | Table connection lost | Places no bets, keeps looking for the table | Never bet blind |
+| ✅ CONNECTION | Table connection restored | Reads the table again (missed hands are not replayed) | Tells you it is back |
+| 🔄 TABLE EVENT | New shoe | What the *Shoe change* setting says (cut the losing run and reset to base, reset the pattern, or continue) | No negative progression carried into a new shoe |
+| ❗ BETTING | Bet problem | Stops the session, repeats nothing | Unconfirmed money needs a person to check |
+| ▶️ / ⏹️ SESSION | Session started / stopped | Reports the start (settings) or the stop (and why) | Know whether it is playing |
+| 🟡 BETTING | Bet waiting for approval | Waits for **Approve** / **Skip** buttons (Confirm mode) | Every real bet needs a yes |
+
+Start/stop messages are sent for the Live table feed, or for any feed when Telegram commands are on.
+
+**Commands.** Set **Commands from Telegram** to *On*. The program then reads the bot's messages (long polling: no
+open port, no server, works behind a VPS firewall) and obeys **only the chat ID above**; everything else is ignored, and
+commands sent while the program was off are not run when it starts. The bot's menu is filled in automatically.
+
+| Category | Command | Action | Purpose |
+|---|---|---|---|
+| 📊 MONITOR | `/status` | State, P&L, balance, next bet, connection, with Refresh / Pause / Resume / Stop / Report buttons | Check the bot from anywhere |
+| 📊 MONITOR | `/history [n]` | The last 10 (or n, up to 50) hands | See what was played |
+| 📊 MONITOR | `/settings` | Strategy, base unit, limits, bet mode (read-only) | Confirm what the bot uses |
+| 🎛️ SESSION | `/start` | Asks to confirm with a button, then starts with the saved settings | Start remotely |
+| 🎛️ SESSION | `/stop` | Stops at once | Emergency stop |
+| 🎛️ SESSION | `/pause`, `/resume` | Real bets stop / continue; results keep being read | Sit out without losing the rhythm |
+| 🎯 BETTING | `/approve`, `/skip` | The bet waiting for approval (Confirm mode); buttons come with each bet | Remote yes/no for real bets |
+| 🔌 TABLE | `/retry` | Reconnects to the live table now | Recover after a disconnection |
+| 📁 REPORTS | `/report` | Sends `trade247_session_history.csv` | Open the trades in Excel |
+| ❓ HELP | `/help` | The list above | Find a command |
+
+Settings cannot be changed from Telegram, on purpose. Use a bot token that only TRADE247 uses: if another program
+(or a webhook) reads the same bot, the page shows *Telegram commands paused* and commands are not received.
 
 ## 6. Live table
 
@@ -155,6 +222,15 @@ separate, opt-in step (section 10).
    launcher scripts `Start-Chrome-for-Trade247.bat` (Windows) and `.command` (Mac) do the same thing without the app.
 2. In that window sign in and open a baccarat table.
 3. In TRADE247 choose **Live table (read-only, from your Chrome)**, check the port, press **START**.
+
+**Browser driver.** *DevTools* (default) talks to that Chrome window directly and needs nothing installed.
+*Selenium WebDriver* drives the same window through ChromeDriver (Selenium attaches to it with `debuggerAddress`, so
+the profile and your sign-in are the same): results are read with WebDriver scripts in every frame, and bets are
+clicked with WebDriver pointer actions (move, press, release on the element). Selenium finds a ChromeDriver that matches
+your Chrome by itself (its `selenium-manager`, shipped with the app, downloads it once from Google's Chrome for Testing
+site into `~/.cache/selenium`). On a machine without internet access, download the matching `chromedriver` yourself and
+enter its path in **ChromeDriver path**. Both drivers place bets with the same safety rules (section 10).
+`--inspect-table` uses the DevTools connection whichever driver is selected.
 
 How it behaves:
 
@@ -242,8 +318,8 @@ npm run electron:dist      # package it for THIS operating system into release/d
 ```
 
 A Mac app has to be built on a Mac (CI does that) and a Windows app on Windows. The app is not code-signed: Windows
-SmartScreen asks once ("More info > Run anyway"); on a Mac the app is signed ad hoc and not notarized, so the first start
-needs **System Settings > Privacy & Security > Open Anyway** (or `xattr -dr com.apple.quarantine /Applications/TRADE247.app`).
+SmartScreen asks once ("More info > Run anyway"); on a Mac the app is signed ad hoc (no Apple ID) and not notarized: install it with
+**Install-TRADE247.command** from the DMG (section 3), or run `xattr -dr com.apple.quarantine /Applications/TRADE247.app` once.
 There is no auto-update. For a Windows VPS that runs 24/7 without a signed-in desktop, keep using the single-file
 program with the scheduled task (section 5): the desktop app needs a desktop session.
 
@@ -332,7 +408,7 @@ run on a real casino table, which needs your account.
 * Fingerprint spoofing and bot-detection evasion (not built; see the client questions document).
 * Reconciling the table's balance with the bot's books (the profile may name a balance element, but it is not compared yet).
 * Automatic resume of a session after a restart (see section 5).
-* Code signing and notarization. They are optional and cost money; the packages work without them, with the one-time
-  prompts described above. If you later buy a Windows code-signing certificate or join the Apple Developer Program,
+* Code signing and notarization. They are optional and cost money; the packages work without them (on a Mac with the
+  installer script or one `xattr` command, section 3; on Windows with one SmartScreen prompt). If you later buy a Windows code-signing certificate or join the Apple Developer Program,
   signing is one extra step in the build.
 * Intel Macs (the macOS package is Apple-silicon only) and 32-bit Windows.
