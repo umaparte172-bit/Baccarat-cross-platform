@@ -12,17 +12,18 @@ afterEach(async () => {
 
 const now = (): number => Math.floor(Date.now() / 1000);
 const message = (text: string, chat = Number(CHAT), date = now()) => ({ message: { message_id: 1, date, chat: { id: chat }, text } });
-const button = (data: string, chat = Number(CHAT)) => ({
-  callback_query: { id: `cb${Math.random()}`, data, message: { chat: { id: chat }, date: now() } },
+const button = (data: string, chat = Number(CHAT), date = now()) => ({
+  callback_query: { id: `cb${Math.random()}`, data, message: { chat: { id: chat }, date } },
 });
 
-async function setup(extra: Record<string, unknown> = {}) {
+async function setup(extra: Record<string, unknown> = {}, before?: (f: FakeTelegram) => void) {
   const f = await fakeTelegram();
   fakes.push(f);
+  before?.(f);
   const h = harness({ app: { telegram: { baseUrl: f.baseUrl } } });
   const saved = await h.post('/api/settings', { ...MANUAL, telegram_token: TOKEN, telegram_chat_id: CHAT, telegram_control: 'on', ...extra });
   expect(saved.json.ok).toBe(true);
-  await vi.waitFor(() => expect(f.hits.some((x) => x.url.endsWith('/getUpdates'))).toBe(true), { timeout: 3000 });
+  await vi.waitFor(() => expect(f.hits.filter((x) => x.url.endsWith('/getUpdates')).length).toBeGreaterThanOrEqual(2), { timeout: 3000 });
   const replies = (): Array<{ text: string; keyboard?: any }> =>
     f.hits.filter((x) => x.url.endsWith('/sendMessage')).map((x) => ({ text: String(x.body.text), keyboard: x.body.reply_markup }));
   const waitReply = async (re: RegExp) => {
@@ -127,6 +128,45 @@ describe('remote control over Telegram', () => {
     expect((await h.get('/api/state')).json.running).toBe(false);
     await waitReply(/SESSION · Session stopped[\s\S]*Stopped from Telegram/);
     expect(f.hits.filter((x) => x.url.endsWith('/answerCallbackQuery'))).toHaveLength(1);
+  });
+
+  it('skips everything sent to the bot while the program was off, including button presses', async () => {
+    const { f, h, replies } = await setup({}, (fake) => {
+      fake.pushUpdate(button('confirmstart'));
+      fake.pushUpdate(message('/start'));
+      fake.pushUpdate(button('stop'));
+    });
+    f.pushUpdate(message('/status'));
+    await vi.waitFor(() => expect(replies().length).toBe(1), { timeout: 3000 });
+    await new Promise((r) => setTimeout(r, 150));
+    expect(replies().map((r) => r.text.split('\n')[0])).toEqual(['📊 MONITOR · Status']);
+    expect((await h.get('/api/state')).json.running).toBe(false);
+  });
+
+  it('a "Yes, start" button expires after two minutes', async () => {
+    const { f, h } = await setup();
+    f.pushUpdate(button('confirmstart', Number(CHAT), now() - 600));
+    await vi.waitFor(() => expect(f.hits.filter((x) => x.url.endsWith('/answerCallbackQuery'))).toHaveLength(1));
+    expect(f.hits.find((x) => x.url.endsWith('/answerCallbackQuery'))!.body.text).toMatch(/expired/);
+    expect((await h.get('/api/state')).json.running).toBe(false);
+  });
+
+  it('quick successive settings saves never run two command readers at once', async () => {
+    const { f, h } = await setup();
+    await Promise.all([
+      h.post('/api/settings', { telegram_control: 'off' }),
+      h.post('/api/settings', { telegram_control: 'on' }),
+      h.post('/api/settings', { telegram_control: 'off' }),
+      h.post('/api/settings', { telegram_control: 'on' }),
+    ]);
+    await new Promise((r) => setTimeout(r, 300));
+    const before = f.hits.length;
+    await new Promise((r) => setTimeout(r, 400));
+    const polls = f.hits.slice(before).filter((x) => x.url.endsWith('/getUpdates')).length;
+    // The fake answers an empty poll after 30 ms: one reader makes at most ~13 polls in 400 ms, two would make ~26.
+    expect(polls).toBeGreaterThan(0);
+    expect(polls).toBeLessThanOrEqual(16);
+    expect((await h.get('/api/state')).json.telegram.on).toBe(true);
   });
 
   it('typing confirmstart instead of pressing the button does not start a session', async () => {

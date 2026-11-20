@@ -24,15 +24,19 @@ fail() { say "ERROR: $*"; [ -t 0 ] && read -n 1 -s -r -p "Press any key to close
 [ "$(uname -m)" = "arm64" ] || say "Note: this build is for Apple-silicon Macs (M1/M2/M3...). It will not run on an Intel Mac."
 [ -d "$src" ] || fail "Cannot find TRADE247.app next to this script ($src). Run it from the opened disk image or the unzipped folder."
 
-if [ ! -w "$dest_dir" ]; then
+mkdir -p "$dest_dir" 2>/dev/null || true
+if [ ! -d "$dest_dir" ] || [ ! -w "$dest_dir" ]; then
   say "$dest_dir is not writable for this user; installing into ~/Applications instead."
   dest_dir="$HOME/Applications"
+  mkdir -p "$dest_dir"
 fi
-mkdir -p "$dest_dir"
 dest="$dest_dir/TRADE247.app"
 
-# Quit a running copy so it can be replaced.
-osascript -e 'tell application "TRADE247" to quit' >/dev/null 2>&1 || true
+# Quit a running copy so it can be replaced ("tell application" would start it if it were not running).
+if pgrep -x TRADE247 >/dev/null 2>&1; then
+  osascript -e 'tell application "TRADE247" to quit' >/dev/null 2>&1 || true
+  sleep 2
+fi
 
 say "Copying TRADE247 to $dest_dir ..."
 rm -rf "$dest"

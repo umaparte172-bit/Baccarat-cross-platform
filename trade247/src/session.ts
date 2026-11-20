@@ -129,7 +129,7 @@ export class SessionManager {
         },
       },
     );
-    this.control.sync();
+    void this.control.sync();
   }
 
   get historyPath(): string {
@@ -234,7 +234,7 @@ export class SessionManager {
     this.feed = this.createFeed();
     if (settings.feed === 'live') this.status = 'FEED WAITING - connecting to the table';
     this.feed.start();
-    this.control.sync();
+    void this.control.sync();
     if (this.lifecycleAlerts()) this.alert('session_started', `Feed: ${feedLabel(settings)} · Base unit ${fmt2(toMicro(settings.unit_value))}`);
     return { ok: true, status: this.status };
   }
@@ -271,7 +271,7 @@ export class SessionManager {
     this.settings = settings;
     this.store.save(settings);
     if (this.running) this.core?.configure(settings);
-    this.control.sync();
+    void this.control.sync();
     return { ok: true, live: this.running };
   }
 

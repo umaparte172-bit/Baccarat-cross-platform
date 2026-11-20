@@ -64,6 +64,9 @@ export function helpText(): string {
   return lines.join('\n');
 }
 
+/** How long the "Yes, start" button stays valid. */
+const CONFIRM_SECONDS = 120;
+
 type Keyboard = { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
 
 const STATUS_KEYS: Keyboard = {
@@ -99,6 +102,8 @@ export class TelegramControl {
   private offset = 0;
   private startedAt = 0;
   private configKey = '';
+  /** Settings changes are applied one after the other, so two quick saves can never start two readers. */
+  private syncing: Promise<void> = Promise.resolve();
   /** Last problem reading commands, for the page. */
   lastError = '';
 
@@ -113,15 +118,17 @@ export class TelegramControl {
   }
 
   /** Starts or stops reading commands to match the settings. Safe to call after every settings change. */
-  sync(): void {
-    const c = this.getConfig();
-    const usable = c.enabled && configProblem(c) === null && /^-?\d+$/.test(c.chatId);
-    const key = usable ? `${c.token}|${c.chatId}` : '';
-    if (key === this.configKey && this.active === usable) return;
-    void this.stop().then(() => {
+  sync(): Promise<void> {
+    this.syncing = this.syncing.then(async () => {
+      const c = this.getConfig();
+      const usable = c.enabled && configProblem(c) === null && /^-?\d+$/.test(c.chatId);
+      const key = usable ? `${c.token}|${c.chatId}` : '';
+      if (key === this.configKey && this.active === usable) return;
+      await this.stop();
       this.configKey = key;
       if (usable) this.begin();
     });
+    return this.syncing;
   }
 
   async stop(): Promise<void> {
@@ -147,6 +154,11 @@ export class TelegramControl {
 
   private async run(): Promise<void> {
     this.abort = new AbortController();
+    // Anything sent to the bot while the program was off (typed commands or button presses) is old news:
+    // skip past it, so a "Stop" or "Yes, start" pressed hours ago is never acted on now.
+    const backlog = await this.call<Update[]>('getUpdates', { offset: -1, timeout: 0 });
+    const last = backlog.ok ? backlog.result?.at(-1) : undefined;
+    if (last) this.offset = last.update_id + 1;
     await this.call('setMyCommands', { commands: COMMANDS.map((c) => ({ command: c.command, description: `${c.action}`.slice(0, 256) })) });
     const wait = this.options.pollSeconds ?? 25;
     while (this.active) {
@@ -192,6 +204,12 @@ export class TelegramControl {
     if (u.callback_query) {
       const q = u.callback_query;
       if (!this.ownChat(q.message?.chat.id)) return;
+      // A start button only counts shortly after it was offered.
+      const nowS = Math.floor((this.options.now ?? Date.now)() / 1000);
+      if (q.data === 'confirmstart' && (q.message?.date ?? 0) < nowS - CONFIRM_SECONDS) {
+        await this.call('answerCallbackQuery', { callback_query_id: q.id, text: 'This button has expired. Send /start again.' });
+        return;
+      }
       const reply = await this.run1(q.data ?? '', true);
       await this.call('answerCallbackQuery', { callback_query_id: q.id, text: reply.toast.slice(0, 190) });
       return;
