@@ -224,7 +224,10 @@ jobs:
           path: ${{ runner.temp }}/dl
       - name: Install from the downloaded DMG (no Apple ID)
         run: |
-          dmg=$(ls "$RUNNER_TEMP"/dl/*.dmg | head -n 1)
+          # The artifact keeps the folders it was uploaded from (release/desktop/...).
+          dmg=$(find "$RUNNER_TEMP/dl" -name '*.dmg' | head -n 1)
+          [ -n "$dmg" ] || { echo "::error::no DMG in the artifact"; find "$RUNNER_TEMP/dl"; exit 1; }
+          echo "DMG: $dmg"
           xattr -w com.apple.quarantine "0083;$(printf %x $(date +%s));Safari;" "$dmg"
           mnt=$(hdiutil attach -nobrowse -readonly "$dmg" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -n 1)
           echo "mounted at $mnt"; ls -la "$mnt"
